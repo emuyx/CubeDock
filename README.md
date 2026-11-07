@@ -12,7 +12,7 @@
 > 网易「本地联机」房间 → 原生支持网易 RakNet v8 的 Bedrock 服务器。<br>
 > 独立实现：不翻译游戏协议，只做登录链重签、Bedrock 加密握手、limbo/Transfer 和资源包处理。
 
-[项目主页](https://emuyx.github.io/CubeDock/) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [FAQ](#faq) · [Issues](https://github.com/emuyx/CubeDock/issues)
+[项目主页](https://emuyx.github.io/CubeDock/) · [WebUI 演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [FAQ](#faq) · [Issues](https://github.com/emuyx/CubeDock/issues)
 
 ## 一眼看懂
 
