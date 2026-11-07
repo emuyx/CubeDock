@@ -195,19 +195,19 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
 
   const color = level => {
     if (level === 'error') return '#fb7185';
-    if (level === 'debug') return '#8b7aa8';
+    if (level === 'debug') return '#9db5a8';
     if (level === 'warning') return '#fbbf24';
-    return '#d9d4e8';
+    return '#e6efe9';
   };
 
   const sourceColor = source => {
-    if (source === '控制台') return '#2dd4bf';
-    if (source?.startsWith('房间')) return '#a78bfa';
-    if (source === '网易登录') return '#2dd4bf';
+    if (source === '控制台') return '#34d399';
+    if (source?.startsWith('房间')) return '#fbbf24';
+    if (source === '网易登录') return '#34d399';
     if (source === '账号') return '#60a5fa';
     if (source === '游戏') return '#fbbf24';
     if (source === '管理员') return '#fb7185';
-    return '#c4b5fd';
+    return '#fcd34d';
   };
 
   return (
@@ -272,8 +272,8 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
 
       <Box
         sx={{
-          bgcolor: theme.palette.mode === 'dark' ? '#07040d' : '#120d1e',
-          color: '#d9d4e8',
+          bgcolor: theme.palette.mode === 'dark' ? '#060c09' : '#0d1b16',
+          color: '#e6efe9',
           borderRadius: 3,
           border: '1px solid',
           borderColor: 'divider',
@@ -295,7 +295,7 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
           }}
         >
           {filtered.length === 0 ? (
-            <Box sx={{ py: 8, textAlign: 'center', color: '#8b7aa8' }}>暂无匹配日志</Box>
+            <Box sx={{ py: 8, textAlign: 'center', color: '#9db5a8' }}>暂无匹配日志</Box>
           ) : (
             filtered.map((event, index) => {
               const level = event.level === 'error' ? 'error' : eventLevel(event.message);
@@ -306,7 +306,7 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
                   key={event.key || `${event.time}-${index}`}
                   sx={{ display: 'flex', gap: 1.1, alignItems: 'flex-start' }}
                 >
-                  <Box component="span" sx={{ color: '#6f6386', flex: '0 0 auto' }}>
+                  <Box component="span" sx={{ color: '#7b8f84', flex: '0 0 auto' }}>
                     {event.time}
                   </Box>
                   <Box
@@ -320,7 +320,7 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
                   >
                     [{source}]
                   </Box>
-                  <Box component="span" sx={{ color: echo ? '#c4b5fd' : color(level) }}>
+                  <Box component="span" sx={{ color: echo ? '#fcd34d' : color(level) }}>
                     {event.message}
                   </Box>
                 </Box>
@@ -339,7 +339,7 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
             borderColor: 'divider',
           }}
         >
-          <Box component="span" sx={{ color: '#2dd4bf', fontFamily: 'monospace', fontWeight: 800 }}>
+          <Box component="span" sx={{ color: '#34d399', fontFamily: 'monospace', fontWeight: 800 }}>
             ❯
           </Box>
           <TextField

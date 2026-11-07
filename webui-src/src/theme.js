@@ -1,27 +1,59 @@
 import { createTheme, alpha } from '@mui/material/styles';
 
+const palettes = {
+  dark: {
+    primary: '#f59e0b',
+    primaryLight: '#fbbf24',
+    primaryDark: '#b45309',
+    primaryContrast: '#1a1205',
+    secondary: '#34d399',
+    secondaryContrast: '#042f22',
+    background: '#0a1410',
+    paper: '#12201a',
+    text: '#eaf6ef',
+    textSecondary: '#9db5a8',
+    border: alpha('#ffffff', 0.09),
+    appBar: alpha('#0a1410', 0.78),
+    glow: 'radial-gradient(1100px 520px at 8% -10%, rgba(245,158,11,.18), transparent 62%), radial-gradient(900px 420px at 100% 0%, rgba(52,211,153,.12), transparent 58%)',
+  },
+  light: {
+    primary: '#b45309',
+    primaryLight: '#d97706',
+    primaryDark: '#78350f',
+    primaryContrast: '#ffffff',
+    secondary: '#047857',
+    secondaryContrast: '#ffffff',
+    background: '#f7f4ea',
+    paper: '#fffdf6',
+    text: '#1c2a23',
+    textSecondary: '#5c7267',
+    border: alpha('#14532d', 0.12),
+    appBar: alpha('#fffdf6', 0.82),
+    glow: 'radial-gradient(1100px 520px at 8% -10%, rgba(180,83,9,.12), transparent 62%), radial-gradient(900px 420px at 100% 0%, rgba(4,120,87,.08), transparent 58%)',
+  },
+};
+
 export function buildTheme(mode) {
   const dark = mode === 'dark';
-  const primary = '#8b5cf6';
-  const secondary = '#2dd4bf';
-  const border = dark ? alpha('#ffffff', 0.09) : alpha('#3b0764', 0.1);
+  const c = dark ? palettes.dark : palettes.light;
 
   return createTheme({
     palette: {
       mode,
-      primary: { main: primary, light: '#a78bfa', dark: '#6d28d9', contrastText: '#ffffff' },
-      secondary: { main: secondary, contrastText: '#042f2e' },
-      background: dark
-        ? { default: '#0b0714', paper: '#151022' }
-        : { default: '#f6f3fc', paper: '#ffffff' },
+      primary: {
+        main: c.primary,
+        light: c.primaryLight,
+        dark: c.primaryDark,
+        contrastText: c.primaryContrast,
+      },
+      secondary: { main: c.secondary, contrastText: c.secondaryContrast },
+      background: { default: c.background, paper: c.paper },
       success: { main: '#4ade80' },
       warning: { main: '#fbbf24' },
       error: { main: '#fb7185' },
-      info: { main: '#60a5fa' },
-      divider: border,
-      text: dark
-        ? { primary: '#f1ecff', secondary: '#a99bc8' }
-        : { primary: '#21152f', secondary: '#6b5b86' },
+      info: { main: '#38bdf8' },
+      divider: c.border,
+      text: { primary: c.text, secondary: c.textSecondary },
     },
     shape: { borderRadius: 16 },
     typography: {
@@ -41,19 +73,17 @@ export function buildTheme(mode) {
           html: { height: '100%' },
           body: {
             minHeight: '100%',
-            backgroundImage: dark
-              ? 'radial-gradient(1100px 520px at 8% -10%, rgba(139,92,246,.20), transparent 62%), radial-gradient(900px 420px at 100% 0%, rgba(45,212,191,.10), transparent 58%)'
-              : 'radial-gradient(1100px 520px at 8% -10%, rgba(139,92,246,.13), transparent 62%), radial-gradient(900px 420px at 100% 0%, rgba(45,212,191,.08), transparent 58%)',
+            backgroundImage: c.glow,
             backgroundAttachment: 'fixed',
           },
           '#root': { minHeight: '100vh' },
-          '::selection': { background: alpha(primary, 0.35) },
+          '::selection': { background: alpha(c.primary, 0.35) },
         },
       },
       MuiCard: {
         styleOverrides: {
           root: {
-            border: `1px solid ${border}`,
+            border: `1px solid ${c.border}`,
             backgroundImage: 'none',
           },
         },
@@ -68,9 +98,9 @@ export function buildTheme(mode) {
         styleOverrides: {
           root: {
             backgroundImage: 'none',
-            borderBottom: `1px solid ${border}`,
+            borderBottom: `1px solid ${c.border}`,
             backdropFilter: 'blur(18px)',
-            backgroundColor: dark ? alpha('#0b0714', 0.78) : alpha('#ffffff', 0.8),
+            backgroundColor: c.appBar,
           },
         },
       },
@@ -80,4 +110,3 @@ export function buildTheme(mode) {
     },
   });
 }
-

@@ -10,22 +10,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
-const borderColor = "38;2;53;211;220"
-
-// pixelFont is a tiny 5-row bitmap font for the console wordmark.
-var pixelFont = map[byte][5]string{
-	'C': {"01111", "10000", "10000", "10000", "01111"},
-	'U': {"10001", "10001", "10001", "10001", "01110"},
-	'B': {"11110", "10001", "11110", "10001", "11110"},
-	'E': {"11111", "10000", "11110", "10000", "11111"},
-	'D': {"11110", "10001", "10001", "10001", "11110"},
-	'O': {"01110", "10001", "10001", "10001", "01110"},
-	'K': {"10001", "10010", "11100", "10010", "10001"},
-}
-
-const wordmark = "CUBEDOCK"
+const (
+	amberCode   = "38;2;245;158;11"
+	emeraldCode = "38;2;52;211;153"
+	boldAmber   = "1;38;2;245;158;11"
+)
 
 // ColorEnabled reports whether ANSI colour is appropriate for stdout.
 func ColorEnabled() bool {
@@ -42,43 +34,53 @@ func ansi(enabled bool, text, code string) string {
 	return "\x1b[" + code + "m" + text + "\x1b[0m"
 }
 
-// Banner writes the wordmark and the build identity.
+// Banner writes a compact startup card with the build identity.
 func Banner(w io.Writer, version, commit string) {
 	if len(commit) > 7 {
 		commit = commit[:7]
 	}
 	color := ColorEnabled()
-	width := len(wordmark)*6 - 1 + 4
-	edge := strings.Repeat("═", width)
+	const cardWidth = 54
+	title := padDisplay("CUBEDOCK  ▸  方块码头", cardWidth-4)
+	subtitle := padDisplay("网易本地联机  →  网易协议上游  ·  RakNet v8 直通", cardWidth-4)
+	edge := strings.Repeat("━", cardWidth)
 
 	var out strings.Builder
-	out.WriteString("\n")
-	out.WriteString(ansi(color, "╔"+edge+"╗", borderColor))
-	out.WriteString("\n")
-	for row := 0; row < 5; row++ {
-		out.WriteString(ansi(color, "║  ", borderColor))
-		for index := 0; index < len(wordmark); index++ {
-			bits := pixelFont[wordmark[index]][row]
-			pixels := strings.Map(func(r rune) rune {
-				if r == '1' {
-					return '█'
-				}
-				return ' '
-			}, bits)
-			out.WriteString(ansi(color, pixels, fmt.Sprintf("38;2;%d;%d;%d", 96-index*5, 150+index*9, 220)))
-			if index+1 < len(wordmark) {
-				out.WriteByte(' ')
-			}
-		}
-		out.WriteString(ansi(color, "  ║", borderColor))
-		out.WriteByte('\n')
-	}
-	out.WriteString(ansi(color, "╚"+edge+"╝", borderColor))
 	out.WriteByte('\n')
-	fmt.Fprintf(&out, "  %s %s  ·  %s  ·  %s/%s\n",
-		ansi(color, "CubeDock 方块码头", "1;36"), version, commit, runtime.GOOS, runtime.GOARCH)
-	out.WriteString("  网易本地联机 → 网易协议上游 · RakNet v8 直通\n\n")
+	out.WriteString(ansi(color, "┏"+edge+"┓", amberCode))
+	out.WriteByte('\n')
+	out.WriteString(ansi(color, "┃  ", amberCode))
+	out.WriteString(ansi(color, title, boldAmber))
+	out.WriteString(ansi(color, "  ┃", amberCode))
+	out.WriteByte('\n')
+	out.WriteString(ansi(color, "┃  ", amberCode))
+	out.WriteString(ansi(color, subtitle, emeraldCode))
+	out.WriteString(ansi(color, "  ┃", amberCode))
+	out.WriteByte('\n')
+	out.WriteString(ansi(color, "┗"+edge+"┛", amberCode))
+	out.WriteByte('\n')
+	fmt.Fprintf(&out, "  %s %s  ·  %s  ·  %s/%s\n\n",
+		ansi(color, "CubeDock 方块码头", boldAmber), version, commit, runtime.GOOS, runtime.GOARCH)
 	_, _ = io.WriteString(w, out.String())
+}
+
+func padDisplay(text string, width int) string {
+	if missing := width - displayWidth(text); missing > 0 {
+		return text + strings.Repeat(" ", missing)
+	}
+	return text
+}
+
+func displayWidth(text string) int {
+	width := 0
+	for _, r := range text {
+		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hangul, r) || (r >= 0x3000 && r <= 0x9fff) {
+			width += 2
+		} else {
+			width++
+		}
+	}
+	return width
 }
 
 // IPv4Addresses returns active, non-loopback IPv4 addresses. Duplicates and

@@ -2,36 +2,54 @@
 package fileutil
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
-// Replace atomically replaces path with data. The temporary file is created
-// in the destination directory, so the final rename never crosses a volume.
+// Replace writes data through a temporary file in the destination directory and
+// renames it into place, so readers never observe a partially written file.
 func Replace(path string, data []byte, perm os.FileMode) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
+	folder := filepath.Dir(path)
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		return fmt.Errorf("创建状态目录: %w", err)
 	}
-	file, err := os.CreateTemp(dir, ".cubedock-*")
-	if err != nil {
-		return err
-	}
-	name := file.Name()
-	defer os.Remove(name)
 
-	if err = file.Chmod(perm); err == nil {
-		_, err = file.Write(data)
-	}
-	if err == nil {
-		err = file.Sync()
-	}
-	closeErr := file.Close()
+	handle, err := os.CreateTemp(folder, ".state-*")
 	if err != nil {
+		return fmt.Errorf("创建临时状态文件: %w", err)
+	}
+	tempPath := handle.Name()
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.Remove(tempPath)
+		}
+	}()
+
+	if err := writeState(handle, data, perm); err != nil {
+		_ = handle.Close()
 		return err
 	}
-	if closeErr != nil {
-		return closeErr
+	if err := handle.Close(); err != nil {
+		return fmt.Errorf("关闭临时状态文件: %w", err)
 	}
-	return os.Rename(name, path)
+	if err := os.Rename(tempPath, path); err != nil {
+		return fmt.Errorf("替换状态文件: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+func writeState(handle *os.File, data []byte, perm os.FileMode) error {
+	if err := handle.Chmod(perm); err != nil {
+		return fmt.Errorf("设置状态文件权限: %w", err)
+	}
+	if _, err := handle.Write(data); err != nil {
+		return fmt.Errorf("写入状态文件: %w", err)
+	}
+	if err := handle.Sync(); err != nil {
+		return fmt.Errorf("同步状态文件: %w", err)
+	}
+	return nil
 }

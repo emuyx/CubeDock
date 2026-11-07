@@ -1,3 +1,5 @@
+// Package redact masks credentials in diagnostic strings without hiding the
+// surrounding error text.
 package redact
 
 import (
@@ -5,24 +7,41 @@ import (
 	"strings"
 )
 
+const maxReportRunes = 500
+
 var (
-	jwtPattern = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`)
-	longData   = regexp.MustCompile(`[A-Za-z0-9+/_-]{80,}={0,2}`)
-	fieldValue = regexp.MustCompile(`(?i)("?(?:sauth_json|access_token|login_token|sessionid|cookie|chaininfo|sdkuid|udid|deviceid|userid|xuid)"?\s*[:=]\s*)("[^"]*"|[^,;}\s]+)`)
+	embeddedJWT = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`)
+	longBlob    = regexp.MustCompile(`[A-Za-z0-9+/_-]{80,}={0,2}`)
+	secretField = regexp.MustCompile(`(?i)("?(?:sauth_json|access_token|login_token|sessionid|cookie|chaininfo|sdkuid|udid|deviceid|userid|xuid)"?\s*[:=]\s*)("[^"]*"|[^,;}\s]+)`)
 )
 
-// Sanitize removes the operator's token and obvious credential values while
-// keeping the actual error reason visible. Field names such as sauth_json or
-// cookie are not secrets by themselves and must not hide unrelated errors.
-func Sanitize(s, token string) string {
+type substitution struct {
+	pattern     *regexp.Regexp
+	replacement string
+}
+
+var substitutions = []substitution{
+	{embeddedJWT, "[已隐藏JWT]"},
+	{longBlob, "[已隐藏数据]"},
+	{secretField, "$1[已隐藏]"},
+}
+
+// Sanitize removes the operator token and obvious credential values while
+// preserving the actual error reason.
+func Sanitize(text, token string) string {
 	if token != "" {
-		s = strings.ReplaceAll(s, token, "[已隐藏令牌]")
+		text = strings.ReplaceAll(text, token, "[已隐藏令牌]")
 	}
-	s = jwtPattern.ReplaceAllString(s, "[已隐藏JWT]")
-	s = longData.ReplaceAllString(s, "[已隐藏数据]")
-	s = fieldValue.ReplaceAllString(s, "$1[已隐藏]")
-	if len([]rune(s)) > 500 {
-		s = string([]rune(s)[:500]) + "…"
+	for _, rule := range substitutions {
+		text = rule.pattern.ReplaceAllString(text, rule.replacement)
 	}
-	return s
+	return clipRunes(text, maxReportRunes)
+}
+
+func clipRunes(text string, limit int) string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return string(runes[:limit]) + "…"
 }

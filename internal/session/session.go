@@ -18,8 +18,8 @@ var ErrTokenBusy = errors.New("该网易账号已有本机房间在运行，请�
 
 // Lease is an exclusive claim on one account token.
 type Lease struct {
-	file *os.File
-	once sync.Once
+	handle  *os.File
+	release sync.Once
 }
 
 // Claim takes the machine-wide lease for token.
@@ -34,25 +34,33 @@ func Claim(token string) (*Lease, error) {
 // ClaimIn takes a lease in dir. Tests and portable deployments may choose the
 // directory, but the lock is always keyed by the token hash.
 func ClaimIn(dir, token string) (*Lease, error) {
-	if strings.TrimSpace(token) == "" {
+	normalized := strings.TrimSpace(token)
+	if normalized == "" {
 		return nil, errors.New("请先设置房间令牌")
 	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	return acquire(filepath.Join(dir, leaseName(normalized)))
+}
+
+func leaseName(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return fmt.Sprintf("%x.lock", digest)
+}
+
+func acquire(path string) (*Lease, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, errors.New("无法创建会话锁目录")
 	}
-	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
-	path := filepath.Join(dir, fmt.Sprintf("%x.lock", sum))
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
+	handle, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, errors.New("无法打开会话锁")
 	}
 	// The lock file is intentionally never deleted: removing it would allow a
 	// second process to lock a different inode at the same path on Unix.
-	if err := lockFile(file); err != nil {
-		file.Close()
+	if err := lockFile(handle); err != nil {
+		_ = handle.Close()
 		return nil, err
 	}
-	return &Lease{file: file}, nil
+	return &Lease{handle: handle}, nil
 }
 
 // Release gives up the lease. It is safe to call more than once.
@@ -60,7 +68,7 @@ func (l *Lease) Release() {
 	if l == nil {
 		return
 	}
-	l.once.Do(func() { l.file.Close() })
+	l.release.Do(func() { _ = l.handle.Close() })
 }
 
 func lockFile(file *os.File) error {

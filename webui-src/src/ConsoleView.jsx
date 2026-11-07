@@ -51,7 +51,7 @@ function Brand() {
           borderRadius: 2,
           display: 'grid',
           placeItems: 'center',
-          background: 'linear-gradient(135deg,#8b5cf6,#2dd4bf)',
+          background: 'linear-gradient(135deg,#f59e0b,#34d399)',
           color: '#fff',
           fontWeight: 900,
           fontSize: 18,
@@ -62,7 +62,7 @@ function Brand() {
       </Box>
       <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
         <Typography fontWeight={850} lineHeight={1.1}>
-          Cube<span style={{ color: '#8b5cf6' }}>Dock</span>
+          Cube<span style={{ color: '#f59e0b' }}>Dock</span>
         </Typography>
         <Typography variant="caption" color="text.secondary" letterSpacing=".12em">
           方块码头 · CONTROL PANEL

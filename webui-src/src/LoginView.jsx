@@ -70,7 +70,7 @@ export default function LoginView({ mode, toggleMode }) {
                   borderRadius: 2.5,
                   display: 'grid',
                   placeItems: 'center',
-                  background: 'linear-gradient(135deg,#8b5cf6,#2dd4bf)',
+                  background: 'linear-gradient(135deg,#f59e0b,#34d399)',
                   color: '#fff',
                   fontWeight: 900,
                   fontSize: 23,
