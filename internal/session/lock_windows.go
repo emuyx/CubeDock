@@ -2,24 +2,21 @@
 
 package session
 
-import (
-	"errors"
-	"os"
+import "golang.org/x/sys/windows"
 
-	"golang.org/x/sys/windows"
-)
-
-func lockFile(file *os.File) error {
+// lockPlatform takes an exclusive, non-blocking byte-range lock on the first
+// byte of the session file.
+//
+// Windows releases the range lock when the file handle closes; the zeroed
+// Overlapped value anchors the range at offset zero.
+func lockPlatform(fd uintptr) error {
 	err := windows.LockFileEx(
-		windows.Handle(file.Fd()),
+		windows.Handle(fd),
 		windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY,
 		0, 1, 0, &windows.Overlapped{},
 	)
-	if errors.Is(err, windows.ERROR_LOCK_VIOLATION) {
+	if err == windows.ERROR_LOCK_VIOLATION {
 		return ErrTokenBusy
 	}
-	if err != nil {
-		return errors.New("无法锁定会话")
-	}
-	return nil
+	return err
 }

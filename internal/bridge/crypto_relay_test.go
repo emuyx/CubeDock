@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -65,8 +66,13 @@ func TestCryptoRelayRepackagesLoginPreservingIdentity(t *testing.T) {
 	if _, err := relay.Write(login); err != nil {
 		t.Fatal(err)
 	}
-	<-stream.Out
-	wire := <-stream.Out
+	if _, err := stream.Next(time.Second); err != nil {
+		t.Fatalf("first relay write: %v", err)
+	}
+	wire, err := stream.Next(time.Second)
+	if err != nil {
+		t.Fatalf("second relay write: %v", err)
+	}
 
 	plain, err := gamebatch.Decode(wire[1:])
 	if err != nil {

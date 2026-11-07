@@ -1,47 +1,83 @@
-// Package relaytest offers an in-memory relay.Stream for tests.
+// Package relaytest provides an in-memory relay.Stream for tests.
 package relaytest
 
 import (
+	"errors"
 	"io"
 	"sync"
+	"time"
 )
 
-// Packets is a relay.Stream backed by channels.
+// ErrTimeout is returned by Next when no packet arrives in time.
+var ErrTimeout = errors.New("relaytest: receive timeout")
+
+// Packets is a connected pair of packet queues implementing relay.Stream.
 type Packets struct {
-	In     chan []byte
-	Out    chan []byte
-	Closed chan struct{}
-	once   sync.Once
+	inbound  chan []byte
+	outbound chan []byte
+	done     chan struct{}
+	once     sync.Once
 }
 
-// New returns a connected in-memory stream.
 func New() *Packets {
 	return &Packets{
-		In:     make(chan []byte, 4),
-		Out:    make(chan []byte, 4),
-		Closed: make(chan struct{}),
+		inbound:  make(chan []byte, 4),
+		outbound: make(chan []byte, 4),
+		done:     make(chan struct{}),
 	}
+}
+
+// Send queues a packet for the peer's ReadPacket.
+func (p *Packets) Send(packet []byte) bool {
+	return p.enqueue(p.inbound, packet)
+}
+
+// Next waits for a packet written by the peer.
+func (p *Packets) Next(timeout time.Duration) ([]byte, error) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case packet := <-p.outbound:
+		return packet, nil
+	case <-p.done:
+		return nil, io.EOF
+	case <-timer.C:
+		return nil, ErrTimeout
+	}
+}
+
+// Done is closed when the stream is shut down.
+func (p *Packets) Done() <-chan struct{} {
+	return p.done
 }
 
 func (p *Packets) ReadPacket() ([]byte, error) {
 	select {
-	case <-p.Closed:
+	case <-p.done:
 		return nil, io.EOF
-	case packet := <-p.In:
+	case packet := <-p.inbound:
 		return packet, nil
 	}
 }
 
 func (p *Packets) Write(packet []byte) (int, error) {
-	select {
-	case <-p.Closed:
+	if !p.enqueue(p.outbound, packet) {
 		return 0, io.EOF
-	case p.Out <- append([]byte(nil), packet...):
-		return len(packet), nil
+	}
+	return len(packet), nil
+}
+
+func (p *Packets) enqueue(queue chan<- []byte, packet []byte) bool {
+	copied := append([]byte(nil), packet...)
+	select {
+	case <-p.done:
+		return false
+	case queue <- copied:
+		return true
 	}
 }
 
 func (p *Packets) Close() error {
-	p.once.Do(func() { close(p.Closed) })
+	p.once.Do(func() { close(p.done) })
 	return nil
 }

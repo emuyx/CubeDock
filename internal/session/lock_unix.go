@@ -2,20 +2,20 @@
 
 package session
 
-import (
-	"errors"
-	"os"
+import "golang.org/x/sys/unix"
 
-	"golang.org/x/sys/unix"
-)
-
-func lockFile(file *os.File) error {
-	err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
-	if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
-		return ErrTokenBusy
-	}
-	if err != nil {
-		return errors.New("无法锁定会话")
+// lockPlatform takes a non-blocking POSIX record lock over the first byte of
+// the session file. F_SETLK reports contention as EAGAIN/EACCES.
+//
+// The record lock is released automatically when the descriptor closes, so the
+// caller does not need an explicit unlock path on shutdown.
+func lockPlatform(fd uintptr) error {
+	request := &unix.Flock_t{Type: unix.F_WRLCK}
+	if err := unix.FcntlFlock(fd, unix.F_SETLK, request); err != nil {
+		if err == unix.EAGAIN || err == unix.EACCES {
+			return ErrTokenBusy
+		}
+		return err
 	}
 	return nil
 }

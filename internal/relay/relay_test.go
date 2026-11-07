@@ -9,54 +9,83 @@ import (
 	"github.com/emuyx/cubedock/internal/relay/relaytest"
 )
 
-func TestPipePreservesPacketsAndMarker(t *testing.T) {
-	client, server := relaytest.New(), relaytest.New()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan error, 1)
-	go func() { done <- Pipe(ctx, client, server) }()
+type pipeFixture struct {
+	client *relaytest.Packets
+	server *relaytest.Packets
+	cancel context.CancelFunc
+	done   chan error
+}
 
-	for _, payload := range [][]byte{{0, 1, 2}, {0xff, 0xfe, 0, 0x80}, bytes.Repeat([]byte{0x13}, 15000)} {
-		client.In <- append([]byte(nil), payload...)
-		select {
-		case got := <-server.Out:
-			if !bytes.Equal(got, append([]byte{0xfe}, payload...)) {
-				t.Fatal("client packet changed on the way to RakNet")
-			}
-		case <-time.After(time.Second):
-			t.Fatal("client forwarding stalled")
-		}
-		server.In <- append([]byte{0xfe}, payload...)
-		select {
-		case got := <-client.Out:
-			if !bytes.Equal(got, payload) {
-				t.Fatal("server packet changed on the way to NetherNet")
-			}
-		case <-time.After(time.Second):
-			t.Fatal("server forwarding stalled")
-		}
+func newPipeFixture(t *testing.T) *pipeFixture {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	fixture := &pipeFixture{
+		client: relaytest.New(),
+		server: relaytest.New(),
+		cancel: cancel,
+		done:   make(chan error, 1),
 	}
-	cancel()
+	go func() { fixture.done <- Pipe(ctx, fixture.client, fixture.server) }()
+	return fixture
+}
+
+func (f *pipeFixture) stop(t *testing.T) {
+	t.Helper()
+	f.cancel()
 	select {
-	case <-done:
+	case <-f.done:
 	case <-time.After(time.Second):
-		t.Fatal("cancellation leaked forwarding goroutines")
+		t.Fatal("relay goroutines survived cancellation")
 	}
 }
 
-func TestPipeClosesBothPeersOnEOF(t *testing.T) {
-	client, server := relaytest.New(), relaytest.New()
-	done := make(chan error, 1)
-	go func() { done <- Pipe(context.Background(), client, server) }()
-	client.Close()
+func TestRelayAddsAndRemovesMarker(t *testing.T) {
+	fixture := newPipeFixture(t)
+	defer fixture.stop(t)
+
+	payloads := [][]byte{
+		{0, 1, 2},
+		{0xff, 0xfe, 0, 0x80},
+		bytes.Repeat([]byte{0x13}, 15000),
+	}
+	for _, payload := range payloads {
+		if !fixture.client.Send(payload) {
+			t.Fatal("client stream closed unexpectedly")
+		}
+		upstream, err := fixture.server.Next(time.Second)
+		if err != nil {
+			t.Fatalf("upstream receive: %v", err)
+		}
+		if !bytes.Equal(upstream, append([]byte{0xfe}, payload...)) {
+			t.Fatal("NetherNet payload changed while adding the RakNet marker")
+		}
+
+		if !fixture.server.Send(append([]byte{0xfe}, payload...)) {
+			t.Fatal("server stream closed unexpectedly")
+		}
+		downstream, err := fixture.client.Next(time.Second)
+		if err != nil {
+			t.Fatalf("client receive: %v", err)
+		}
+		if !bytes.Equal(downstream, payload) {
+			t.Fatal("RakNet payload changed while removing the marker")
+		}
+	}
+}
+
+func TestClientCloseClosesUpstream(t *testing.T) {
+	fixture := newPipeFixture(t)
+	defer fixture.cancel()
+
+	_ = fixture.client.Close()
 	select {
-	case <-done:
+	case <-fixture.done:
 	case <-time.After(time.Second):
-		t.Fatal("EOF did not stop the relay")
+		t.Fatal("client EOF did not stop the relay")
 	}
 	select {
-	case <-server.Closed:
+	case <-fixture.server.Done():
 	default:
-		t.Fatal("upstream left open")
+		t.Fatal("upstream was left open after client EOF")
 	}
 }

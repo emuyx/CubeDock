@@ -2,25 +2,51 @@ package bridge
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/Happy2018new/nemc-tan-lobby-solver/core/raknet"
 )
 
-// PingServer checks that addr is a Bedrock server reachable over NetEase's
-// RakNet dialect and returns its advertised version.
-func PingServer(ctx context.Context, addr string) (string, error) {
-	child, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	pong, err := raknet.PingContext(child, addr)
+const pingTimeout = 3 * time.Second
+
+type pongInfo struct {
+	edition string
+	version string
+}
+
+// PingServer probes one NetEase RakNet endpoint and returns the Bedrock
+// version string advertised in its unconnected pong.
+func PingServer(ctx context.Context, address string) (string, error) {
+	raw, err := probeServer(ctx, address)
 	if err != nil {
 		return "", err
 	}
-	fields := strings.Split(string(pong), ";")
-	if len(fields) < 4 || fields[0] != "MCPE" {
-		return "", fmt.Errorf("目标不是 Bedrock 服务器")
+	info, err := decodePong(raw)
+	if err != nil {
+		return "", err
 	}
-	return fields[3], nil
+	return info.version, nil
+}
+
+func probeServer(ctx context.Context, address string) ([]byte, error) {
+	child, cancel := context.WithTimeout(ctx, pingTimeout)
+	defer cancel()
+	return raknet.PingContext(child, address)
+}
+
+func decodePong(raw []byte) (pongInfo, error) {
+	fields := strings.Split(string(raw), ";")
+	if len(fields) < 4 {
+		return pongInfo{}, errors.New("目标不是 Bedrock 服务器")
+	}
+	info := pongInfo{edition: fields[0], version: strings.TrimSpace(fields[3])}
+	if !strings.EqualFold(info.edition, "MCPE") {
+		return pongInfo{}, errors.New("目标不是 Bedrock 服务器")
+	}
+	if info.version == "" {
+		return pongInfo{}, errors.New("目标服务器未返回版本号")
+	}
+	return info, nil
 }

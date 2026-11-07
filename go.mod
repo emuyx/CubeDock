@@ -11,9 +11,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/pion/logging v0.2.4
 	github.com/sandertv/go-raknet v1.15.2
-	github.com/sandertv/gophertunnel v1.51.1
 	golang.org/x/crypto v0.39.0
 	golang.org/x/sys v0.36.0
+	golang.org/x/term v0.32.0
 )
 
 require (

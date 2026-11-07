@@ -62,3 +62,11 @@ func (l *Lease) Release() {
 	}
 	l.once.Do(func() { l.file.Close() })
 }
+
+func lockFile(file *os.File) error {
+	err := lockPlatform(file.Fd())
+	if err == nil || err == ErrTokenBusy {
+		return err
+	}
+	return fmt.Errorf("无法锁定会话: %w", err)
+}

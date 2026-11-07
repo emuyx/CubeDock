@@ -3,6 +3,7 @@ package bridge
 import (
 	"encoding/binary"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -44,8 +45,11 @@ func TestCryptoRelayReportsPlayerLoginAndSuccess(t *testing.T) {
 	if _, err := relay.Write(login); err != nil {
 		t.Fatal(err)
 	}
-	<-stream.Out
-	<-stream.Out
+	for attempt := 0; attempt < 2; attempt++ {
+		if _, err := stream.Next(time.Second); err != nil {
+			t.Fatalf("relay write %d: %v", attempt, err)
+		}
+	}
 
 	if loggedIn.Name != "EMYX1567" || loggedIn.UID != "1261597877" {
 		t.Fatalf("login hook = %+v", loggedIn)
@@ -81,7 +85,9 @@ func TestCryptoRelayReadPacketDetectsLoginSuccess(t *testing.T) {
 	var status int32 = -1
 	relay.SetPlayerHooks(nil, func(_ PlayerInfo, value int32) { status = value })
 
-	stream.In <- playStatusPacket(0)
+	if !stream.Send(playStatusPacket(0)) {
+		t.Fatal("stream closed before PlayStatus")
+	}
 	if _, err := relay.ReadPacket(); err != nil {
 		t.Fatal(err)
 	}

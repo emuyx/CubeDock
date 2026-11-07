@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/emuyx/cubedock/internal/relay"
 	"github.com/emuyx/cubedock/internal/relay/relaytest"
@@ -149,7 +150,10 @@ func TestRunCommandTransfer(t *testing.T) {
 	if err != nil || !strings.Contains(strings.Join(result.Output, "\n"), "转服包") {
 		t.Fatalf("transfer = %+v, %v", result, err)
 	}
-	batch := <-stream.Out
+	batch, err := stream.Next(time.Second)
+	if err != nil {
+		t.Fatalf("transfer packet: %v", err)
+	}
 	if len(batch) == 0 || batch[0] != 0xff {
 		t.Fatalf("transfer batch = %x", batch)
 	}
