@@ -4,11 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CubeDock WebUI 演示 · 空壳</title>
-    <meta name="description" content="CubeDock WebUI 空壳演示：账号、地址、资源包和按钮均为前端占位数据，不会连接真实服务。" />
+    <meta name="description" content="CubeDock WebUI 空壳演示：先播放 CMD 启动动画，再进入控制台。账号、地址、资源包和所有按钮均为前端占位数据。" />
     <meta name="theme-color" content="#0a1410" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./style.css" />
     <link rel="stylesheet" href="./demo.css" />
+    <link rel="stylesheet" href="./demo-real.css" />
+    <noscript><style>.demo-boot { display: none !important; }</style></noscript>
     <script>
       (function () {
         document.documentElement.classList.add('js');
@@ -24,6 +26,27 @@
     </script>
   </head>
   <body class="demo-shell">
+    <div class="demo-boot" id="demo-boot" aria-label="CubeDock 启动演示">
+      <div class="demo-boot-window">
+        <div class="demo-boot-bar">
+          <span class="dot dot-r"></span>
+          <span class="dot dot-y"></span>
+          <span class="dot dot-g"></span>
+          <span class="demo-boot-title">CubeDock · 启动演示</span>
+          <span class="demo-boot-badge">CMD</span>
+        </div>
+        <div class="demo-boot-output" id="demo-boot-output"></div>
+        <div class="demo-boot-active">
+          <span class="demo-cursor"></span>
+          <span id="demo-boot-hint">正在启动…</span>
+        </div>
+        <div class="demo-boot-actions">
+          <button class="demo-small-btn" type="button" id="demo-boot-skip">跳过动画</button>
+          <button class="btn btn-primary btn-small" type="button" id="demo-boot-enter" disabled>进入 WebUI 演示 →</button>
+        </div>
+      </div>
+    </div>
+
     <header class="demo-topbar">
       <div class="demo-topbar-inner">
         <button class="icon-btn demo-menu" id="demo-menu" type="button" aria-label="打开导航">
@@ -38,15 +61,22 @@
           </svg>
           <span class="brand-text">
             <strong>Cube<span>Dock</span></strong>
-            <small>WebUI DEMO</small>
+            <small>方块码头 · CONTROL PANEL</small>
           </span>
         </a>
-        <span class="demo-mode"><span class="pulse"></span>空壳演示 · 不会连接真实服务</span>
+        <span class="demo-demo-tag">DEMO</span>
         <div class="demo-top-actions">
-          <a class="btn btn-ghost btn-small" href="./">返回主页</a>
+          <span class="demo-chip demo-top-phase" id="demo-top-phase">已停止</span>
+          <span class="demo-chip demo-top-upstream" id="demo-top-upstream">上游离线</span>
+          <button class="icon-btn" id="demo-refresh" type="button" aria-label="刷新" title="刷新演示数据">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+          </button>
           <button class="icon-btn theme-toggle" type="button" aria-label="切换主题" title="切换主题">
             <svg class="theme-icon moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.7 14.2A8.4 8.4 0 0 1 9.8 3.3 8.5 8.5 0 1 0 20.7 14.2Z" /></svg>
             <svg class="theme-icon sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" /><path d="M12 2v2.2M12 19.8V22M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2 12h2.2M19.8 12H22M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" /></svg>
+          </button>
+          <button class="icon-btn" id="demo-admin" type="button" aria-label="管理员菜单" title="管理员菜单">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" /><path d="M5 20c.5-3.7 3.1-5.8 7-5.8s6.5 2.1 7 5.8" /></svg>
           </button>
         </div>
       </div>
@@ -56,17 +86,24 @@
       <aside class="demo-sidebar" id="demo-sidebar">
         <div class="demo-sidebar-title">控制台导航</div>
         <nav class="demo-nav" aria-label="演示页面">
-          <button type="button" class="demo-nav-item active" data-page="overview"><span aria-hidden="true">◈</span>主页</button>
+          <button type="button" class="demo-nav-item active" data-page="overview"><span aria-hidden="true">⌂</span>主页</button>
           <button type="button" class="demo-nav-item" data-page="accounts"><span aria-hidden="true">◎</span>账号与房间</button>
           <button type="button" class="demo-nav-item" data-page="transfer"><span aria-hidden="true">⇄</span>转服与资源包</button>
           <button type="button" class="demo-nav-item" data-page="console"><span aria-hidden="true">&gt;_</span>控制台</button>
           <button type="button" class="demo-nav-item" data-page="faq"><span aria-hidden="true">?</span>常见问题</button>
           <button type="button" class="demo-nav-item" data-page="settings"><span aria-hidden="true">⚙</span>设置</button>
         </nav>
+        <div class="demo-sidebar-summary">
+          <span>账号 <strong id="demo-account-count">3</strong></span>
+          <span>在线玩家 <strong id="demo-player-count">0</strong></span>
+        </div>
         <div class="demo-sidebar-note">
           <strong>演示说明</strong>
           <p>账号、地址、资源包和所有按钮均为前端占位。操作只显示提示，不会发出真实请求。</p>
-          <a href="https://emuyx.github.io/CubeDock/" target="_blank" rel="noreferrer">回到项目主页 →</a>
+          <div class="demo-sidebar-links">
+            <a href="./">返回主页</a>
+            <button type="button" id="demo-replay">重看启动动画</button>
+          </div>
         </div>
       </aside>
 
@@ -76,38 +113,59 @@
         </div>
 
         <section class="demo-page active" data-page="overview">
-          <div class="demo-page-head">
-            <div>
-              <span class="eyebrow">OVERVIEW</span>
-              <h1>主页</h1>
-              <p>演示数据 · 最后更新刚刚</p>
+          <div class="demo-overview-top">
+            <div class="demo-card demo-room-card">
+              <div class="demo-card-head">
+                <div>
+                  <span class="eyebrow">LOCAL ROOM</span>
+                  <h2>本地联机房间</h2>
+                </div>
+                <button class="demo-copy-btn" id="demo-copy-room" type="button" aria-label="复制房间号" title="复制房间号" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
+                </button>
+              </div>
+              <div class="demo-room-number" id="demo-room-id">—</div>
+              <p class="demo-room-note" id="demo-room-note">启动房间后，房间号会显示在这里。</p>
+              <div class="demo-room-actions">
+                <button class="btn btn-primary btn-small" type="button" id="demo-start">启动房间</button>
+                <button class="btn btn-ghost btn-small" type="button" id="demo-stop" disabled>停止房间</button>
+                <button class="btn btn-ghost btn-small" type="button" id="demo-join" disabled>模拟玩家加入</button>
+                <span class="demo-chip" id="demo-phase-chip">已停止</span>
+              </div>
             </div>
-            <div class="demo-head-actions">
-              <button class="btn btn-primary btn-small" type="button" id="demo-start">启动演示房间</button>
-              <button class="btn btn-ghost btn-small" type="button" id="demo-stop">停止</button>
+
+            <div class="demo-card demo-upstream-card">
+              <div class="demo-card-head">
+                <h2>网易协议上游</h2>
+                <span class="demo-chip" id="demo-upstream-chip">未连接</span>
+              </div>
+              <strong class="demo-upstream-address">127.0.0.1:19132</strong>
+              <p id="demo-upstream-note">等待服务器响应</p>
+              <div class="demo-divider"></div>
+              <p class="demo-muted">演示：上游地址和状态均为占位数据。</p>
             </div>
           </div>
 
           <div class="demo-stat-grid">
             <div class="demo-card demo-stat">
-              <span class="demo-stat-label">网易账号</span>
-              <strong>3</strong>
-              <small>一账号一房间</small>
-            </div>
-            <div class="demo-card demo-stat">
               <span class="demo-stat-label">在线玩家</span>
-              <strong>2</strong>
+              <strong id="demo-online-players">0</strong>
               <small>所有房间合计</small>
             </div>
             <div class="demo-card demo-stat">
-              <span class="demo-stat-label">上游状态</span>
-              <strong class="demo-good">在线</strong>
-              <small>1.21.130 · 演示</small>
+              <span class="demo-stat-label">网易账号</span>
+              <strong id="demo-stat-accounts">3</strong>
+              <small>一账号一房间</small>
             </div>
             <div class="demo-card demo-stat">
-              <span class="demo-stat-label">房间状态</span>
-              <strong id="demo-room-state">已停止</strong>
-              <small id="demo-room-hint">点击「启动演示房间」</small>
+              <span class="demo-stat-label">后端状态</span>
+              <strong id="demo-backend-state">离线</strong>
+              <small>等待响应</small>
+            </div>
+            <div class="demo-card demo-stat">
+              <span class="demo-stat-label">在线时间</span>
+              <strong id="demo-uptime">—</strong>
+              <small>自动断线重连已启用</small>
             </div>
           </div>
 
@@ -116,27 +174,25 @@
               <div class="demo-card-head"><h2>房间概览</h2><span class="demo-chip">占位数据</span></div>
               <table class="demo-table">
                 <thead><tr><th>房间</th><th>账号</th><th>玩家</th><th>状态</th></tr></thead>
-                <tbody>
-                  <tr><td>#100001</td><td>demo@example.com</td><td>1 / 9</td><td><span class="demo-chip demo-chip-good">在线</span></td></tr>
-                  <tr><td>#100002</td><td>alice@example.com</td><td>1 / 9</td><td><span class="demo-chip demo-chip-good">在线</span></td></tr>
-                  <tr><td>#100003</td><td>bob@example.com</td><td>0 / 9</td><td><span class="demo-chip demo-chip-warn">未启动</span></td></tr>
+                <tbody id="demo-room-table">
+                  <tr data-room-row="1"><td id="demo-room-label">房间 1</td><td>demo@example.com</td><td id="demo-row-players">0</td><td><span class="demo-chip" id="demo-row-status">已停止</span></td></tr>
+                  <tr><td>房间 2</td><td>alice@example.com</td><td>0</td><td><span class="demo-chip">已停止</span></td></tr>
+                  <tr><td>房间 3</td><td>bob@example.com</td><td>0</td><td><span class="demo-chip demo-chip-warn">待验证</span></td></tr>
                 </tbody>
               </table>
             </div>
             <div class="demo-card">
               <div class="demo-card-head"><h2>最近事件</h2><button class="demo-link-btn" type="button" data-goto="console">打开控制台</button></div>
-              <ul class="demo-events">
-                <li><span class="demo-event-time">22:00:01</span><span class="demo-event-dot"></span>房间 1 已启动本地联机房主机器人</li>
-                <li><span class="demo-event-time">22:00:04</span><span class="demo-event-dot"></span>玩家 Alice 已加入服务器（2/9）</li>
-                <li><span class="demo-event-time">22:00:09</span><span class="demo-event-dot"></span>网易上游：已代客户端完成登录重签与加密握手</li>
-                <li><span class="demo-event-time">22:00:12</span><span class="demo-event-dot"></span>玩家 Bob 未完成登录，连接已断开</li>
+              <ul class="demo-events" id="demo-events">
+                <li><span class="demo-event-time">22:00:01</span><span class="demo-event-dot"></span>控制台已启动，等待房间操作</li>
+                <li><span class="demo-event-time">22:00:02</span><span class="demo-event-dot"></span>演示数据已加载</li>
               </ul>
             </div>
           </div>
 
           <div class="demo-card demo-hint-card">
-            <strong>想看更多？</strong>
-            <p>左侧可以切换到账号、转服、控制台和设置；所有输入与按钮都可以操作。</p>
+            <strong>演示提示</strong>
+            <p>点击「启动房间」可以看到创建流程和明显假的房间号；启动后可模拟玩家加入、复制房间号、查看控制台事件。</p>
           </div>
         </section>
 
@@ -144,30 +200,26 @@
           <div class="demo-page-head">
             <div>
               <span class="eyebrow">ACCOUNTS</span>
-              <h1>账号与房间</h1>
+              <h1>网易账号与房间</h1>
               <p>占位账号 · 一账号一房间 · 同一账号不能重复</p>
             </div>
-            <button class="btn btn-primary btn-small" type="button" id="demo-add-account">添加网易账号</button>
+            <button class="btn btn-primary btn-small" type="button" id="demo-add-account">+ 添加网易账号</button>
           </div>
 
           <div class="demo-card">
-            <div class="demo-card-head"><h2>网易账号</h2><span class="demo-chip">演示数据</span></div>
             <table class="demo-table demo-table-actions">
-              <thead><tr><th>账号</th><th>游戏名</th><th>UID</th><th>状态</th><th>操作</th></tr></thead>
+              <thead><tr><th>房间</th><th>网易账号</th><th>游戏名</th><th>状态</th><th>房间号</th><th>玩家</th><th>操作</th></tr></thead>
               <tbody id="demo-accounts">
                 <tr>
-                  <td>demo@example.com</td><td>方块玩家_A</td><td>1000000000</td>
-                  <td><span class="demo-chip demo-chip-good">互通版</span></td>
+                  <td>房间 1</td><td>demo@example.com</td><td>方块玩家_A</td><td><span class="demo-chip demo-chip-good">互通版</span></td><td id="demo-account-room-1">—</td><td>0</td>
                   <td><button type="button" class="demo-small-btn" data-row-action="verify">验证</button><button type="button" class="demo-small-btn demo-small-danger" data-row-action="remove">移除</button></td>
                 </tr>
                 <tr>
-                  <td>alice@example.com</td><td>Alice</td><td>1000000001</td>
-                  <td><span class="demo-chip demo-chip-good">互通版</span></td>
+                  <td>房间 2</td><td>alice@example.com</td><td>Alice</td><td><span class="demo-chip demo-chip-good">互通版</span></td><td>—</td><td>0</td>
                   <td><button type="button" class="demo-small-btn" data-row-action="verify">验证</button><button type="button" class="demo-small-btn demo-small-danger" data-row-action="remove">移除</button></td>
                 </tr>
                 <tr>
-                  <td>bob@example.com</td><td>Bob</td><td>1000000002</td>
-                  <td><span class="demo-chip demo-chip-warn">待验证</span></td>
+                  <td>房间 3</td><td>bob@example.com</td><td>Bob</td><td><span class="demo-chip demo-chip-warn">待验证</span></td><td>—</td><td>0</td>
                   <td><button type="button" class="demo-small-btn" data-row-action="verify">验证</button><button type="button" class="demo-small-btn demo-small-danger" data-row-action="remove">移除</button></td>
                 </tr>
               </tbody>
@@ -177,10 +229,11 @@
           <div class="demo-two-col">
             <div class="demo-card">
               <div class="demo-card-head"><h2>添加方式</h2></div>
-              <p class="demo-muted">真实版本支持互通版邮箱直登和导入 sauth。这里只演示表单和按钮。</p>
+              <p class="demo-muted">真实版本支持互通版邮箱直登和导入 sauth。这里只演示表单、按钮和状态。</p>
               <div class="demo-button-row">
                 <button class="btn btn-primary btn-small" type="button" data-demo-action="演示：互通版邮箱直登入口">邮箱直登</button>
                 <button class="btn btn-ghost btn-small" type="button" data-demo-action="演示：导入 sauth 入口">导入 sauth</button>
+                <button class="btn btn-ghost btn-small" type="button" data-demo-action="演示：已生成 1351 验证链接（假）">模拟 1351</button>
               </div>
             </div>
             <div class="demo-card">
@@ -208,22 +261,23 @@
             <div class="demo-card-head"><h2>连接与 limbo</h2><span class="demo-chip">空壳表单</span></div>
             <div class="demo-form-grid">
               <label class="demo-field"><span>连接模式</span>
-                <select name="connection_mode">
-                  <option value="proxy">代理模式（默认）</option>
-                  <option value="transfer" selected>转服模式（limbo + Transfer）</option>
+                <select name="connection_mode" id="demo-connection-mode">
+                  <option value="proxy" selected>代理模式（中继）</option>
+                  <option value="transfer">转服模式（limbo + Transfer）</option>
                 </select>
               </label>
               <label class="demo-field"><span>目标上游地址</span><input name="upstream" value="127.0.0.1:19132" /></label>
-              <label class="demo-field"><span>Limbo 主机</span><input name="limbo_host" value="127.0.0.1" /></label>
-              <label class="demo-field"><span>Limbo 端口</span><input name="limbo_port" value="19133" inputmode="numeric" /></label>
-              <label class="demo-field demo-field-wide"><span>资源包目录</span>
+              <label class="demo-field"><span>Limbo 监听主机</span><input name="limbo_host" value="127.0.0.1" /></label>
+              <label class="demo-field"><span>Limbo 监听端口</span><input name="limbo_port" value="19133" inputmode="numeric" /></label>
+              <label class="demo-field demo-field-wide"><span>Limbo 资源包目录</span>
                 <div class="demo-input-row"><input name="packs_dir" value="./packs" /><button type="button" class="demo-small-btn" data-demo-action="演示：选择资源包目录">浏览</button></div>
               </label>
-              <label class="demo-check demo-field-wide"><input type="checkbox" name="auto_pull" checked /><span>开房前自动从后端服拉取资源包</span></label>
+              <label class="demo-check demo-field-wide"><input type="checkbox" name="auto_pull" checked /><span>开房时自动从后端服拉取资源包</span></label>
               <label class="demo-field demo-field-wide"><span>SimpleForm 标题</span><input name="form_title" value="CubeDock Limbo" /></label>
               <label class="demo-field demo-field-wide"><span>SimpleForm 内容</span><textarea name="form_content" rows="3">点击下方按钮进入服务器。</textarea></label>
               <label class="demo-field"><span>进入按钮文字</span><input name="form_button" value="进入服务器" /></label>
             </div>
+            <div class="demo-info" id="demo-mode-note">当前为代理模式，limbo 不会启动。切换到转服模式后才会在开房时启动 limbo。</div>
             <div class="demo-form-actions">
               <button class="btn btn-primary btn-small" type="submit">保存设置</button>
               <button class="btn btn-ghost btn-small" type="reset">恢复占位值</button>
@@ -255,17 +309,24 @@
             <div>
               <span class="eyebrow">CONSOLE</span>
               <h1>控制台</h1>
-              <p>输入命令并执行；输出仅为前端模拟</p>
+              <p>日志、搜索和命令均为前端模拟</p>
             </div>
             <span class="demo-chip">DEMO</span>
           </div>
 
-          <div class="demo-card">
-            <pre class="demo-console" id="demo-console-output">[演示] CubeDock 控制台已就绪。
-输入 help 查看命令；输入 list 查看占位玩家。</pre>
+          <div class="demo-card demo-logs">
+            <div class="demo-log-toolbar">
+              <input id="demo-log-search" type="search" placeholder="搜索日志" />
+              <label class="demo-check"><input type="checkbox" id="demo-debug-toggle" /><span>Debug 详细日志</span></label>
+              <label class="demo-check"><input type="checkbox" id="demo-debug-lines" /><span>显示 Debug 行</span></label>
+              <label class="demo-check"><input type="checkbox" id="demo-autoscroll" checked /><span>自动滚动</span></label>
+              <button class="demo-small-btn" type="button" id="demo-export">导出日志</button>
+            </div>
+            <div class="demo-log-meta"><span id="demo-log-count">最近 0 条</span><span>日志文件：logs/cubedock.log</span></div>
+            <div class="demo-log-area" id="demo-log-area"></div>
             <div class="demo-console-bar">
               <span>&gt;</span>
-              <input id="demo-command" type="text" placeholder="help / list / kick p1 / transfer p1 192.0.2.10:19132" autocomplete="off" />
+              <input id="demo-command" type="text" placeholder="输入命令，help 查看帮助" autocomplete="off" />
               <button class="btn btn-primary btn-small" type="button" id="demo-run">执行</button>
             </div>
             <div class="demo-button-row demo-quick-commands">
@@ -317,15 +378,16 @@
           </div>
 
           <form class="demo-card demo-form" id="demo-settings-form">
-            <div class="demo-card-head"><h2>房间基础</h2><span class="demo-chip">占位配置</span></div>
+            <div class="demo-card-head"><h2>房间基础设置</h2><span class="demo-chip">占位配置</span></div>
             <div class="demo-form-grid">
-              <label class="demo-field"><span>上游地址</span><input name="upstream" value="127.0.0.1:19132" /></label>
+              <label class="demo-field"><span>本地 Bedrock 地址</span><input name="upstream" value="127.0.0.1:19132" /></label>
+              <label class="demo-field"><span>网易房间内核版本</span><input name="room_game_version" value="1.21.130.0" /></label>
               <label class="demo-field"><span>房间名称</span><input name="room_name" value="来和我一起玩吧！" /></label>
-              <label class="demo-field"><span>房间版本</span><input name="room_game_version" value="1.21.130.0" /></label>
-              <label class="demo-field"><span>最大人数</span><input name="max_players" type="number" min="2" max="10" value="10" /></label>
-              <label class="demo-field"><span>协议 ID</span><input name="lobby_protocol_id" type="number" min="1" max="255" value="43" /></label>
+              <label class="demo-field"><span>房间密码</span><input name="room_password" placeholder="留空表示无密码" /></label>
+              <label class="demo-field"><span>房间总人数（含机器人）</span><input name="max_players" type="number" min="2" max="10" value="10" /></label>
+              <label class="demo-field"><span>掉线重试间隔（秒）</span><input name="retry_seconds" type="number" value="10" /></label>
+              <label class="demo-field"><span>网易房间协议 ID</span><input name="lobby_protocol_id" type="number" min="1" max="255" value="43" /></label>
               <label class="demo-field"><span>控制台端口</span><input name="web_port" type="number" value="18321" /></label>
-              <label class="demo-field"><span>重连间隔（秒）</span><input name="retry_seconds" type="number" value="10" /></label>
             </div>
             <div class="demo-toggle-grid">
               <label class="demo-check"><input type="checkbox" name="allow_pvp" checked /><span>允许 PvP</span></label>
@@ -334,6 +396,7 @@
               <label class="demo-check"><input type="checkbox" name="auto_start" /><span>启动后自动开房</span></label>
               <label class="demo-check"><input type="checkbox" name="debug" /><span>Debug 日志</span></label>
             </div>
+            <div class="demo-info">演示只保存到页面状态，不会写入 config.json。</div>
             <div class="demo-form-actions">
               <button class="btn btn-primary btn-small" type="submit">保存设置</button>
               <button class="btn btn-ghost btn-small" type="reset">恢复占位值</button>

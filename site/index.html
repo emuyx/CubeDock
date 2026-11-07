@@ -17,6 +17,7 @@
     <meta property="og:type" content="website" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./usage.css" />
     <script>
       (function () {
         document.documentElement.classList.add('js');
@@ -53,6 +54,7 @@
           <a href="#features">功能</a>
           <a href="#modes">模式</a>
           <a href="#quickstart">快速开始</a>
+          <a href="#usage">使用</a>
           <a href="./demo.html">演示</a>
           <a href="#faq">FAQ</a>
           <a class="nav-github" href="https://github.com/emuyx/CubeDock" target="_blank" rel="noreferrer">
@@ -403,6 +405,71 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
           <strong>上游要求：</strong>
           代理模式的上游必须原生支持网易 RakNet v8；标准 BDS 不能直接作为代理上游。
           转服模式的目标服务器由客户端直连，但仍需资源包匹配，且客户端能访问目标。</div>
+      </section>
+
+      <section id="usage" class="section container">
+        <div class="section-head reveal">
+          <span class="eyebrow">USAGE</span>
+          <h2>从构建到开房</h2>
+          <p>构建只是第一步；下面是构建完成后的实际使用顺序。</p>
+        </div>
+
+        <ol class="usage-steps">
+          <li class="usage-step reveal">
+            <span class="usage-num">01</span>
+            <div>
+              <h3>启动并登录控制台</h3>
+              <p>运行 <code>CubeDock.exe</code>（或 <code>build/bin/CubeDockMain</code>），打开终端显示的地址。默认 <code>http://127.0.0.1:18321/</code>，管理员账号 <code>admin</code>；首次启动会在终端打印一次性密码，也可用 <code>CUBEDOCK_ADMIN_PASSWORD</code> 指定。</p>
+            </div>
+          </li>
+          <li class="usage-step reveal">
+            <span class="usage-num">02</span>
+            <div>
+              <h3>配置上游</h3>
+              <p>进入「设置」填写上游地址、房间名、内核版本和人数限制并保存。代理模式的上游必须原生支持网易 RakNet v8；转服模式的目标由客户端直连。</p>
+            </div>
+          </li>
+          <li class="usage-step reveal">
+            <span class="usage-num">03</span>
+            <div>
+              <h3>添加网易账号</h3>
+              <p>进入「账号与房间」→「添加网易账号」，使用互通版邮箱直登或导入 <code>sauth</code>。每个账号对应一个房间；同一账号不能重复添加，账号数量不设固定上限。</p>
+            </div>
+          </li>
+          <li class="usage-step reveal">
+            <span class="usage-num">04</span>
+            <div>
+              <h3>启动房间</h3>
+              <p>回到「主页」点击「启动房间」。房间进入 online 后，房间号会显示在「本地联机房间」卡片中；上游状态与在线玩家会同步更新。</p>
+            </div>
+          </li>
+          <li class="usage-step reveal">
+            <span class="usage-num">05</span>
+            <div>
+              <h3>手机加入</h3>
+              <p>在网易版 Minecraft 客户端打开「本地联机」，刷新后加入刚创建的房间。玩家流量会经 CubeDock 转发到上游；在上游看到的身份由代理配置决定。</p>
+            </div>
+          </li>
+          <li class="usage-step reveal">
+            <span class="usage-num">06</span>
+            <div>
+              <h3>转服模式（可选）</h3>
+              <p>在「转服与资源包」把连接模式改为 <code>transfer</code>，配置 limbo 地址、资源包目录和自动拉取，保存后重新启动房间。玩家会先进入 limbo 下载资源包并看到表单，点击按钮后通过 <code>Transfer</code> 进入目标服务器。当前只覆盖未加密、静态资源包。</p>
+            </div>
+          </li>
+          <li class="usage-step reveal">
+            <span class="usage-num">07</span>
+            <div>
+              <h3>管理玩家与停止房间</h3>
+              <p>在「控制台」使用 <code>list</code> 查看玩家、<code>kick &lt;ID|名称&gt;</code> 断开玩家；代理模式下可用 <code>transfer</code> 注入 Transfer（POC）。停止房间会结束房主机器人和 limbo。</p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="usage-cta reveal">
+          <p>想先点一点？空壳演示可以模拟开房、账号、资源包和控制台操作，不会连接真实服务。</p>
+          <a class="btn btn-ghost" href="./demo.html">打开 WebUI 演示</a>
+        </div>
       </section>
 
       <section id="faq" class="section container">
