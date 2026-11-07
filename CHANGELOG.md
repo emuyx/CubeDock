@@ -2,7 +2,7 @@
 
 ## 0.1.0（未发布）
 
-CubeDock 首次独立版本，从 NEMCBridge 重写并改名。
+CubeDock 首次独立版本。
 
 ### 新增 / 调整
 

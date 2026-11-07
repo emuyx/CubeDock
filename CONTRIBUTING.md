@@ -45,8 +45,8 @@ README 的 launcher 步骤打包。
 | `internal/config`、`internal/secret`、`internal/session`、`internal/fileutil` | 配置、凭据、账号互斥、原子写 |
 | `internal/webui`、`webui-src` | 内嵌 React/MUI 控制台 |
 
-`internal/` 下的胶水代码是在 CubeDock 独立化时重写的，改动时请保持与
-NEMCBridge 来源的边界清晰；新增原创文件使用 MIT。
+`internal/` 下的胶水代码由 CubeDock 独立维护；改动时请保持第三方组件的
+许可边界清晰，新增原创文件使用 MIT。
 
 ## 测试
 

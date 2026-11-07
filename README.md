@@ -1,8 +1,8 @@
 # CubeDock 方块码头
 
 CubeDock 让网易版 Bedrock 玩家通过网易「本地联机」房间加入任何原生支持网易
-协议的 Minecraft 基岩版服务器，不绑定特定上游实现。它取代原来的 NEMCBridge
-胶水代码，保留第三方房间/认证底座，是独立维护的项目。
+协议的 Minecraft 基岩版服务器，不绑定特定上游实现。项目独立维护，保留第三方
+房间/认证底座。
 
 ```
 网易客户端
@@ -97,7 +97,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
 | `logs/cubedock.log` | 运行日志（含来源） |
 | `logs/status.json` | 最近一次状态快照（不含房间密码和事件） |
 
-当前不兼容也不迁移 NEMCBridge 的旧数据目录。
+当前不迁移旧版数据目录。
 
 ## 配置
 
@@ -194,16 +194,13 @@ npm install
 npm run build
 ```
 
-代码结构见 [docs/architecture.md](docs/architecture.md)，部署细节见
-[docs/setup.md](docs/setup.md)，独立化与来源审计见
-[docs/standalone.md](docs/standalone.md)，代码归属见
-[docs/ownership.md](docs/ownership.md)，跨服/limbo 回顾见
-[docs/transfer-limbo.md](docs/transfer-limbo.md)。
+更多运行说明见本 README；实现细节见源码注释。
 
 ## 许可证
 
 - CubeDock 原创代码：MIT，`Copyright (c) 2026 emuyx`；
-- 源自 NEMCBridge 的部分保留其 MIT 归属，见 [NOTICE](NOTICE)；
+- 第三方组件的许可与归属见 [NOTICE](NOTICE) 和
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；
 - `vendor-src/g79client` 与 `internal/funauth` 为 AGPL-3.0，见
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；
 - `vendor-src/nemc-tan-lobby-solver` 的原上游仓库已被作者删除；CubeDock 删除了
