@@ -183,6 +183,98 @@ Bedrock 地址」拉取未加密资源包；本地相同 UUID+版本的包不会
 | POST | `/api/account/remove` | 移除账号 |
 | POST | `/api/account/profile` | 重新解析游戏名 |
 
+## 常见问题（FAQ）
+
+### 标准 Bedrock Dedicated Server 能直接作为上游吗？
+
+不能。CubeDock 只做登录重签、加密握手和游戏包直通，不翻译网易协议。上游必须
+原生支持网易 RakNet v8；标准 BDS 不兼容。若上游要求单段登录链、转发地址信任
+等配置，请按其文档启用并信任 CubeDock 的地址。
+
+### 代理模式和转服模式有什么区别？
+
+- **代理模式（默认）**：玩家经 CubeDock 中继直接进入上游，游戏包原样转发。
+- **转服模式**：玩家先进入本地 limbo 虚空世界，预加载资源包并显示表单；点击
+  按钮后通过 `Transfer` 进入目标服务器。
+
+### 手机看不到房间 / 开房失败怎么办？
+
+先确认账号是互通版会话且未过期，PE 认证是否通过，房间是否进入 `online`；
+同一账号被其他设备登录会把当前房间挤下线。若返回 1351，打开控制台显示的
+验证链接完成验证后重试。日志中的 `server:` / `client:` 前缀可区分上游侧和
+玩家侧错误。
+
+### 玩家进房后马上断开？
+
+查看控制台日志方向：
+
+- `server:` 先断：多为上游或 limbo 侧拒绝/失败，检查单段登录链、转发地址
+  信任、上游版本和资源包；
+- `client:` 先断：多为玩家侧超时或主动关闭，检查客户端版本和网络。
+
+代理模式要求上游能够接受 CubeDock 重签后的单段登录链并完成 Bedrock 加密
+握手；游戏包本身不会被改写。
+
+### limbo 进不去 / 长中文名或皮肤被拒绝？
+
+limbo 已对长中文名和异常皮肤启用宽松登录；仍失败时检查 limbo 是否启动、
+`server:` 日志以及 `DisplayName` 长度。加密资源包和动态资源包暂不支持。
+
+### 资源包不下载 / 转服时报资源包错误？
+
+网易客户端会忽略 `ResourcePacksInfo` 里的包列表，limbo 默认使用
+`-packs-mode netease` 强制 SendPacks，并在最后一包后补发 Stack。请确认
+`limbo_packs_dir` 指向正确目录、资源包与目标服务器一致；加密包/动态包不支持。
+`ResourcePackStack` 后主动断开是拉包流程的预期行为。
+
+### 资源包拉取失败 / 机器人被限速？
+
+后端 AuthMe 或登录插件会对高频机器人登录限速。请使用唯一的机器人名、避免
+短时间重复拉取，并确认上游可达、账号会话有效。拉取失败不会阻止开房。
+
+### 控制台打不开 / 忘记管理员密码？
+
+默认地址是 `http://127.0.0.1:18321/`。首次启动会在终端打印一次性管理员密码；
+也可通过 `CUBEDOCK_ADMIN_PASSWORD` 设置。忘记密码时使用
+`-reset-admin-password`。控制台只允许白名单 Host/Origin，`/api/session/*`
+只允许本机访问。
+
+### `list` / `kick` 怎么用？
+
+控制台或 `/api/console` 支持：
+
+```text
+list
+kick p1
+kick "Alice Smith"
+```
+
+玩家名称含空格时必须加引号。
+
+### 一个网易账号能开多个房间吗？
+
+不能。同一账号重复登录会使已有房间掉线。每个账号对应一个房间，最多同时
+运行 8 个账号/房间。
+
+### 数据文件在哪里？会把账号提交到仓库吗？
+
+数据默认在程序数据目录：`config.json`、`room-tokens.dat`、`accounts.json`、
+`interop-device.dat`、`admin.json`、`logs/`。Windows 使用 DPAPI 保护会话，
+其他平台使用 `0600` 文件。不要提交这些文件；仓库 `.gitignore` 已排除。
+
+### 构建需要什么环境？
+
+Go 1.25+（`go.mod` 使用 1.26.9 toolchain）、Node.js 24 和 npm。
+`scripts/build.ps1` 会在缺少 `webui-src/node_modules` 时自动执行 `npm ci`。
+Linux/macOS 手动构建步骤见上文。前端构建失败时先删除 `node_modules` 重新
+`npm ci`。
+
+### 发布包里的 `SOURCE/` 是什么？
+
+CubeDock 原创代码使用 MIT。`vendor-src/g79client` 和 `internal/funauth` 是
+AGPL-3.0；`SOURCE/` 随发布包提供对应源码和许可文件，以满足 AGPL 的分发要求。
+公开分发前仍建议自行复核许可与法律义务。
+
 ## 开发
 
 ```bash
