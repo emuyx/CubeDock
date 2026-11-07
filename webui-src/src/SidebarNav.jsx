@@ -8,13 +8,14 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { Home, RoomPreferences, Settings as SettingsIcon, SwapHoriz, Terminal } from '@mui/icons-material';
+import { Help, Home, RoomPreferences, Settings as SettingsIcon, SwapHoriz, Terminal } from '@mui/icons-material';
 
 export const PAGES = [
   { key: 'home', label: '主页', icon: Home },
   { key: 'accounts', label: '账号与房间', icon: RoomPreferences },
   { key: 'transfer', label: '转服与资源包', icon: SwapHoriz },
   { key: 'console', label: '控制台', icon: Terminal },
+  { key: 'faq', label: '常见问题', icon: Help },
   { key: 'settings', label: '设置', icon: SettingsIcon },
 ];
 

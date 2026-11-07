@@ -34,6 +34,7 @@ import { phaseColor, phaseLabel } from './util.js';
 import AccountLogin from './AccountLogin.jsx';
 import AccountsPanel from './AccountsPanel.jsx';
 import ChangePasswordDialog from './ChangePasswordDialog.jsx';
+import FaqPanel from './FaqPanel.jsx';
 import LogsPanel from './LogsPanel.jsx';
 import Overview from './Overview.jsx';
 import SettingsForm from './SettingsForm.jsx';
@@ -294,6 +295,9 @@ export default function ConsoleView({ mode, toggleMode }) {
                       onDebugChanged={refresh}
                       active={page === 'console'}
                     />
+                  </Box>
+                  <Box hidden={page !== 'faq'}>
+                    <FaqPanel />
                   </Box>
                   <Box hidden={page !== 'settings'}>
                     <SettingsForm status={status} />
