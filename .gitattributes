@@ -1,5 +1,7 @@
 * text=auto
-*.go text
+*.go text eol=lf
+*.mod text eol=lf
+*.sum text eol=lf
 *.jsx text
 *.js text
 *.json text
