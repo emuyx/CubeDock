@@ -74,3 +74,7 @@ def main():
         f"{digest}  {archive.name}\n", encoding="ascii"
     )
     print(archive.name)
+
+
+if __name__ == "__main__":
+    main()
