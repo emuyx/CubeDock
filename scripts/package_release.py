@@ -43,7 +43,6 @@ def main():
         executable.chmod(0o755)
         for source in (
             "README.md",
-            "CONTRIBUTING.md",
             "SECURITY.md",
             "LICENSE",
             "NOTICE",
