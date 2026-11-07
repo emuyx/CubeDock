@@ -218,7 +218,7 @@ export default function Overview({ status, onChanged }) {
           icon={<RoomPreferences />}
           label="网易账号"
           value={accounts.filter(account => account.email).length}
-          helper={`最多 8 个 · 已用 ${accounts.length}`}
+          helper={`一账号一房间 · 已用 ${accounts.length}`}
           color="secondary"
         />
         <StatCard

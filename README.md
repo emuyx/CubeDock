@@ -57,7 +57,7 @@ flowchart LR
 | limbo 转服 | 虚空世界、SimpleForm、关闭重开、`Transfer.ReloadWorld=false` |
 | 资源包 | 强制 SendPacks、Stack fallback、拉取、本地跳过、去重 |
 | Web 控制台 | 账号/房间、转服、实时控制台、设置、FAQ、深浅色主题 |
-| 多房间 | 最多 8 个账号，一账号一房间；`list` / `kick` |
+| 多房间 | 多账号、不设固定上限，一账号一房间；`list` / `kick` |
 
 ## 快速开始
 
@@ -147,7 +147,7 @@ Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 - `client:` 先断：多为玩家侧超时或主动关闭。
 - 资源包不下载：网易会忽略 `ResourcePacksInfo`，limbo 默认强制 SendPacks；加密/动态包不支持。
 - 控制台打不开：默认 `http://127.0.0.1:18321/`；忘记密码用 `-reset-admin-password`。
-- 同一网易账号不能同时开两个房间；最多 8 个账号/房间。
+- 同一网易账号不能同时开两个房间；账号数量不设固定上限，实际受机器资源与网易限制。
 </details>
 
 更多 FAQ 见 [项目主页](https://emuyx.github.io/CubeDock/#faq) 和 WebUI 的「常见问题」页面。

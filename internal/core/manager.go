@@ -15,9 +15,6 @@ import (
 	"time"
 )
 
-// MaxRooms bounds how many accounts (one room each) may run at once.
-const MaxRooms = 8
-
 // maxEvents bounds the in-memory console history returned by /api/status.
 const maxEvents = 300
 

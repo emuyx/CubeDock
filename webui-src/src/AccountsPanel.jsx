@@ -31,7 +31,7 @@ export default function AccountsPanel({ status, onChanged }) {
   const accounts = status.accounts || [];
   const rooms = status.rooms || [];
   const running = !!status.running;
-  const canAdd = !running && accounts.length < 8;
+  const canAdd = !running;
 
   const remove = async index => {
     if (running) {
@@ -84,10 +84,10 @@ export default function AccountsPanel({ status, onChanged }) {
         <Box>
           <Typography variant="h6">网易账号与房间</Typography>
           <Typography variant="body2" color="text.secondary">
-            每个账号对应一个房间，最多 8 个。同一账号同时开两个房间会互相挤下线。
+            每个账号对应一个房间；同一账号同时开两个房间会互相挤下线。账号数量不设固定上限。
           </Typography>
         </Box>
-        <Tooltip title={running ? '请先停止房间' : accounts.length >= 8 ? '最多 8 个账号' : ''}>
+        <Tooltip title={running ? '请先停止房间' : ''}>
           <span>
             <Button variant="contained" startIcon={<Add />} disabled={!canAdd} onClick={() => setAddOpen(true)}>
               添加网易账号

@@ -32,9 +32,6 @@ func (m *Manager) AddAccount(token string, meta AccountMeta) (int, error) {
 	if m.cancel != nil {
 		return -1, fmt.Errorf("请先停止房间，再添加账号")
 	}
-	if len(m.tokens) >= MaxRooms {
-		return -1, fmt.Errorf("最多同时开 %d 个房间", MaxRooms)
-	}
 	for _, existing := range m.tokens {
 		if existing == token {
 			// One account cannot keep two rooms alive; the second login drops the first.

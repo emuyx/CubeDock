@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,33 @@ func newTestManager(t *testing.T) *Manager {
 		t.Fatal(err)
 	}
 	return manager
+}
+
+func TestAddAccountHasNoFixedLimit(t *testing.T) {
+	manager := newTestManager(t)
+	const count = 12
+	for index := 0; index < count; index++ {
+		token := fmt.Sprintf("token-%02d", index)
+		got, err := manager.AddAccount(token, AccountMeta{
+			Email: fmt.Sprintf("user%02d@example.com", index),
+			Name:  fmt.Sprintf("User%02d", index),
+		})
+		if err != nil {
+			t.Fatalf("add account %d: %v", index, err)
+		}
+		if got != index {
+			t.Fatalf("add account %d returned index %d", index, got)
+		}
+	}
+	if accounts := manager.Accounts(); len(accounts) != count {
+		t.Fatalf("accounts = %d, want %d", len(accounts), count)
+	}
+	for index := 0; index < count; index++ {
+		token, err := manager.Token(index)
+		if err != nil || token != fmt.Sprintf("token-%02d", index) {
+			t.Fatalf("token %d = %q, %v", index, token, err)
+		}
+	}
 }
 
 func TestManagerAccountLifecycle(t *testing.T) {

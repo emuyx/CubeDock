@@ -198,9 +198,6 @@ func loadTokens(dir string) ([]string, error) {
 			}
 		}
 	}
-	if len(tokens) > core.MaxRooms {
-		return nil, fmt.Errorf("最多同时开 %d 个房间，当前提供了 %d 个会话", core.MaxRooms, len(tokens))
-	}
 	return tokens, nil
 }
 

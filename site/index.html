@@ -81,7 +81,7 @@
         <div class="hero-copy reveal">
           <div class="pill">
             <span class="pulse"></span>
-            v0.1.0 · 网易互通版 3.10 · 实机验收通过
+            v0.1.1 · 网易互通版 3.10 · 实机验收通过
           </div>
           <h1>
             把网易<em>本地联机</em><br />
@@ -124,7 +124,7 @@
 <span class="t-amber">┃</span>  <span class="t-strong">CUBEDOCK</span>  <span class="t-amber">▸</span>  <span class="t-emerald">方块码头</span>                    <span class="t-amber">┃</span>
 <span class="t-amber">┃</span>  <span class="t-emerald">网易本地联机 → 网易协议上游 · RakNet v8</span>     <span class="t-amber">┃</span>
 <span class="t-amber">┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛</span>
-  CubeDock 方块码头 <span class="t-muted">v0.1.0 · windows/amd64</span>
+  CubeDock 方块码头 <span class="t-muted">v0.1.1 · windows/amd64</span>
 
 <span class="t-muted">$</span> 控制台监听 <span class="t-emerald">http://127.0.0.1:18321/</span>
 <span class="t-muted">$</span> 房间已上线 <span class="t-amber">#123456</span> · 协议 <span class="t-amber">43</span>
@@ -162,8 +162,8 @@
           <span class="stat-label">默认协议 ID</span>
         </div>
         <div class="stat">
-          <span class="stat-value">8</span>
-          <span class="stat-label">最多账号 / 房间</span>
+          <span class="stat-value">∞</span>
+          <span class="stat-label">账号 / 房间（不设固定上限）</span>
         </div>
       </section>
 
@@ -241,7 +241,7 @@
               </svg>
             </div>
             <h3>多账号 / 多房间</h3>
-            <p>最多 8 个网易账号，每个账号一个本地联机房间；真实玩家注册表、稳定玩家 ID、list / kick 控制台命令。</p>
+            <p>可添加多个网易账号，不设固定数量上限；每个账号一个本地联机房间，真实玩家注册表、稳定玩家 ID、list / kick 控制台命令。</p>
           </article>
         </div>
       </section>
@@ -457,7 +457,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
           <details class="faq-item reveal">
             <summary>一个网易账号能开多个房间吗？</summary>
             <div class="faq-body">
-              <p>不能。同一账号重复登录会使已有房间掉线。每个账号对应一个房间，最多同时运行 8 个账号/房间。</p>
+              <p>不能。同一账号重复登录会使已有房间掉线。每个账号对应一个房间；账号数量不设固定上限，实际数量受机器资源与网易限制。</p>
             </div>
           </details>
 
