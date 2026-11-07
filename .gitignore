@@ -1,0 +1,83 @@
+# AI handover/internal instructions: keep local, do not publish.
+/HANDOVER.md
+/CLAUDE.md
+/INTERNAL_NOTES.md
+/docs/rewrite/
+/docs/legacy/
+/docs/internal/
+/reference/
+/docs/verification.md
+/docs/capture.md
+/docs/netease-3.10-version-notes.md
+
+# Runtime state and credentials. Never commit these.
+/config.json
+/logs/
+/room-tokens.dat
+/accounts.json
+/admin.json
+/interop-device.dat
+**/room-tokens.dat
+**/accounts.json
+**/admin.json
+**/interop-device.dat
+**/.cubedock-*
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Build output and local data.
+/build/
+/dist/
+/data/
+/release-staging/
+/packs/
+*.mcpack
+*.mcapk
+*.exe
+/limbo/limbo
+/limbo/limbo.exe
+/Geyser-*.zip
+/cmd/cubedock-launcher/payload/*
+!/cmd/cubedock-launcher/payload/.gitkeep
+*.log
+/LobbyKeeper
+/LobbyKeeper_*.zip
+/LobbyKeeper_*.tar.gz
+/LobbyKeeper_*.sha256
+/NEMCBridge
+/NEMCBridge_*.zip
+/NEMCBridge_*.tar.gz
+/NEMCBridge_*.sha256
+/CubeDock_*.zip
+/CubeDock_*.tar.gz
+/CubeDock_*.sha256
+__pycache__/
+*.pyc
+
+# Local debugging captures and test data.
+/.test-data-*/
+*.pcap
+*.pcapng
+*.mitm
+
+# Upstream demo applications are not part of the relay.
+/vendor-src/nemc-tan-lobby-solver/core/sctp/examples/
+/vendor-src/nemc-tan-lobby-solver/core/webrtc/examples/
+
+# Editors and workstations.
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*.iml
+
+# Frontend build cache.
+/webui-src/node_modules/
+/webui-src/.vite/

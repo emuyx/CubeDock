@@ -1,0 +1,12 @@
+CubeDock（方块码头）
+Copyright (c) 2026 emuyx
+
+This project began as a standalone rewrite of NEMCBridge. Parts of its
+behaviour, documentation and tests were derived from NEMCBridge, which is
+distributed under the MIT License:
+
+    MIT License
+    Copyright (c) 2026 UCKETX and NEMCBridge contributors
+
+The NEMCBridge notice is retained here in accordance with the MIT License.
+Third-party components carry their own licenses; see THIRD_PARTY_NOTICES.md.

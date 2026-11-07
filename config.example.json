@@ -1,0 +1,22 @@
+{
+  "connection_mode": "proxy",
+  "limbo_upstream": "127.0.0.1:19133",
+  "limbo_packs_dir": "",
+  "limbo_auto_pull_packs": true,
+  "limbo_form_title": "CubeDock Limbo",
+  "limbo_form_content": "点击下方按钮进入服务器。",
+  "limbo_form_button": "进入服务器",
+  "lobby_protocol_id": 43,
+  "upstream": "127.0.0.1:19132",
+  "room_name": "来和我一起玩吧！",
+  "room_game_version": "1.21.130.0",
+  "room_password": "",
+  "max_players": 10,
+  "friends_only": false,
+  "auto_accept_friends": true,
+  "allow_pvp": true,
+  "auto_start": false,
+  "web_port": 18321,
+  "retry_seconds": 10,
+  "debug": false
+}

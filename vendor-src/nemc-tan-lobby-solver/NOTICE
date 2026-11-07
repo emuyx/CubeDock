@@ -1,0 +1,27 @@
+NEMC Tan Lobby Solver local copy
+================================
+
+The original upstream repository
+(github.com/Happy2018new/nemc-tan-lobby-solver) was deleted by its author.
+This local copy retains only the components used by CubeDock.
+
+Subdirectories retain their upstream MIT licenses and copyright notices:
+
+- minecraft/        gophertunnel, Copyright (c) 2019 Sandertv (MIT)
+- protocol/         gophertunnel, Copyright (c) 2019 Sandertv (MIT)
+- core/raknet/      go-raknet, Copyright (c) 2019 Sander ten Veldhuis (MIT)
+- core/nethernet/   Dragonfly Tech (MIT)
+- core/webrtc/      Pion contributors (MIT)
+- core/datachannel/ Pion contributors (MIT)
+- core/sctp/        Pion contributors (MIT)
+
+CubeDock changes:
+
+- deleted the unused root `main.go` and `debug/` demo programs;
+- replaced the previously unlicensed `bunker/` package with a clean-room
+  Phoenix TanLobby HTTP client, Copyright (c) 2026 emuyx, MIT;
+- added this NOTICE, the local README, and a root LICENSE for the local glue.
+
+The subdirectory licenses remain in force and are not overridden by the root
+LICENSE. No source from the original unlicensed root glue or demo programs
+remains in this copy.
