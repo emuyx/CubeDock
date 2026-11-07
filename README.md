@@ -4,6 +4,8 @@ CubeDock 让网易版 Bedrock 玩家通过网易「本地联机」房间加入�
 协议的 Minecraft 基岩版服务器，不绑定特定上游实现。项目独立维护，保留第三方
 房间/认证底座。
 
+> 项目主页（GitHub Pages）：https://emuyx.github.io/CubeDock/
+
 ```
 网易客户端
   │ NetherNet / WebRTC（本地联机房间，房主机器人）

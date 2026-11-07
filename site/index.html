@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CubeDock 方块码头 · 网易本地联机 → Bedrock</title>
+    <meta
+      name="description"
+      content="CubeDock 把网易版 Bedrock「本地联机」房间接入任何原生支持网易 RakNet v8 的服务器。代理模式直通，转服模式经 limbo 预加载资源包后 Transfer。"
+    />
+    <meta name="theme-color" content="#0a1410" />
+    <meta property="og:title" content="CubeDock 方块码头" />
+    <meta
+      property="og:description"
+      content="网易本地联机 → 网易协议上游。登录重签、Bedrock 加密握手、limbo 转服与资源包拉取。"
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css" />
+    <script>
+      (function () {
+        document.documentElement.classList.add('js');
+        try {
+          var saved = localStorage.getItem('cubedock-site-theme');
+          if (saved === 'light' || saved === 'dark') {
+            document.documentElement.dataset.theme = saved;
+          }
+        } catch (error) {
+          /* localStorage may be unavailable */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="./" aria-label="CubeDock 首页">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M16 3 28 9.5 16 16 4 9.5z" fill="var(--emerald)" />
+            <path d="M4 9.5 16 16v12L4 21.5z" fill="var(--amber)" />
+            <path d="M28 9.5 16 16v12l12-6.5z" fill="var(--amber-dark)" />
+            <path d="M16 3 20 5 8 11 4 9.5z" fill="var(--cream)" opacity=".85" />
+          </svg>
+          <span class="brand-text">
+            <strong>Cube<span>Dock</span></strong>
+            <small>方块码头</small>
+          </span>
+        </a>
+
+        <nav class="site-nav" aria-label="主导航">
+          <a href="#features">功能</a>
+          <a href="#modes">模式</a>
+          <a href="#quickstart">快速开始</a>
+          <a href="#faq">FAQ</a>
+          <a class="nav-github" href="https://github.com/emuyx/CubeDock" target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+        </nav>
+
+        <div class="header-actions">
+          <button class="icon-btn theme-toggle" type="button" aria-label="切换主题" title="切换主题">
+            <svg class="theme-icon moon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20.7 14.2A8.4 8.4 0 0 1 9.8 3.3 8.5 8.5 0 1 0 20.7 14.2Z" />
+            </svg>
+            <svg class="theme-icon sun" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="4.2" />
+              <path d="M12 2v2.2M12 19.8V22M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2 12h2.2M19.8 12H22M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" />
+            </svg>
+          </button>
+          <a class="btn btn-small btn-primary" href="https://github.com/emuyx/CubeDock/releases/latest" target="_blank" rel="noreferrer">
+            下载
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero container">
+        <div class="hero-copy reveal">
+          <div class="pill">
+            <span class="pulse"></span>
+            v0.1.0 · 网易互通版 3.10 · 实机验收通过
+          </div>
+          <h1>
+            把网易<em>本地联机</em><br />
+            接到你的 Bedrock 服务器
+          </h1>
+          <p class="hero-lead">
+            CubeDock 负责登录链重签、Bedrock 加密握手和游戏包直通；你可以选择
+            <strong>代理模式</strong>直接中继，或用 <strong>limbo + Transfer</strong>
+            让玩家先进入本地大厅、预加载资源包，再直连目标服务器。
+          </p>
+
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://github.com/emuyx/CubeDock/releases/latest" target="_blank" rel="noreferrer">
+              下载最新版
+              <span class="btn-arrow">→</span>
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/emuyx/CubeDock" target="_blank" rel="noreferrer">
+              查看源码
+            </a>
+            <a class="btn btn-text" href="#quickstart">快速开始</a>
+          </div>
+
+          <div class="hero-meta">
+            <span>RakNet v8</span>
+            <span>Protocol 43</span>
+            <span>Windows · Linux · macOS</span>
+            <span>MIT / AGPL-3.0</span>
+          </div>
+        </div>
+
+        <div class="hero-visual reveal">
+          <div class="terminal" aria-label="CubeDock 启动界面示例">
+            <div class="terminal-bar">
+              <span class="dot dot-r"></span>
+              <span class="dot dot-y"></span>
+              <span class="dot dot-g"></span>
+              <span class="terminal-title">cubedock · headless</span>
+            </div>
+            <pre class="terminal-body"><span class="t-amber">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓</span>
+<span class="t-amber">┃</span>  <span class="t-strong">CUBEDOCK</span>  <span class="t-amber">▸</span>  <span class="t-emerald">方块码头</span>                    <span class="t-amber">┃</span>
+<span class="t-amber">┃</span>  <span class="t-emerald">网易本地联机 → 网易协议上游 · RakNet v8</span>     <span class="t-amber">┃</span>
+<span class="t-amber">┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛</span>
+  CubeDock 方块码头 <span class="t-muted">v0.1.0 · windows/amd64</span>
+
+<span class="t-muted">$</span> 控制台监听 <span class="t-emerald">http://127.0.0.1:18321/</span>
+<span class="t-muted">$</span> 房间已上线 <span class="t-amber">#123456</span> · 协议 <span class="t-amber">43</span>
+<span class="t-muted">$</span> 玩家 <span class="t-emerald">Alice</span> 已加入服务器 <span class="t-muted">（2/9）</span>
+<span class="t-muted">$</span> 上游在线 · <span class="t-emerald">1.21.130</span> · 游戏包直通
+</pre>
+          </div>
+
+          <div class="visual-cards">
+            <div class="mini-card">
+              <span class="mini-label">代理模式</span>
+              <strong>玩家 → CubeDock → 上游</strong>
+              <small>登录重签 · ECDH · 包直通</small>
+            </div>
+            <div class="mini-card">
+              <span class="mini-label">转服模式</span>
+              <strong>玩家 → limbo → 目标服</strong>
+              <small>资源包预加载 · Transfer</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats container reveal" aria-label="关键指标">
+        <div class="stat">
+          <span class="stat-value">3.10.5.301486</span>
+          <span class="stat-label">网易互通版引擎</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">1.21.130.0</span>
+          <span class="stat-label">默认房间版本</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">43</span>
+          <span class="stat-label">默认协议 ID</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">8</span>
+          <span class="stat-label">最多账号 / 房间</span>
+        </div>
+      </section>
+
+      <section id="features" class="section container">
+        <div class="section-head reveal">
+          <span class="eyebrow">FEATURES</span>
+          <h2>从登录到进服，一条完整链路</h2>
+          <p>不做协议翻译，只做网易客户端与兼容上游之间的必要握手和转发。</p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card reveal">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="4" width="16" height="16" rx="3" />
+                <path d="M8 12h8M12 8v8" />
+              </svg>
+            </div>
+            <h3>互通版邮箱直登</h3>
+            <p>用网易邮箱和密码走 a50 / x19 / uni_sauth 链路换取互通版会话，无需抓包或手动导入 Cookie。</p>
+          </article>
+
+          <article class="feature-card reveal">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z" />
+                <path d="M12 12 20 7.5M12 12v9M12 12 4 7.5" />
+              </svg>
+            </div>
+            <h3>加密中继</h3>
+            <p>为每个连接生成 P-384 密钥，重签单段登录链并代客户端完成 ECDH / AES-CTR 握手，游戏包原样转发。</p>
+          </article>
+
+          <article class="feature-card reveal">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3.5" y="5" width="17" height="12" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+                <path d="m9 9 2 2 4-4" />
+              </svg>
+            </div>
+            <h3>limbo 转服</h3>
+            <p>本地虚空世界、SimpleForm、关闭后重开；点击按钮通过 Transfer 直达目标服务器，目标看到真实 IP。</p>
+          </article>
+
+          <article class="feature-card reveal">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z" />
+                <path d="M4 12h16M12 3v18" />
+              </svg>
+            </div>
+            <h3>资源包</h3>
+            <p>强制 SendPacks、Stack fallback、最后一包后补发；支持本地 UUID+版本跳过、去重和未加密包拉取。</p>
+          </article>
+
+          <article class="feature-card reveal">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="14" rx="2" />
+                <path d="M3 8h18M7 12h4M7 15h7" />
+              </svg>
+            </div>
+            <h3>Web 控制台</h3>
+            <p>账号与房间、转服与资源包、实时控制台、设置和常见问题；共享配置状态，支持浅色/深色主题。</p>
+          </article>
+
+          <article class="feature-card reveal">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="9" cy="8" r="3" />
+                <circle cx="17" cy="10" r="2.4" />
+                <path d="M3.5 20c.4-3.2 2.6-5.2 5.5-5.2s5.1 2 5.5 5.2" />
+                <path d="M14.5 15.2c2.5-.4 4.6 1.2 5.2 4.1" />
+              </svg>
+            </div>
+            <h3>多账号 / 多房间</h3>
+            <p>最多 8 个网易账号，每个账号一个本地联机房间；真实玩家注册表、稳定玩家 ID、list / kick 控制台命令。</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="modes" class="section container">
+        <div class="section-head reveal">
+          <span class="eyebrow">CONNECTION MODES</span>
+          <h2>代理还是转服？按目标场景选</h2>
+          <p>代理模式是默认主路径；需要 limbo 大厅、预加载静态资源包或让目标看到真实 IP 时使用转服模式。</p>
+        </div>
+
+        <div class="mode-grid">
+          <article class="mode-card mode-proxy reveal">
+            <div class="mode-blade"></div>
+            <div class="mode-head">
+              <span class="mode-tag">默认 · 主路径</span>
+              <h3>代理模式</h3>
+              <p>玩家流量经 CubeDock 中继到上游，登录链由 CubeDock 重签，游戏包原样转发。</p>
+            </div>
+            <div class="mode-flow">
+              <span>玩家</span><i>→</i><span class="flow-accent">CubeDock</span><i>→</i><span>网易 RakNet v8 上游</span>
+            </div>
+            <div class="mode-lists">
+              <div>
+                <h4>适合</h4>
+                <ul class="check-list">
+                  <li>上游原生支持网易 RakNet v8</li>
+                  <li>希望长期稳定中继、减少客户端网络要求</li>
+                  <li>需要上游看到网易身份</li>
+                  <li>不想额外运行 limbo</li>
+                </ul>
+              </div>
+              <div>
+                <h4>不适合</h4>
+                <ul class="cross-list">
+                  <li>标准 BDS 或只支持国际版协议的上游</li>
+                  <li>希望目标服务器直接看到玩家真实 IP</li>
+                </ul>
+              </div>
+            </div>
+            <div class="mode-foot">延迟更低 · 不长期占用目标连接 · 生产主路径</div>
+          </article>
+
+          <article class="mode-card mode-transfer reveal">
+            <div class="mode-blade"></div>
+            <div class="mode-head">
+              <span class="mode-tag">limbo + Transfer</span>
+              <h3>转服模式</h3>
+              <p>玩家先进入本地 limbo 虚空世界，预加载资源包并显示表单；点击后客户端直连目标服务器。</p>
+            </div>
+            <div class="mode-flow">
+              <span>玩家</span><i>→</i><span class="flow-accent">limbo</span><i>→</i><span>目标服务器</span>
+            </div>
+            <div class="mode-lists">
+              <div>
+                <h4>适合</h4>
+                <ul class="check-list">
+                  <li>客户端能直接访问目标服务器</li>
+                  <li>目标资源包未加密且静态</li>
+                  <li>希望目标看到真实 IP / 延迟</li>
+                  <li>需要 limbo 大厅或表单入口</li>
+                </ul>
+              </div>
+              <div>
+                <h4>不适合</h4>
+                <ul class="cross-list">
+                  <li>加密 / 动态资源包</li>
+                  <li>目标资源包与 limbo 预加载不一致</li>
+                  <li>客户端无法直连目标</li>
+                </ul>
+              </div>
+            </div>
+            <div class="mode-foot">真实 IP · 资源包前置 · 只覆盖未加密静态包</div>
+          </article>
+        </div>
+
+        <div class="compare-wrap reveal">
+          <table class="compare">
+            <thead>
+              <tr>
+                <th>维度</th>
+                <th>代理模式</th>
+                <th>转服模式</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>流量路径</th>
+                <td>玩家 → CubeDock → 上游</td>
+                <td>玩家 → limbo → 目标服</td>
+              </tr>
+              <tr>
+                <th>上游要求</th>
+                <td>原生支持网易 RakNet v8</td>
+                <td>客户端可直连；资源包需匹配</td>
+              </tr>
+              <tr>
+                <th>目标看到的 IP</th>
+                <td>CubeDock 侧连接</td>
+                <td>玩家真实 IP</td>
+              </tr>
+              <tr>
+                <th>资源包</th>
+                <td>由上游处理</td>
+                <td>limbo 预加载，仅未加密静态包</td>
+              </tr>
+              <tr>
+                <th>推荐场景</th>
+                <td>长期生产 · 兼容网易上游</td>
+                <td>大厅入口 · 静态包 · 真实 IP</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="quickstart" class="section container">
+        <div class="section-head reveal">
+          <span class="eyebrow">QUICK START</span>
+          <h2>从克隆到开房</h2>
+          <p>Windows 使用一键构建脚本；其他平台按 README 手动构建。Node.js 用于控制台前端，未安装时构建脚本会提示。</p>
+        </div>
+
+        <div class="quick-grid">
+          <article class="code-card reveal">
+            <div class="code-head">
+              <span>Windows · PowerShell</span>
+              <button class="copy-btn" type="button" data-copy-target="win-code">复制</button>
+            </div>
+            <pre id="win-code"><code>git clone https://github.com/emuyx/CubeDock.git
+cd CubeDock
+.\scripts\build.ps1
+.\build\CubeDock.exe</code></pre>
+            <p class="code-note">首次启动会在终端打印一次性管理员密码；控制台默认 <code>http://127.0.0.1:18321/</code>。</p>
+          </article>
+
+          <article class="code-card reveal">
+            <div class="code-head">
+              <span>Linux / macOS</span>
+              <button class="copy-btn" type="button" data-copy-target="unix-code">复制</button>
+            </div>
+            <pre id="unix-code"><code>git clone https://github.com/emuyx/CubeDock.git
+cd CubeDock
+mkdir -p build/bin
+go build -trimpath -o build/bin/CubeDockMain ./cmd/cubedock
+(cd limbo &amp;&amp; go build -trimpath -o ../build/bin/limbo .)
+mkdir -p cmd/cubedock-launcher/payload
+cp build/bin/CubeDockMain build/bin/limbo cmd/cubedock-launcher/payload/
+go build -trimpath -o build/CubeDock ./cmd/cubedock-launcher
+rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/limbo
+./build/CubeDock</code></pre>
+            <p class="code-note">需要 Go 1.25+ 与 Node.js 24；前端构建见 README。</p>
+          </article>
+        </div>
+
+        <div class="upstream-note reveal">
+          <strong>上游要求：</strong>
+          代理模式的上游必须原生支持网易 RakNet v8；标准 BDS 不能直接作为代理上游。
+          转服模式的目标服务器由客户端直连，但仍需资源包匹配，且客户端能访问目标。</div>
+      </section>
+
+      <section id="faq" class="section container">
+        <div class="section-head reveal">
+          <span class="eyebrow">FAQ</span>
+          <h2>常见问题</h2>
+          <p>完整 FAQ 也在控制台的「常见问题」页面和 README 中。</p>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item reveal">
+            <summary>代理模式和转服模式有什么区别？分别适合什么场景？</summary>
+            <div class="faq-body">
+              <p><strong>代理模式（默认）：</strong>玩家经 CubeDock 中继到上游，登录链重签、游戏包直通。适合上游原生支持网易 RakNet v8、希望长期稳定中继、需要上游看到网易身份、或不想运行 limbo 的场景。</p>
+              <p><strong>转服模式：</strong>玩家先进入 limbo 预加载资源包并显示表单，点击后直连目标服务器。适合客户端能直连目标、资源包未加密且静态、希望目标看到真实 IP/延迟，或需要 limbo 大厅入口的场景。目标有资源包时必须与 limbo 预加载的一致；加密/动态包不适合。</p>
+            </div>
+          </details>
+
+          <details class="faq-item reveal">
+            <summary>标准 Bedrock Dedicated Server 能直接作为上游吗？</summary>
+            <div class="faq-body">
+              <p>代理模式不能：上游必须原生支持网易 RakNet v8，标准 BDS 不兼容。转服模式的目标服务器由客户端直连，但仍要求客户端可访问目标、资源包与 limbo 一致；它不会把网易协议翻译成标准 Bedrock 协议。</p>
+            </div>
+          </details>
+
+          <details class="faq-item reveal">
+            <summary>手机看不到房间 / 开房失败怎么办？</summary>
+            <div class="faq-body">
+              <p>确认账号是互通版会话且未过期、PE 认证通过、房间进入 online；同一账号被其他设备登录会把当前房间挤下线。若返回 1351，打开控制台显示的验证链接完成验证后重试。日志中的 <code>server:</code> / <code>client:</code> 前缀可区分上游侧和玩家侧错误。</p>
+            </div>
+          </details>
+
+          <details class="faq-item reveal">
+            <summary>玩家进房后马上断开？</summary>
+            <div class="faq-body">
+              <p><code>server:</code> 先断多为上游或 limbo 侧拒绝/失败，检查单段登录链、转发地址信任、上游版本和资源包；<code>client:</code> 先断多为玩家侧超时或主动关闭。代理模式要求上游接受 CubeDock 重签后的单段登录链并完成 Bedrock 加密握手。</p>
+            </div>
+          </details>
+
+          <details class="faq-item reveal">
+            <summary>资源包不下载 / 转服时报资源包错误？</summary>
+            <div class="faq-body">
+              <p>网易客户端会忽略 ResourcePacksInfo，limbo 默认用 netease 模式强制 SendPacks，并在最后一包后补发 Stack。确认资源包目录正确、包与目标服务器一致；加密包/动态包不支持。ResourcePackStack 后主动断开是拉包流程的预期行为。</p>
+            </div>
+          </details>
+
+          <details class="faq-item reveal">
+            <summary>控制台打不开 / 忘记管理员密码？</summary>
+            <div class="faq-body">
+              <p>默认地址是 <code>http://127.0.0.1:18321/</code>。首次启动会在终端打印一次性管理员密码，也可通过 <code>CUBEDOCK_ADMIN_PASSWORD</code> 设置；忘记密码时使用 <code>-reset-admin-password</code>。控制台只允许白名单 Host/Origin，<code>/api/session/*</code> 只允许本机访问。</p>
+            </div>
+          </details>
+
+          <details class="faq-item reveal">
+            <summary>一个网易账号能开多个房间吗？</summary>
+            <div class="faq-body">
+              <p>不能。同一账号重复登录会使已有房间掉线。每个账号对应一个房间，最多同时运行 8 个账号/房间。</p>
+            </div>
+          </details>
+
+          <details class="faq-item reveal">
+            <summary>数据文件在哪里？会把账号提交到仓库吗？</summary>
+            <div class="faq-body">
+              <p>数据默认在程序数据目录：<code>config.json</code>、<code>room-tokens.dat</code>、<code>accounts.json</code>、<code>interop-device.dat</code>、<code>admin.json</code>、<code>logs/</code>。Windows 使用 DPAPI 保护会话，其他平台使用 0600 文件；不要提交这些文件。</p>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section class="cta container reveal">
+        <div class="cta-card">
+          <div>
+            <span class="eyebrow">GET STARTED</span>
+            <h2>把房间开起来</h2>
+            <p>下载发布包，或者从源码构建。上游要求、构建步骤和常见问题都在 README 与 FAQ 中。</p>
+          </div>
+          <div class="cta-actions">
+            <a class="btn btn-primary" href="https://github.com/emuyx/CubeDock/releases/latest" target="_blank" rel="noreferrer">
+              下载最新版
+              <span class="btn-arrow">→</span>
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/emuyx/CubeDock" target="_blank" rel="noreferrer">GitHub</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div class="footer-brand">
+          <strong>CubeDock 方块码头</strong>
+          <p>网易本地联机 → 网易协议上游。独立项目，与 Mojang、Microsoft、网易无隶属关系；不附带游戏客户端或官方资源。</p>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/emuyx/CubeDock">GitHub</a>
+          <a href="https://github.com/emuyx/CubeDock/releases">Releases</a>
+          <a href="https://github.com/emuyx/CubeDock/blob/main/README.md">README</a>
+          <a href="https://github.com/emuyx/CubeDock/blob/main/NOTICE">License</a>
+        </div>
+        <p class="copyright">© <span id="year">2026</span> emuyx · MIT / AGPL-3.0 components</p>
+      </div>
+    </footer>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
