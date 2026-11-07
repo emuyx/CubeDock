@@ -45,7 +45,6 @@ def main():
             "README.md",
             "CONTRIBUTING.md",
             "SECURITY.md",
-            "CHANGELOG.md",
             "LICENSE",
             "NOTICE",
             "THIRD_PARTY_NOTICES.md",
