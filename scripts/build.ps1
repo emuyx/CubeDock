@@ -4,6 +4,10 @@ Push-Location $root
 try {
     $npm = Get-Command npm -ErrorAction SilentlyContinue
     if (-not $npm) { throw 'npm not found; install Node.js to build the console' }
+    if (-not (Test-Path 'webui-src\node_modules')) {
+        npm ci --prefix webui-src
+        if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+    }
     npm --prefix webui-src run build
     if ($LASTEXITCODE -ne 0) { throw 'frontend build failed' }
 
