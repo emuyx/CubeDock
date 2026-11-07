@@ -10,3 +10,10 @@
 *.exe binary
 *.zip binary
 *.tar.gz binary
+
+# The console build is embedded into the binary. Keep its input and generated
+# output LF-only so a build on one OS does not dirty the tracked dist files on
+# another.
+*.html text eol=lf
+*.svg text eol=lf
+internal/webui/dist/** text eol=lf
