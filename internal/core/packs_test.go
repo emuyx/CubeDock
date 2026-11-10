@@ -76,8 +76,10 @@ func TestScanResourcePacksEmpty(t *testing.T) {
 
 func TestDedupeResourcePacks(t *testing.T) {
 	dir := t.TempDir()
-	older := filepath.Join(dir, "older.mcpack")
-	newer := filepath.Join(dir, "newer.mcpack")
+	// Both duplicate files use CubeDock's managed naming shape; the newer one
+	// is the canonical <manifest-uuid>_<version>.mcpack and must be kept.
+	older := filepath.Join(dir, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee_1.2.3.mcpack")
+	newer := filepath.Join(dir, "11111111-2222-3333-4444-555555555555_1.2.3.mcpack")
 	conflict := filepath.Join(dir, "conflict.mcpack")
 	if err := writeTestPackZip(older, testManifest); err != nil {
 		t.Fatal(err)
@@ -99,15 +101,38 @@ func TestDedupeResourcePacks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(removed) != 1 || removed[0] != "older.mcpack" {
+	if len(removed) != 1 || removed[0] != filepath.Base(older) {
 		t.Fatalf("removed = %v", removed)
 	}
 	if len(warnings) == 0 {
 		t.Fatal("conflicting content was not reported")
 	}
-	for _, name := range []string{"newer.mcpack", "conflict.mcpack"} {
-		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
-			t.Fatalf("%s should remain: %v", name, err)
+	for _, path := range []string{newer, conflict} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("%s should remain: %v", path, err)
+		}
+	}
+}
+
+func TestDedupeKeepsUnmanagedFiles(t *testing.T) {
+	dir := t.TempDir()
+	first := filepath.Join(dir, "custom-a.mcpack")
+	second := filepath.Join(dir, "custom-b.mcpack")
+	for _, path := range []string{first, second} {
+		if err := writeTestPackZip(path, testManifest); err != nil {
+			t.Fatal(err)
+		}
+	}
+	removed, _, err := dedupeResourcePacks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(removed) != 0 {
+		t.Fatalf("unmanaged files were deleted: %v", removed)
+	}
+	for _, path := range []string{first, second} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("%s should remain: %v", path, err)
 		}
 	}
 }

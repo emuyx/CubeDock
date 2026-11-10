@@ -84,7 +84,10 @@ func main() {
 
 	var packChunkSeen atomic.Bool
 	cfg := minecraft.ListenConfig{
-		AuthenticationDisabled:    true,
+		AuthenticationDisabled: true,
+		// Bound the pre-login and idle connections limbo will hold. CubeDock
+		// starts one limbo for all rooms, so the limit must cover several rooms.
+		MaximumPlayers:            256,
 		AllowUnknownPackets:       true,
 		AllowInvalidPackets:       true,
 		ResourcePacks:             packs,
@@ -125,7 +128,11 @@ func main() {
 			log.Printf("accept: %v", err)
 			return
 		}
-		conn := c.(*minecraft.Conn)
+		conn, ok := c.(*minecraft.Conn)
+		if !ok {
+			_ = c.Close()
+			continue
+		}
 		go serve(conn, host, port, len(packs) > 0, *packsSettle, formData)
 	}
 }

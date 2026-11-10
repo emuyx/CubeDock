@@ -71,7 +71,10 @@ func NewHandler(manager *core.Manager, admin *Admin) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Content-Security-Policy",
-			"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
+			"default-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; "+
+				"style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			if r.Header.Get("Origin") != "http://"+r.Host ||
 				!strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
@@ -99,6 +102,11 @@ func respond(w http.ResponseWriter, data any) {
 }
 
 func (h *consoleHandler) changePassword(w http.ResponseWriter, r *http.Request) {
+	if !h.admin.allowAttempt(r) {
+		w.Header().Set("Retry-After", "60")
+		http.Error(w, "尝试过于频繁，请一分钟后再试", http.StatusTooManyRequests)
+		return
+	}
 	var body struct {
 		Current string `json:"current"`
 		Next    string `json:"next"`
@@ -264,6 +272,12 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "为避免会话经网络明文传输，网易账号登录仅允许本机访问控制台", http.StatusForbidden)
 		return
 	}
+	if h.manager.Snapshot().Running {
+		// Authenticate only after the room is stopped: a second NetEase login
+		// can invalidate the session that is keeping the running room alive.
+		http.Error(w, "请先停止房间，再添加或更新账号", http.StatusBadRequest)
+		return
+	}
 	var body struct {
 		Sauth string `json:"sauth"`
 		Email string `json:"email"`
@@ -285,7 +299,7 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	profile, err := auth.LookupProfile(ctx, token)
 	if err != nil {
-		message := redact.Sanitize(err.Error(), "")
+		message := redact.Sanitize(err.Error(), token)
 		h.manager.Record("账号", "互通版会话验证失败："+message)
 		http.Error(w, message, http.StatusBadRequest)
 		return
@@ -308,6 +322,10 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 	if !loopbackRequest(r) {
 		http.Error(w, "为避免密码经网络明文传输，网易账号登录仅允许本机访问控制台", http.StatusForbidden)
+		return
+	}
+	if h.manager.Snapshot().Running {
+		http.Error(w, "请先停止房间，再添加或更新账号", http.StatusBadRequest)
 		return
 	}
 	var body struct {
@@ -339,7 +357,7 @@ func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		message := redact.Sanitize(err.Error(), "")
+		message := redact.Sanitize(err.Error(), body.Password)
 		h.manager.Record("账号", "互通版直登失败："+message)
 		http.Error(w, message, http.StatusBadRequest)
 		return
@@ -356,7 +374,7 @@ func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	profile, err := auth.LookupProfile(ctx, token)
 	if err != nil {
-		message := redact.Sanitize(err.Error(), "")
+		message := redact.Sanitize(err.Error(), token)
 		h.manager.Record("账号", "互通版会话验证失败："+message)
 		http.Error(w, message, http.StatusBadRequest)
 		return
@@ -417,7 +435,7 @@ func (h *consoleHandler) refreshProfile(w http.ResponseWriter, r *http.Request) 
 	defer cancel()
 	profile, fetchErr := auth.LookupProfile(ctx, token)
 	if fetchErr != nil {
-		message := redact.Sanitize(fetchErr.Error(), "")
+		message := redact.Sanitize(fetchErr.Error(), token)
 		_ = h.manager.UpdateAccountProfile(body.Index, "", "", 0, message)
 		h.manager.Record("账号", fmt.Sprintf("房间 %d 游戏名解析失败：%s", body.Index+1, message))
 		http.Error(w, message, http.StatusBadRequest)

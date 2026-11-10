@@ -30,6 +30,22 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/text"
 )
 
+const (
+	// maxResourcePackSize bounds resource pack sizes advertised by the server.
+	// The whole pack is buffered in memory, so an unchecked size is both an
+	// integer-overflow panic and an out-of-memory risk.
+	maxResourcePackSize = 512 << 20
+	// maxResourcePackChunkSize bounds the per-chunk size. Vanilla uses 128 KiB;
+	// this leaves room for custom servers without accepting absurd chunks.
+	maxResourcePackChunkSize = 8 << 20
+)
+
+// validResourcePackChunk reports whether server-controlled pack and chunk
+// sizes are safe to use for allocation and division.
+func validResourcePackChunk(size uint64, chunkSize uint32) bool {
+	return chunkSize > 0 && chunkSize <= maxResourcePackChunkSize && size <= maxResourcePackSize
+}
+
 // exemptedResourcePack is a resource pack that is exempted from being downloaded. These packs may be directly
 // applied by sending them in the ResourcePackStack packet.
 type exemptedResourcePack struct {
@@ -930,6 +946,12 @@ func (conn *Conn) handleResourcePacksInfo(pk *packet.ResourcePacksInfo) error {
 			conn.packQueue.packAmount--
 			continue
 		}
+		if pack.Size > maxResourcePackSize {
+			conn.log.Error("handle ResourcePacksInfo: resource pack size exceeds limit",
+				"UUID", id, "Size", pack.Size)
+			conn.packQueue.packAmount--
+			continue
+		}
 		if conn.downloadResourcePack != nil && !conn.downloadResourcePack(uuid.MustParse(id), pack.Version, index, totalPacks) {
 			conn.ignoredResourcePacks = append(conn.ignoredResourcePacks, exemptedResourcePack{
 				uuid:    id,
@@ -1157,6 +1179,9 @@ func (conn *Conn) handleResourcePackDataInfo(pk *packet.ResourcePackDataInfo) er
 		// sent in the ResourcePacksInfo packet.
 		return fmt.Errorf("handle ResourcePackDataInfo: unknown pack (UUID=%v)", id)
 	}
+	if !validResourcePackChunk(pk.Size, pk.DataChunkSize) {
+		return fmt.Errorf("handle ResourcePackDataInfo: invalid pack size %d or chunk size %d", pk.Size, pk.DataChunkSize)
+	}
 	if pack.size != pk.Size {
 		// Size mismatch: The ResourcePacksInfo packet had a size for the pack that did not match with the
 		// size sent here.
@@ -1199,6 +1224,13 @@ func (conn *Conn) handleResourcePackDataInfo(pk *packet.ResourcePackDataInfo) er
 			conn.log.Error(fmt.Sprintf("download resource pack: incorrect resource pack size: expected %v, got %v", pack.size, pack.buf.Len()), "UUID", id)
 			return
 		}
+		if len(pk.Hash) > 0 {
+			sum := sha256.Sum256(pack.buf.Bytes())
+			if !bytes.Equal(sum[:], pk.Hash) {
+				conn.log.Error("download resource pack: checksum mismatch", "UUID", id)
+				return
+			}
+		}
 		// First parse the resource pack from the total byte buffer we obtained.
 		newPack, err := resource.Read(pack.buf)
 		if err != nil {
@@ -1227,6 +1259,9 @@ func (conn *Conn) handleResourcePackChunkData(pk *packet.ResourcePackChunkData) 
 		// download a resource pack.
 		return fmt.Errorf("chunk data for resource pack that was not being downloaded")
 	}
+	if uint64(pack.buf.Len())+uint64(len(pk.Data)) > pack.size {
+		return fmt.Errorf("resource pack chunk exceeds advertised size %d", pack.size)
+	}
 	lastData := pack.buf.Len()+int(pack.chunkSize) >= int(pack.size)
 	if !lastData && uint32(len(pk.Data)) != pack.chunkSize {
 		// The chunk data didn't have the full size and wasn't the last data to be sent for the resource pack,
@@ -1237,8 +1272,12 @@ func (conn *Conn) handleResourcePackChunkData(pk *packet.ResourcePackChunkData) 
 		return fmt.Errorf("expected chunk index %v, got %v", pack.expectedIndex, pk.ChunkIndex)
 	}
 	pack.expectedIndex++
-	pack.newFrag <- pk.Data
-	return nil
+	select {
+	case pack.newFrag <- pk.Data:
+		return nil
+	case <-conn.ctx.Done():
+		return conn.ctx.Err()
+	}
 }
 
 // handleResourcePackChunkRequest handles a resource pack chunk request, which requests a part of the resource
@@ -1267,24 +1306,24 @@ func (conn *Conn) handleResourcePackChunkRequest(pk *packet.ResourcePackChunkReq
 		}
 		response.Data = response.Data[:n]
 
-			defer func() {
-				if !conn.packQueue.AllDownloaded() {
-					_ = conn.nextResourcePackDownload()
-				} else {
-					conn.expect(packet.IDResourcePackClientResponse)
-					// Some NetEase clients do not send AllPacksDownloaded after
-					// the last chunk. Give them time to unpack the packs and
-					// then send the stack ourselves.
-					go func() {
-						time.Sleep(3 * time.Second)
-						if conn.packStackSent.CompareAndSwap(false, true) {
-							if err := conn.sendResourcePackStack(); err != nil {
-								conn.log.Error("send delayed ResourcePackStack", "error", err)
-							}
+		defer func() {
+			if !conn.packQueue.AllDownloaded() {
+				_ = conn.nextResourcePackDownload()
+			} else {
+				conn.expect(packet.IDResourcePackClientResponse)
+				// Some NetEase clients do not send AllPacksDownloaded after
+				// the last chunk. Give them time to unpack the packs and
+				// then send the stack ourselves.
+				go func() {
+					time.Sleep(3 * time.Second)
+					if conn.packStackSent.CompareAndSwap(false, true) {
+						if err := conn.sendResourcePackStack(); err != nil {
+							conn.log.Error("send delayed ResourcePackStack", "error", err)
 						}
-					}()
-				}
-			}()
+					}
+				}()
+			}
+		}()
 	}
 	if err := conn.WritePacket(response); err != nil {
 		return fmt.Errorf("send ResourcePackChunkData: %w", err)

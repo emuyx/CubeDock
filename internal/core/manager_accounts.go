@@ -136,12 +136,11 @@ func recordFromMeta(meta AccountMeta) accountRecord {
 // metadata, restoring the previous token file if the second write fails.
 func (m *Manager) persistIdentityLocked(tokens []string, accounts []accountRecord) error {
 	tokenPath := filepath.Join(m.dir, tokenFile)
-	previous := strings.Join(m.tokens, "\n")
 	if err := saveTokens(tokenPath, tokens); err != nil {
 		return err
 	}
 	if err := saveAccounts(filepath.Join(m.dir, accountFile), accounts); err != nil {
-		_ = saveTokens(tokenPath, splitTokens(previous))
+		_ = saveTokens(tokenPath, m.tokens)
 		return fmt.Errorf("保存账号信息失败: %w", err)
 	}
 	return nil
@@ -154,7 +153,5 @@ func saveTokens(path string, tokens []string) error {
 		}
 		return nil
 	}
-	return secret.Save(path, strings.Join(tokens, "\n"))
+	return secret.Save(path, FormatTokens(tokens))
 }
-
-func splitTokens(raw string) []string { return strings.Fields(raw) }

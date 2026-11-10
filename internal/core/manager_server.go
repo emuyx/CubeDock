@@ -12,22 +12,32 @@ import (
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/friends"
 	"github.com/emuyx/cubedock/internal/relay"
-	"github.com/emuyx/cubedock/internal/room"
 	"io"
 	"net"
 	"sync"
 	"time"
 )
 
-func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, host *room.Host, info auth.RoomInfo, rl roomLog) error {
+// shouldAutoAcceptFriends reports whether pending friend requests may be
+// accepted. Accepting them while the room is friends-only would let any
+// stranger join the supposedly private room, so that combination is skipped.
+func shouldAutoAcceptFriends(cfg config.Config) bool {
+	return cfg.AutoAcceptFriends && !cfg.FriendsOnly
+}
+
+func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, host roomHost, info auth.RoomInfo, rl roomLog) error {
 	sessionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	friendsDone := make(chan struct{})
 	go func() {
 		defer close(friendsDone)
-		if cfg.AutoAcceptFriends {
+		if shouldAutoAcceptFriends(cfg) {
 			friends.Watch(sessionCtx, info.UserID, info.EncryptKey, rl.event, rl.debug)
+			return
+		}
+		if cfg.AutoAcceptFriends && cfg.FriendsOnly {
+			rl.event("已跳过好友申请自动同意：房间设置为仅好友可进")
 		}
 	}()
 	defer func() { cancel(); <-friendsDone }()
@@ -67,11 +77,22 @@ func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, h
 				rl.event(fmt.Sprintf("房间已满（最多 %d 位玩家），拒绝了一个新连接", cfg.MaxPlayers-1))
 				continue
 			}
+			client, ok := conn.(*nethernet.Conn)
+			if !ok {
+				conn.Close()
+				m.updateRoom(index, func(status *RoomStatus) {
+					if status.Players > 0 {
+						status.Players--
+					}
+				})
+				rl.event("收到非预期的连接类型，已关闭")
+				continue
+			}
 			bridges.Add(1)
 			go func(client *nethernet.Conn) {
 				startedAt := time.Now()
 				playerCtx, playerCancel := context.WithCancel(sessionCtx)
-				guest := m.players.register(index, host.ID, info.PlayerName, playerCancel)
+				guest := m.players.register(index, host.RoomID(), info.PlayerName, playerCancel)
 				defer playerCancel()
 				defer bridges.Done()
 				defer client.Close()
@@ -142,7 +163,7 @@ func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, h
 					!errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 					rl.event(fmt.Sprintf("玩家连接异常：%v", err))
 				}
-			}(conn.(*nethernet.Conn))
+			}(client)
 		}
 	}()
 

@@ -16,6 +16,9 @@ import (
 // pick a loading screen; the Bedrock world comes from the upstream server.
 const levelID = "CubeDock"
 
+// RoomID returns the NetEase room number assigned by the transfer node.
+func (h *Host) RoomID() uint32 { return h.ID }
+
 // Host is one live TanLobby room owned by the bot account.
 type Host struct {
 	ID        uint32

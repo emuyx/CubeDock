@@ -26,6 +26,17 @@ import (
 
 var errPacksPulled = errors.New("resource packs pulled")
 
+// safeLog strips control characters from remote-provided values before they
+// are written to the log, so a pack version cannot forge extra log lines.
+func safeLog(value string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' || r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, value)
+}
+
 // pullResourcePacks logs into the backend server as a bot and downloads all
 // unencrypted resource packs into dir. It prints a JSON summary on success.
 func pullResourcePacks(upstream, dir, name, uid, network string) error {
@@ -66,11 +77,11 @@ func pullResourcePacksContext(ctx context.Context, upstream, dir, name, uid, net
 		},
 		DownloadResourcePack: func(id uuid.UUID, version string, current, total int) bool {
 			if _, ok := local[packKey(id.String(), version)]; ok {
-				log.Printf("[packs] 本地已有 %s v%s（%d/%d），跳过下载", id, version, current+1, total)
+				log.Printf("[packs] 本地已有 %s v%s（%d/%d），跳过下载", id, safeLog(version), current+1, total)
 				skippedLocal++
 				return false
 			}
-			log.Printf("[packs] 下载后端资源包 %s v%s（%d/%d）", id, version, current+1, total)
+			log.Printf("[packs] 下载后端资源包 %s v%s（%d/%d）", id, safeLog(version), current+1, total)
 			return true
 		},
 		OnResourcePacksComplete: func(conn *minecraft.Conn) error {
@@ -119,19 +130,37 @@ func pullResourcePacksContext(ctx context.Context, upstream, dir, name, uid, net
 	return nil
 }
 
+const (
+	// maxPulledPackSize bounds one pack and maxPulledPackTotal bounds a single
+	// pull. Both come from a remote server; without a cap they can fill the
+	// disk or exhaust memory.
+	maxPulledPackSize  = 512 << 20
+	maxPulledPackTotal = 2 << 30
+)
+
 // savePulledPacks writes downloaded packs to dir. skipped is the number of
 // packs already present locally; it is incremented for encrypted or unreadable
 // packs.
 func savePulledPacks(packs []*resource.Pack, dir string, skipped int) (saved, skippedTotal int, err error) {
+	total := int64(0)
 	for _, pack := range packs {
 		if pack.Encrypted() {
-			log.Printf("[packs] 跳过加密资源包 %s v%s（当前 limbo 不支持 ContentKey）", pack.UUID(), pack.Version())
+			log.Printf("[packs] 跳过加密资源包 %s v%s（当前 limbo 不支持 ContentKey）", pack.UUID(), safeLog(pack.Version()))
 			skipped++
 			continue
 		}
-		data := make([]byte, pack.Len())
+		size := pack.Len()
+		if size < 0 || size > maxPulledPackSize {
+			log.Printf("[packs] 跳过超过上限的资源包 %s v%s（%d 字节）", pack.UUID(), safeLog(pack.Version()), size)
+			skipped++
+			continue
+		}
+		if total+int64(size) > maxPulledPackTotal {
+			return saved, skipped, fmt.Errorf("资源包总量超过上限 %d 字节", maxPulledPackTotal)
+		}
+		data := make([]byte, size)
 		if _, err := pack.ReadAt(data, 0); err != nil && !errors.Is(err, io.EOF) {
-			log.Printf("[packs] 读取资源包 %s v%s 失败: %v", pack.UUID(), pack.Version(), err)
+			log.Printf("[packs] 读取资源包 %s v%s 失败: %v", pack.UUID(), safeLog(pack.Version()), err)
 			skipped++
 			continue
 		}
@@ -161,6 +190,7 @@ func savePulledPacks(packs []*resource.Pack, dir string, skipped int) (saved, sk
 		}
 		log.Printf("[packs] 已保存 %s（%d 字节）", filepath.Base(target), len(data))
 		saved++
+		total += int64(len(data))
 	}
 	return saved, skipped, nil
 }

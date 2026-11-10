@@ -398,6 +398,10 @@ type packReader struct {
 	*zip.ReadCloser
 }
 
+// maxManifestSize caps manifest inflation. The pack comes from a remote server,
+// so a highly compressible manifest must not be unbounded.
+const maxManifestSize = 1 << 20
+
 // find attempts to find a file in a zip reader. If found, it returns an Open()ed reader of the file that may
 // be used to read data from the file.
 func (reader packReader) find(fileName string) (io.ReadCloser, error) {
@@ -437,9 +441,13 @@ func readManifest(path string) (*Manifest, error) {
 	}()
 
 	// Read all data from the manifest file so that we can decode it into a Manifest struct.
-	allData, err := io.ReadAll(manifestFile)
+	// The pack comes from a remote server, so cap the manifest before inflating it.
+	allData, err := io.ReadAll(io.LimitReader(manifestFile, maxManifestSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("read manifest file: %w", err)
+	}
+	if len(allData) > maxManifestSize {
+		return nil, fmt.Errorf("read manifest file: exceeds %d bytes", maxManifestSize)
 	}
 	manifest := &Manifest{}
 	if err := jsonc.UnmarshalLenient(allData, manifest); err != nil {

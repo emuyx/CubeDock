@@ -3,7 +3,7 @@
 <p align="center">
   <a href="https://github.com/emuyx/CubeDock/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/emuyx/CubeDock?color=f59e0b&label=release"></a>
   <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/emuyx/CubeDock/release.yml?branch=main&label=build"></a>
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.25%2B-34d399?logo=go&logoColor=white">
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.26%2B-34d399?logo=go&logoColor=white">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-f59e0b">
   <img alt="AGPL" src="https://img.shields.io/badge/components-AGPL--3.0-34d399">
   <a href="https://emuyx.github.io/CubeDock/"><img alt="Pages" src="https://img.shields.io/badge/docs-GitHub%20Pages-34d399"></a>
@@ -85,7 +85,7 @@ go build -trimpath -o build/bin/CubeDockMain ./cmd/cubedock
 ./build/bin/CubeDockMain
 ```
 
-需要 Go 1.25+ 与 Node.js 24；前端构建见下方「开发」。
+需要 Go 1.26+（会自动使用 `go.mod` 指定的 1.27.3 工具链）与 Node.js 24；前端构建见下方「开发」。
 </details>
 
 > **上游要求**：代理模式的上游必须原生支持网易 RakNet v8，标准 BDS 不能直接作为代理上游。

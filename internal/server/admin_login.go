@@ -30,6 +30,7 @@ func (a *Admin) ChangePassword(current, next string) error {
 	}
 	a.passwordMu.Lock()
 	a.password = hash
+	a.passwordVersion++
 	a.passwordMu.Unlock()
 	a.sessionMu.Lock()
 	a.sessions = make(map[string]time.Time)
@@ -60,7 +61,8 @@ func (a *Admin) login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "登录服务繁忙，请稍后重试", http.StatusTooManyRequests)
 		return
 	}
-	if input.Username != "admin" || bcrypt.CompareHashAndPassword(a.currentHash(), []byte(input.Password)) != nil {
+	hash, version := a.passwordSnapshot()
+	if input.Username != "admin" || bcrypt.CompareHashAndPassword(hash, []byte(input.Password)) != nil {
 		http.Error(w, "账号或密码错误", http.StatusUnauthorized)
 		return
 	}
@@ -71,6 +73,14 @@ func (a *Admin) login(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	a.sessionMu.Lock()
+	a.passwordMu.RLock()
+	stale := a.passwordVersion != version
+	a.passwordMu.RUnlock()
+	if stale {
+		a.sessionMu.Unlock()
+		http.Error(w, "账号或密码错误", http.StatusUnauthorized)
+		return
+	}
 	for key, expiry := range a.sessions {
 		if !now.Before(expiry) {
 			delete(a.sessions, key)

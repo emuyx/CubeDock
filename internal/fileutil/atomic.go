@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 // Replace writes data through a temporary file in the destination directory and
@@ -39,6 +41,31 @@ func Replace(path string, data []byte, perm os.FileMode) error {
 	}
 	committed = true
 	return nil
+}
+
+// CleanupStaleState removes leftover ".state-*" temporary files older than
+// age. A crash between write and rename can otherwise leave a plaintext copy
+// of a token or status file behind indefinitely.
+func CleanupStaleState(dir string, age time.Duration) int {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	cutoff := time.Now().Add(-age)
+	removed := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), ".state-") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || !info.Mode().IsRegular() || !info.ModTime().Before(cutoff) {
+			continue
+		}
+		if os.Remove(filepath.Join(dir, entry.Name())) == nil {
+			removed++
+		}
+	}
+	return removed
 }
 
 func writeState(handle *os.File, data []byte, perm os.FileMode) error {

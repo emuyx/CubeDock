@@ -252,6 +252,9 @@ func (c *Conn) handleTransports() {
 func (c *Conn) handleDataMessage(msg webrtc.DataChannelMessage) {
 	if err := c.handleMessage(msg.Data); err != nil {
 		c.log.Error("error handling remote message", slog.Any("error", err))
+		// A malformed or abusive segment stream must not keep the connection
+		// alive; Close is once-guarded and safe from the callback.
+		go c.Close()
 	}
 }
 

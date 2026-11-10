@@ -12,7 +12,10 @@ const maxReportRunes = 500
 var (
 	embeddedJWT = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`)
 	longBlob    = regexp.MustCompile(`[A-Za-z0-9+/_-]{80,}={0,2}`)
-	secretField = regexp.MustCompile(`(?i)("?(?:sauth_json|access_token|login_token|sessionid|cookie|chaininfo|sdkuid|udid|deviceid|userid|xuid)"?\s*[:=]\s*)("[^"]*"|[^,;}\s]+)`)
+	// Keys are matched with optional JSON escaping (\") so credentials inside a
+	// doubly-encoded value such as {"sauth_json":"{\"access_token\":\"...\"}"}
+	// are still redacted. Longer keys come before their suffixes.
+	secretField = regexp.MustCompile(`(?i)(\\?"?(?:sauth_json|access_token|refresh_token|login_token|otp_token|client_secret|client_token|token|password|passwd|pwd|sessionid|cookie|chaininfo|sdkuid|udid|deviceid|userid|xuid|jwt)\\?"?\s*[:=]\s*)(\\?"(?:\\.|[^"\\])*\\?"|[^,;}\s]+)`)
 )
 
 type substitution struct {

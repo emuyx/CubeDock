@@ -31,25 +31,33 @@ type limboProcess struct {
 }
 
 func limboExecutable(cfg config.Config) (string, error) {
-	if path := cfg.LimboPath; path != "" {
-		if _, err := os.Stat(path); err != nil {
-			return "", fmt.Errorf("未找到 limbo 辅助进程 %s: %w", path, err)
+	path := cfg.LimboPath
+	if path == "" {
+		exe, err := os.Executable()
+		if err != nil {
+			return "", err
 		}
-		return path, nil
+		name := "limbo"
+		if runtime.GOOS == "windows" {
+			name += ".exe"
+		}
+		path = filepath.Join(filepath.Dir(exe), name)
 	}
-	exe, err := os.Executable()
+	absolute, err := filepath.Abs(path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("limbo 路径无效: %w", err)
 	}
-	name := "limbo"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
+	if runtime.GOOS == "windows" && strings.HasPrefix(filepath.VolumeName(absolute), `\\`) {
+		return "", fmt.Errorf("limbo 路径不能是网络共享")
 	}
-	path := filepath.Join(filepath.Dir(exe), name)
-	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("未找到 limbo 辅助进程 %s: %w", path, err)
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return "", fmt.Errorf("未找到 limbo 辅助进程 %s: %w", absolute, err)
 	}
-	return path, nil
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("limbo 路径不是普通文件: %s", absolute)
+	}
+	return absolute, nil
 }
 
 // DefaultLimboPacksDir returns where CubeDock expects limbo resource packs.
@@ -57,6 +65,9 @@ func limboExecutable(cfg config.Config) (string, error) {
 // executable) is used, matching limbo's own auto-discovery.
 func DefaultLimboPacksDir(cfg config.Config) string {
 	if dir := strings.TrimSpace(cfg.LimboPacksDir); dir != "" {
+		if absolute, err := filepath.Abs(dir); err == nil {
+			return absolute
+		}
 		return dir
 	}
 	base := ""
@@ -137,6 +148,7 @@ func startLimboProcess(cfg config.Config, logger *log.Logger, onLine func(string
 		args = append(args, "-packs", packsDir)
 	}
 	cmd := exec.Command(path, args...)
+	cmd.Env = childEnv()
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -155,6 +167,7 @@ func startLimboProcess(cfg config.Config, logger *log.Logger, onLine func(string
 	if err != nil {
 		_ = stdin.Close()
 		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 		return nil, fmt.Errorf("绑定 limbo 生命周期失败: %w", err)
 	}
 	process := &limboProcess{cmd: cmd, stdin: stdin, cleanup: cleanup, done: make(chan struct{})}
@@ -262,7 +275,10 @@ func upstreamDescription(cfg config.Config) string {
 
 func pingUpstream(ctx context.Context, cfg config.Config) (string, error) {
 	if cfg.ConnectionMode == config.ConnectionTransfer {
-		if _, err := goraknet.PingContext(ctx, cfg.LimboUpstream); err != nil {
+		// go-raknet's PingContext may wait indefinitely on a silent endpoint.
+		pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		if _, err := goraknet.PingContext(pingCtx, cfg.LimboUpstream); err != nil {
 			return "", err
 		}
 		return "limbo", nil

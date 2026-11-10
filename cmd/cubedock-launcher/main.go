@@ -152,8 +152,19 @@ func extract(embeddedPath, target string) error {
 	if existing, err := os.ReadFile(target); err == nil && bytes.Equal(hash[:], sha256Sum(existing)) {
 		return nil
 	}
-	temp := target + ".tmp"
-	if err := os.WriteFile(temp, data, 0755); err != nil {
+	tempFile, err := os.CreateTemp(filepath.Dir(target), ".cubedock-*.tmp")
+	if err != nil {
+		return err
+	}
+	temp := tempFile.Name()
+	if _, err = tempFile.Write(data); err == nil {
+		err = tempFile.Chmod(0755)
+	}
+	if closeErr := tempFile.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = os.Remove(temp)
 		return err
 	}
 	if err := os.Rename(temp, target); err != nil {

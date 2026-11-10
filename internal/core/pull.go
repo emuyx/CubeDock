@@ -39,7 +39,9 @@ func (m *Manager) pullResourcePacks(ctx context.Context) (string, error) {
 		"-identity-name", name,
 		"-identity-uid", uid,
 	}
-	output, err := exec.CommandContext(ctx, path, args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Env = childEnv()
+	output, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(output))
 	if err != nil {
 		if text != "" {

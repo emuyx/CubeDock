@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -231,6 +232,12 @@ type packFileInfo struct {
 	mod  time.Time
 }
 
+// managedPackName matches the "<uuid>_<major>.<minor>.<patch>.mcpack" names
+// CubeDock writes when it pulls packs. Dedupe only deletes files with this
+// shape, so a user's own files in a shared pack directory are never removed.
+var managedPackName = regexp.MustCompile(
+	`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_[0-9]+\.[0-9]+\.[0-9]+\.mcpack$`)
+
 // dedupeResourcePacks removes exact duplicate zip packs (same manifest UUID,
 // version and SHA-256), keeping the most recently modified file. Packs with
 // the same UUID/version but different contents are kept and reported as a
@@ -243,7 +250,7 @@ func dedupeResourcePacks(dir string) (removed, warnings []string, err error) {
 	groups := make(map[string][]packFileInfo)
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || strings.HasPrefix(name, ".") {
+		if entry.IsDir() || strings.HasPrefix(name, ".") || entry.Type()&os.ModeSymlink != 0 {
 			continue
 		}
 		path := filepath.Join(dir, name)
@@ -303,6 +310,9 @@ func dedupeResourcePacks(dir string) (removed, warnings []string, err error) {
 				return same[i].mod.After(same[j].mod)
 			})
 			for _, file := range same[1:] {
+				if !managedPackName.MatchString(file.name) {
+					continue
+				}
 				if err := os.Remove(file.path); err != nil {
 					warnings = append(warnings, fmt.Sprintf("删除重复包 %s 失败: %v", file.name, err))
 					continue

@@ -6,9 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/emuyx/cubedock/internal/auth"
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/fileutil"
 	"github.com/emuyx/cubedock/internal/redact"
+	"github.com/emuyx/cubedock/internal/room"
+	"github.com/emuyx/cubedock/internal/session"
 	"log"
 	"path/filepath"
 	"sync"
@@ -84,6 +87,13 @@ type Manager struct {
 	players playerRegistry
 	limbo   *limboProcess
 
+	// Room operations are indirections so tests can exercise many rooms at
+	// once without NetEase. New sets the production implementations.
+	prepareRoom  func(context.Context, config.Config, string) (auth.RoomInfo, error)
+	openRoom     func(context.Context, config.Config, auth.RoomInfo, func(string)) (roomHost, error)
+	pingFn       func(context.Context, config.Config) (string, error)
+	claimSession func(string) (*session.Lease, error)
+
 	exit     chan struct{}
 	exitOnce sync.Once
 }
@@ -102,6 +112,13 @@ func New(dir string, cfg config.Config, tokens []string, logger *log.Logger) (*M
 		accounts: accounts,
 		status:   Status{Phase: "stopped", Events: []Event{}},
 		exit:     make(chan struct{}),
+
+		prepareRoom: auth.PrepareRoom,
+		openRoom: func(ctx context.Context, cfg config.Config, info auth.RoomInfo, trace func(string)) (roomHost, error) {
+			return room.Open(ctx, cfg, info, trace)
+		},
+		pingFn:       pingUpstream,
+		claimSession: session.Claim,
 	}
 	m.persist()
 	return m, nil

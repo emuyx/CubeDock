@@ -13,7 +13,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/console"
 	"github.com/emuyx/cubedock/internal/core"
+	"github.com/emuyx/cubedock/internal/fileutil"
 	"github.com/emuyx/cubedock/internal/secret"
 	"github.com/emuyx/cubedock/internal/server"
 	"github.com/emuyx/cubedock/internal/session"
@@ -70,6 +70,8 @@ func run() error {
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
+	// A crash during an atomic state write can leave a plaintext temp file.
+	fileutil.CleanupStaleState(dir, 24*time.Hour)
 
 	cfg, err := config.Load(filepath.Join(dir, "config.json"))
 	if err != nil {
@@ -114,7 +116,9 @@ func run() error {
 	}
 	defer listener.Close()
 
-	admin, initialPassword, err := server.LoadAdmin(dir, os.Getenv("CUBEDOCK_ADMIN_PASSWORD"), *resetAdmin)
+	adminPassword := os.Getenv("CUBEDOCK_ADMIN_PASSWORD")
+	admin, initialPassword, err := server.LoadAdmin(dir, adminPassword, *resetAdmin)
+	_ = os.Unsetenv("CUBEDOCK_ADMIN_PASSWORD")
 	if err != nil {
 		return err
 	}
@@ -139,7 +143,7 @@ func run() error {
 	case initialPassword != "":
 		fmt.Println("管理员初始密码：", initialPassword)
 		fmt.Println("请保存此密码；后续启动不再显示，可用 -reset-admin-password 重置。")
-	case os.Getenv("CUBEDOCK_ADMIN_PASSWORD") != "":
+	case adminPassword != "":
 		fmt.Println("管理密码：由 CUBEDOCK_ADMIN_PASSWORD 设置。")
 	default:
 		fmt.Println("管理密码：已设置，忘记密码可用 -reset-admin-password 重置。")
@@ -189,15 +193,18 @@ func loadTokens(dir string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("无法读取房间会话，请检查当前用户权限或重新登录: %w", err)
 	}
-	tokens := strings.Fields(stored)
+	tokens := core.ParseTokens(stored)
 	if len(tokens) == 0 {
-		tokens = strings.Fields(os.Getenv("CUBEDOCK_TOKEN"))
+		tokens = core.ParseTokens(os.Getenv("CUBEDOCK_TOKEN"))
 		if len(tokens) > 0 {
-			if err := secret.Save(path, strings.Join(tokens, "\n")); err != nil {
+			if err := secret.Save(path, core.FormatTokens(tokens)); err != nil {
 				return nil, fmt.Errorf("保存引导会话失败: %w", err)
 			}
 		}
 	}
+	// The token is persisted in the protected file; do not keep a second copy
+	// in the environment for the lifetime of the process.
+	_ = os.Unsetenv("CUBEDOCK_TOKEN")
 	return tokens, nil
 }
 
@@ -260,6 +267,8 @@ func openLog(dir string) (*log.Logger, *os.File, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	// Correct the mode of a log file created by an older build or a restore.
+	_ = file.Chmod(0600)
 	return log.New(file, "", log.LstdFlags), file, nil
 }
 

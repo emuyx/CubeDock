@@ -15,16 +15,21 @@ import (
 // Start launches one room goroutine per account. Calling Start while running is
 // a no-op.
 func (m *Manager) Start() error {
-	if m.cfg.ConnectionMode == config.ConnectionTransfer {
+	// Configure and SetDebug write cfg under m.mu; snapshot it once so the
+	// pre-flight checks below never read it unsynchronised.
+	m.mu.Lock()
+	cfg := m.cfg
+	m.mu.Unlock()
+	if cfg.ConnectionMode == config.ConnectionTransfer {
 		m.mu.Lock()
 		running := m.cancel != nil
 		hasTokens := len(m.tokens) > 0
 		m.mu.Unlock()
-		if m.cfg.LimboAutoPullPacks && !running && hasTokens {
+		if cfg.LimboAutoPullPacks && !running && hasTokens {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			output, pullErr := m.pullResourcePacks(ctx)
 			cancel()
-			dir, dirErr := EnsureLimboPacksDir(m.cfg)
+			dir, dirErr := EnsureLimboPacksDir(cfg)
 			switch {
 			case pullErr != nil:
 				m.Record("资源包", "自动拉取后端资源包失败："+pullErr.Error())
@@ -70,7 +75,7 @@ func (m *Manager) Start() error {
 	// cannot leave the remaining rooms half-started.
 	leases := make([]*session.Lease, 0, len(m.tokens))
 	for index, token := range m.tokens {
-		lease, err := session.Claim(token)
+		lease, err := m.claimSession(token)
 		if err != nil {
 			for _, held := range leases {
 				held.Release()
@@ -96,7 +101,7 @@ func (m *Manager) Start() error {
 			m.status.Rooms[index].Account = firstNonEmpty(m.accounts[index].Name, m.accounts[index].Label, m.accounts[index].Email)
 		}
 	}
-	cfg := m.cfg
+	cfg = m.cfg
 	tokens := append([]string(nil), m.tokens...)
 	finished := m.finished
 

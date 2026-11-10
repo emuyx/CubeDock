@@ -8,10 +8,19 @@ import (
 	"github.com/emuyx/cubedock/internal/auth"
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/redact"
-	"github.com/emuyx/cubedock/internal/room"
 	"net"
 	"time"
 )
+
+// roomHost is the part of room.Host the manager supervises. Tests substitute a
+// fake so many-room startup, retry and shutdown run without NetEase.
+type roomHost interface {
+	RoomID() uint32
+	Accept() (net.Conn, error)
+	Done() <-chan struct{}
+	Err() error
+	Close()
+}
 
 func (m *Manager) run(ctx context.Context, index int, cfg config.Config, token string) {
 	rl := roomLog{manager: m, source: fmt.Sprintf("房间 %d", index+1)}
@@ -28,7 +37,7 @@ func (m *Manager) run(ctx context.Context, index int, cfg config.Config, token s
 			status.Attempts++
 		})
 
-		version, err := pingUpstream(ctx, cfg)
+		version, err := m.pingFn(ctx, cfg)
 		if err == nil {
 			m.updateStatus(func(status *Status) {
 				status.UpstreamOnline = true
@@ -39,7 +48,7 @@ func (m *Manager) run(ctx context.Context, index int, cfg config.Config, token s
 
 			var info auth.RoomInfo
 			authCtx, cancel := context.WithTimeout(ctx, 75*time.Second)
-			info, err = auth.PrepareRoom(authCtx, cfg, token)
+			info, err = m.prepareRoom(authCtx, cfg, token)
 			cancel()
 			if err == nil {
 				m.updateRoom(index, func(status *RoomStatus) {
@@ -48,22 +57,28 @@ func (m *Manager) run(ctx context.Context, index int, cfg config.Config, token s
 					status.Phase = "creating"
 				})
 				rl.debug(fmt.Sprintf("鉴权通过，房间协议 %d；连接开房节点", info.ProtocolID))
-				var host *room.Host
+				var host roomHost
 				createCtx, cancel := context.WithTimeout(ctx, 35*time.Second)
-				host, err = room.Open(createCtx, cfg, info, rl.debug)
+				host, err = m.openRoom(createCtx, cfg, info, rl.debug)
 				cancel()
 				if err == nil {
-					failures = 0
+					openedAt := time.Now()
 					m.updateRoom(index, func(status *RoomStatus) {
 						status.Phase = "online"
-						status.RoomID = host.ID
-						status.ConnectedAt = time.Now().Format(time.RFC3339)
+						status.RoomID = host.RoomID()
+						status.ConnectedAt = openedAt.Format(time.RFC3339)
 						status.LastError = ""
 					})
 					rl.event(fmt.Sprintf("房间 %d 已上线（协议 %d，上游 %s），房主机器人持续保活",
-						host.ID, info.ProtocolID, upstreamDescription(cfg)))
+						host.RoomID(), info.ProtocolID, upstreamDescription(cfg)))
 					err = m.serveRoom(ctx, index, cfg, host, info, rl)
 					host.Close()
+					// Only a session that stayed up long enough resets the
+					// backoff. A room that opens and immediately drops must not
+					// re-authenticate and recreate itself every few seconds.
+					if time.Since(openedAt) >= 30*time.Second {
+						failures = 0
+					}
 				}
 			}
 		} else {

@@ -38,6 +38,9 @@ type Admin struct {
 	filePath   string
 	passwordMu sync.RWMutex
 	password   []byte
+	// passwordVersion increments on every change so a login that validated the
+	// old password cannot insert a session after ChangePassword cleared them.
+	passwordVersion uint64
 
 	sessionMu sync.Mutex
 	sessions  map[string]time.Time

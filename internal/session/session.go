@@ -1,6 +1,7 @@
 // Package session guards a NetEase account against being logged in twice by
-// this machine. A process-scoped file lock is held for the whole lifetime of a
-// room, including its reconnect loop. The token itself never touches the disk.
+// the same OS user on this machine. A process-scoped file lock is held for the
+// whole lifetime of a room, including its reconnect loop. The token itself
+// never touches the disk.
 package session
 
 import (
@@ -22,7 +23,7 @@ type Lease struct {
 	release sync.Once
 }
 
-// Claim takes the machine-wide lease for token.
+// Claim takes the per-user lease for token.
 func Claim(token string) (*Lease, error) {
 	cache, err := os.UserCacheDir()
 	if err != nil {
@@ -47,10 +48,13 @@ func leaseName(token string) string {
 }
 
 func acquire(path string) (*Lease, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, errors.New("无法创建会话锁目录")
 	}
-	handle, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	// Tighten a directory created by an older build or restored from a backup.
+	_ = os.Chmod(dir, 0o700)
+	handle, err := openLockFile(path)
 	if err != nil {
 		return nil, errors.New("无法打开会话锁")
 	}

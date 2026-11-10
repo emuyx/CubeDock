@@ -39,6 +39,12 @@ func (a *Admin) Protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if path == "/api/login" || path == "/favicon.svg" || strings.HasPrefix(path, "/assets/") {
+			// Static assets are public, but the embedded file server would
+			// otherwise list the directory for a trailing slash.
+			if strings.HasSuffix(path, "/") {
+				http.NotFound(w, r)
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -99,4 +105,12 @@ func (a *Admin) currentHash() []byte {
 	a.passwordMu.RLock()
 	defer a.passwordMu.RUnlock()
 	return append([]byte(nil), a.password...)
+}
+
+// passwordSnapshot returns the current hash and version together, so a login
+// can detect a password change that happened while bcrypt was running.
+func (a *Admin) passwordSnapshot() ([]byte, uint64) {
+	a.passwordMu.RLock()
+	defer a.passwordMu.RUnlock()
+	return append([]byte(nil), a.password...), a.passwordVersion
 }

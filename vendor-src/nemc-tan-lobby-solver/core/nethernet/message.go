@@ -6,9 +6,15 @@ import (
 	"net"
 )
 
+// maxReassembledMessage bounds a message split across ReliableDataChannel
+// frames. The remote peer controls the segment count, so an unbounded buffer
+// lets a guest exhaust the host's memory.
+const maxReassembledMessage = 8 << 20
+
 // message represents the structure of remote messages sent in ReliableDataChannel.
 type message struct {
-	// segments represents the number of segments the message is split into.
+	// segments is the continuation flag of the last segment: non-zero while
+	// more segments follow, zero on the final one.
 	segments uint8
 	// data represents the payload of the message.
 	data []byte
@@ -35,17 +41,24 @@ func (c *Conn) handleMessage(b []byte) error {
 		return fmt.Errorf("parse: %w", err)
 	}
 
+	// The first byte is a continuation flag: 1 while more segments follow, 0
+	// on the final one. Only the accumulated size is bounded here.
+	if len(c.message.data)+len(msg.data) > maxReassembledMessage {
+		c.message = &message{}
+		return fmt.Errorf("reassembled message exceeds %d bytes", maxReassembledMessage)
+	}
 	c.message.segments = msg.segments
 	c.message.data = append(c.message.data, msg.data...)
 	if c.message.segments > 0 {
 		return nil
 	}
 
+	data := c.message.data
+	c.message = &message{}
 	select {
-	case c.packets <- c.message.data:
+	case c.packets <- data:
 	case <-c.closed:
 		return net.ErrClosed
 	}
-	c.message.data = nil
 	return nil
 }
