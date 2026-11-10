@@ -77,7 +77,8 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
     return () => clearInterval(timer);
   }, [open, load]);
 
-  const visible = players.filter(player => roomIndex === null || player.room === roomIndex);
+  // PlayerStatus.Room is 1-based; roomIndex is the 0-based account index.
+  const visible = players.filter(player => roomIndex === null || player.room === roomIndex + 1);
   const proxy = status?.config?.connection_mode === 'proxy';
 
   const kick = async player => {
@@ -199,7 +200,7 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2">房间 {player.room + 1}</Typography>
+                          <Typography variant="body2">房间 {player.room}</Typography>
                           {player.room_id ? (
                             <Typography variant="caption" color="text.secondary">
                               {player.room_id}

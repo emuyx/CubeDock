@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -15,9 +15,9 @@ import { api } from './api.js';
 import { useToast } from './App.jsx';
 import { copyText } from './util.js';
 
-export default function AccountLogin({ onAdded, compact = false }) {
+export default function AccountLogin({ onAdded, compact = false, replaceIndex = null, initialEmail = '' }) {
   const notify = useToast();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [label, setLabel] = useState('');
@@ -32,9 +32,14 @@ export default function AccountLogin({ onAdded, compact = false }) {
   const [sauthProfile, setSauthProfile] = useState(null);
   const requestRef = useRef(false);
 
+  useEffect(() => {
+    if (initialEmail) setEmail(initialEmail);
+  }, [initialEmail, replaceIndex]);
+
   const runLogin = async () => {
     if (requestRef.current) return;
     const credentials = { email: email.trim(), password, label: label.trim() };
+    if (replaceIndex !== null) credentials.index = replaceIndex;
     if (!credentials.email || !credentials.password) {
       setError('请填写网易邮箱和密码');
       return;
@@ -53,7 +58,12 @@ export default function AccountLogin({ onAdded, compact = false }) {
       }
       setVerifyURL('');
       setMessage('');
-      notify(`已添加互通版账号：${result.name} → 房间 ${(result.index ?? 0) + 1}`, 'success');
+      notify(
+        replaceIndex !== null
+          ? `已更新房间 ${(result.index ?? replaceIndex) + 1} 的登录：${result.name}`
+          : `已添加互通版账号：${result.name} → 房间 ${(result.index ?? 0) + 1}`,
+        'success',
+      );
       setPassword('');
       if (onAdded) onAdded(result);
     } catch (failure) {
@@ -83,8 +93,15 @@ export default function AccountLogin({ onAdded, compact = false }) {
     setSauthError('');
     setSauthProfile(null);
     try {
-      const result = await api('session/import', { sauth: value, label: sauthLabel.trim() });
-      notify(`已导入互通版会话：${result.name} → 房间 ${(result.index ?? 0) + 1}`, 'success');
+      const payload = { sauth: value, label: sauthLabel.trim() };
+      if (replaceIndex !== null) payload.index = replaceIndex;
+      const result = await api('session/import', payload);
+      notify(
+        replaceIndex !== null
+          ? `已更新房间 ${(result.index ?? replaceIndex) + 1} 的登录：${result.name}`
+          : `已导入互通版会话：${result.name} → 房间 ${(result.index ?? 0) + 1}`,
+        'success',
+      );
       setSauthProfile(result);
       setSauth('');
       setSauthLabel('');
@@ -99,8 +116,10 @@ export default function AccountLogin({ onAdded, compact = false }) {
   return (
     <Stack spacing={compact ? 2 : 2.4}>
       <Box>
-        <Alert severity="success" sx={{ mb: 1.5 }}>
-          推荐直接用网易邮箱和密码登录。密码只用于换取登录凭证，CubeDock 不会保存密码。
+        <Alert severity={replaceIndex !== null ? 'info' : 'success'} sx={{ mb: 1.5 }}>
+          {replaceIndex !== null
+            ? `正在更新房间 ${replaceIndex + 1} 的登录。旧凭据过期后，点击刷新不会续期；请用邮箱密码或新的 sauth 重新登录。`
+            : '推荐直接用网易邮箱和密码登录。密码只用于换取登录凭证，CubeDock 不会保存密码。'}
         </Alert>
         <Stack spacing={1.4}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2}>
@@ -145,7 +164,9 @@ export default function AccountLogin({ onAdded, compact = false }) {
               fullWidth
             />
             <Button variant="contained" onClick={runLogin} disabled={busy} sx={{ whiteSpace: 'nowrap' }}>
-              {busy ? '登录中…' : '登录并添加'}
+              {busy
+                ? replaceIndex !== null ? '更新中…' : '登录中…'
+                : replaceIndex !== null ? '登录并更新' : '登录并添加'}
             </Button>
           </Stack>
           {verifyURL && (
@@ -155,7 +176,8 @@ export default function AccountLogin({ onAdded, compact = false }) {
                   {message || '网易要求完成一次安全验证。'}
                 </Typography>
                 <Typography variant="body2">
-                  请点击下方按钮完成验证，然后回到这里再次点击「登录并添加」。
+                  请点击下方按钮完成验证，然后回到这里再次点击
+                  {replaceIndex !== null ? '「登录并更新」' : '「登录并添加」'}。
                   CubeDock 不会自动重试，也不会在后台重复登录。
                 </Typography>
                 <TextField
@@ -221,7 +243,7 @@ export default function AccountLogin({ onAdded, compact = false }) {
               fullWidth
             />
             <Button variant="contained" onClick={importSauth} disabled={sauthBusy} sx={{ whiteSpace: 'nowrap' }}>
-              {sauthBusy ? '验证中…' : '验证并添加'}
+              {sauthBusy ? '验证中…' : replaceIndex !== null ? '验证并更新' : '验证并添加'}
             </Button>
           </Stack>
           {sauthProfile && (

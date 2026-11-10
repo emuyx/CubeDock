@@ -28,7 +28,7 @@ const (
 type PlayerStatus struct {
 	ID            string      `json:"id"`
 	Name          string      `json:"name,omitempty"`
-	Room          int         `json:"room"`
+	Room          int         `json:"room"` // 1-based room number, matching the console
 	RoomID        uint32      `json:"room_id,omitempty"`
 	Account       string      `json:"account,omitempty"`
 	State         PlayerState `json:"state"`

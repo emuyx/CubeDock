@@ -82,6 +82,33 @@ func TestDiagnoseReportsFailuresWithoutSideEffects(t *testing.T) {
 	}
 }
 
+func TestDiagnoseTransferStoppedSkipsLimboPing(t *testing.T) {
+	manager := newTestManager(t)
+	limbo := filepath.Join(t.TempDir(), "limbo")
+	if err := os.WriteFile(limbo, []byte("demo"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Defaults()
+	cfg.ConnectionMode = config.ConnectionTransfer
+	cfg.LimboPath = limbo
+	cfg.LimboPacksDir = t.TempDir()
+	if err := manager.Configure(cfg); err != nil {
+		t.Fatal(err)
+	}
+	manager.pingFn = func(context.Context, config.Config) (string, error) {
+		t.Fatal("transfer diagnostics pinged the stopped intermediary")
+		return "", nil
+	}
+
+	checks := diagnosticsByID(manager.Diagnose(context.Background()))
+	if checks["upstream"].Status != DiagnosticSkip {
+		t.Fatalf("upstream = %+v", checks["upstream"])
+	}
+	if checks["limbo"].Status != DiagnosticOK {
+		t.Fatalf("limbo = %+v", checks["limbo"])
+	}
+}
+
 func TestDiagnoseSkipsLocksWhileRunning(t *testing.T) {
 	manager := newTestManager(t)
 	addTestAccounts(t, manager, 1)

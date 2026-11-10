@@ -25,8 +25,8 @@ import {
   Add,
   ContentCopy,
   DeleteOutlined,
+  Key,
   PeopleAlt,
-  Refresh,
   Search,
   UploadFile,
 } from '@mui/icons-material';
@@ -42,6 +42,8 @@ export default function AccountsPanel({ status, onChanged }) {
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [playersRoom, setPlayersRoom] = useState(null);
+  const [reloginIndex, setReloginIndex] = useState(null);
+  const [reloginEmail, setReloginEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
@@ -122,24 +124,6 @@ export default function AccountsPanel({ status, onChanged }) {
       notify('房间号已复制', 'success');
     } catch (failure) {
       notify(failure.message || '复制失败', 'error');
-    }
-  };
-
-  const verify = async index => {
-    if (running) {
-      notify('请先停止房间，再验证账号', 'warning');
-      return;
-    }
-    setBusy(true);
-    try {
-      const result = await api('account/profile', { index });
-      notify(`房间 ${index + 1} 游戏名：${result.name}`, 'success');
-      onChanged?.();
-    } catch (failure) {
-      notify(failure.message || '游戏名解析失败', 'error');
-      onChanged?.();
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -272,7 +256,7 @@ export default function AccountsPanel({ status, onChanged }) {
                         {account.expires_at && (
                           <Typography variant="caption" color={sessionExpired ? 'error' : 'text.secondary'}>
                             {sessionExpired
-                              ? '会话已过期，请重新导入'
+                              ? '登录已过期，请更新登录'
                               : `${new Date(account.expires_at).toLocaleDateString('zh-CN')} 到期`}
                           </Typography>
                         )}
@@ -287,7 +271,7 @@ export default function AccountsPanel({ status, onChanged }) {
                         </Typography>
                       </Tooltip>
                     ) : (
-                      <Tooltip title={account.profile_error || '尚未解析游戏名，点击右侧刷新按钮验证'}>
+                      <Tooltip title={account.profile_error || '尚未读取游戏名，可以用右侧「更新登录」重新登录'}>
                         <Typography variant="body2" color={account.profile_error ? 'error' : 'text.secondary'} noWrap sx={{ maxWidth: 180 }}>
                           {account.profile_error ? '解析失败' : '未解析'}
                         </Typography>
@@ -324,15 +308,25 @@ export default function AccountsPanel({ status, onChanged }) {
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title={running ? '请先停止房间' : '解析/更新游戏名'}>
+                    <Tooltip
+                      title={
+                        running
+                          ? '请先停止房间'
+                          : '更新登录凭据：旧凭据过期后，用邮箱密码或新的 sauth 重新登录'
+                      }
+                    >
                       <span>
                         <IconButton
                           size="small"
                           color="primary"
-                          disabled={running || busy || !account.email}
-                          onClick={() => verify(account.index)}
+                          aria-label="更新登录"
+                          disabled={running || busy}
+                          onClick={() => {
+                            setReloginEmail(account.email || '');
+                            setReloginIndex(account.index);
+                          }}
                         >
-                          <Refresh fontSize="small" />
+                          <Key fontSize="small" />
                         </IconButton>
                       </span>
                     </Tooltip>
@@ -364,6 +358,25 @@ export default function AccountsPanel({ status, onChanged }) {
         status={status}
         onClose={() => setPlayersRoom(null)}
       />
+
+      <Dialog open={reloginIndex !== null} onClose={() => setReloginIndex(null)} fullWidth maxWidth="sm">
+        <DialogTitle>
+          更新房间 {reloginIndex !== null ? reloginIndex + 1 : ''} 的登录
+        </DialogTitle>
+        <DialogContent>
+          {reloginIndex !== null && (
+            <AccountLogin
+              compact
+              replaceIndex={reloginIndex}
+              initialEmail={reloginEmail}
+              onAdded={() => {
+                setReloginIndex(null);
+                onChanged?.();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={addOpen} onClose={() => setAddOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>登录网易账号</DialogTitle>

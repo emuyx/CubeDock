@@ -69,14 +69,15 @@ const playerView = () =>
       Math.max(0, Math.round((Date.now() - new Date(player.joined_at).getTime()) / 1000)) || player.uptime_seconds,
   }));
 
-function makePlayer(name, room, packets) {
+function makePlayer(name, roomIndex, packets) {
   state.playerSeq += 1;
   return {
     id: `p${state.playerSeq}`,
     name,
-    room,
-    room_id: state.rooms[room]?.room_id || 0,
-    account: state.accounts[room]?.name || '演示账号',
+    // Match the real API: PlayerStatus.Room is 1-based.
+    room: roomIndex + 1,
+    room_id: state.rooms[roomIndex]?.room_id || 0,
+    account: state.accounts[roomIndex]?.name || '演示账号',
     state: 'joined',
     started_at: nowISO(),
     joined_at: nowISO(),
@@ -87,7 +88,7 @@ function makePlayer(name, room, packets) {
 }
 
 function roomView(room, index) {
-  const count = state.players.filter(player => player.room === index).length;
+  const count = state.players.filter(player => player.room === index + 1).length;
   return { ...room, players: count, account: state.accounts[index]?.name || `房间 ${index + 1}` };
 }
 
@@ -211,7 +212,7 @@ function consoleCommand(command) {
   if (name === 'list') {
     if (!state.players.length) return ['当前没有在线玩家。'];
     return state.players.map(
-      player => `${player.id}  ${player.name}  房间 ${player.room + 1}  在线  ↑ ${player.up_packets} / ↓ ${player.down_packets}`,
+      player => `${player.id}  ${player.name}  房间 ${player.room}  在线  ↑ ${player.up_packets} / ↓ ${player.down_packets}`,
     );
   }
   if (name === 'kick') {
@@ -255,6 +256,23 @@ function addDemoAccount({ email = '', name = '', label = '' } = {}) {
   state.accounts.push(account);
   append('账号', `已添加演示账号 ${account.name}`);
   return account;
+}
+
+function upsertDemoAccount(index, fields = {}) {
+  const target = Number(index);
+  if (Number.isInteger(target) && state.accounts[target]) {
+    const current = state.accounts[target];
+    state.accounts[target] = {
+      ...current,
+      email: fields.email || current.email,
+      label: fields.label || current.label,
+      name: fields.name || current.name,
+      expires_at: future,
+    };
+    append('账号', `已更新房间 ${target + 1} 的登录：${state.accounts[target].name}`);
+    return { account: state.accounts[target], index: target, updated: true };
+  }
+  return { account: addDemoAccount(fields), index: state.accounts.length - 1, updated: false };
 }
 
 export function installDemoApi() {
@@ -322,11 +340,12 @@ export function installDemoApi() {
         case 'POST exit':
           append('管理员', '演示模式不会真正退出。');
           return json({ ok: true });
-        case 'POST session/import':
+        case 'POST session/import': {
           if (state.running) return failure('请先停止房间，再添加账号');
-          addDemoAccount({ label: body.label });
-          return json({ ok: true, index: state.accounts.length - 1, name: state.accounts.at(-1).name, uid: state.accounts.at(-1).uid, level: state.accounts.at(-1).level, platform: 'interop', expires_at: future });
-        case 'POST session/interop-login':
+          const saved = upsertDemoAccount(body.index, { label: body.label });
+          return json({ ok: true, index: saved.index, name: saved.account.name, uid: saved.account.uid, level: saved.account.level, platform: 'interop', expires_at: future });
+        }
+        case 'POST session/interop-login': {
           if (state.running) return failure('请先停止房间，再添加账号');
           if (String(body.email || '').includes('verify') || body.password === '1351') {
             return json({
@@ -335,8 +354,13 @@ export function installDemoApi() {
               verify_url: 'https://example.com/verify',
             });
           }
-          addDemoAccount({ email: body.email, name: String(body.email || '').split('@')[0], label: body.label });
-          return json({ ok: true, index: state.accounts.length - 1, name: state.accounts.at(-1).name, uid: state.accounts.at(-1).uid, level: state.accounts.at(-1).level, platform: 'interop', expires_at: future });
+          const saved = upsertDemoAccount(body.index, {
+            email: body.email,
+            name: String(body.email || '').split('@')[0],
+            label: body.label,
+          });
+          return json({ ok: true, index: saved.index, name: saved.account.name, uid: saved.account.uid, level: saved.account.level, platform: 'interop', expires_at: future });
+        }
         case 'POST account/remove':
           if (state.running) return failure('请先停止房间，再移除账号');
           state.accounts.splice(Number(body.index), 1);

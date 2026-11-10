@@ -51,7 +51,7 @@ func (m *Manager) Diagnose(ctx context.Context) []DiagnosticCheck {
 	return []DiagnosticCheck{
 		diagnosticConfig(cfg),
 		diagnosticDataDir(m.dir),
-		m.diagnosticUpstream(ctx, cfg),
+		m.diagnosticUpstream(ctx, cfg, running),
 		diagnosticLimbo(cfg),
 		diagnosticPacks(cfg),
 		diagnosticAccounts(accounts),
@@ -92,9 +92,16 @@ func diagnosticDataDir(dir string) DiagnosticCheck {
 	return diagnostic("data_dir", "环境", "数据目录可读写", DiagnosticOK, dir, "")
 }
 
-func (m *Manager) diagnosticUpstream(ctx context.Context, cfg config.Config) DiagnosticCheck {
+func (m *Manager) diagnosticUpstream(ctx context.Context, cfg config.Config, running bool) DiagnosticCheck {
 	label := "服务器可达"
 	if cfg.ConnectionMode == config.ConnectionTransfer {
+		if !running {
+			// limbo only listens while a room is running; pinging it from a
+			// stopped self-check would always fail and look like an error.
+			return diagnostic("upstream", "网络", "中转房间", DiagnosticSkip,
+				"房间未运行；中转房间只在开房时启动",
+				"停止状态不检测中转房间连通性，开房后会自动启动")
+		}
 		label = "中转房间可达"
 	}
 	if m.pingFn == nil {
