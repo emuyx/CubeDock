@@ -123,7 +123,7 @@ func run() error {
 		return err
 	}
 	httpServer := &http.Server{
-		Handler:           server.NewHandler(manager, admin),
+		Handler:           server.NewHandler(manager, admin, server.RuntimeInfo{Version: version, Commit: commit}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      4 * time.Minute, // resource pack pulls can take a while

@@ -12,19 +12,17 @@
 > 网易「本地联机」房间 → 原生支持网易 RakNet v8 的 Bedrock 服务器。<br>
 > 独立实现：不翻译游戏协议，只做登录链重签、Bedrock 加密握手、limbo/Transfer 和资源包处理。
 
-[项目主页](https://emuyx.github.io/CubeDock/) · [WebUI 演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [FAQ](#faq) · [Issues](https://github.com/emuyx/CubeDock/issues)
+[项目主页](https://emuyx.github.io/CubeDock/) · [真实界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [FAQ](#faq) · [Issues](https://github.com/emuyx/CubeDock/issues)
 
 ## 一眼看懂
 
 | 项目 | 内容 |
 | --- | --- |
-| 连接模式 | 代理模式（默认）/ 转服模式（limbo + Transfer） |
-| 网易版本 | 互通版 3.10 · `3.10.5.301486` · PE `PeAuthSign(2,8)` |
-| Bedrock | 房间 `1.21.130.0` / protocol `43`；limbo protocol `898` |
-| 上游要求 | 代理：原生网易 RakNet v8；转服：客户端可直连的目标服务器 |
+| 连接模式 | 代理模式（推荐）/ 转服模式（先进中转房间） |
+| 兼容性 | 网易互通版 3.10；服务器需原生支持网易 RakNet v8 |
+| 上游要求 | 代理和转服都要求服务器原生支持网易 RakNet v8；转服还需要客户端能直连该服务器 |
 | 平台 | Windows / Linux / macOS |
 | 控制台 | React + MUI，默认 `http://127.0.0.1:18321/` |
-| 许可 | MIT；`g79client` / `funauth` 为 AGPL-3.0 |
 
 ## 架构
 
@@ -56,39 +54,19 @@ flowchart LR
 | 加密中继 | P-384 单段链重签、ECDH / AES-CTR、游戏包直通 |
 | limbo 转服 | 虚空世界、SimpleForm、关闭重开、`Transfer.ReloadWorld=false` |
 | 资源包 | 强制 SendPacks、Stack fallback、拉取、本地跳过、去重 |
-| Web 控制台 | 账号/房间、转服、实时控制台、设置、FAQ、深浅色主题 |
+| Web 控制台 | 账号/房间、连接方式、实时控制台、诊断、设置、FAQ、玩家管理、深浅色主题 |
 | 多房间 | 多账号、不设固定上限，一账号一房间；`list` / `kick` |
 
-## 快速开始
+## 下载与安装
 
-<details open>
-<summary><strong>Windows</strong> · 一键构建</summary>
+从 [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的压缩包，解压后运行：
 
-```powershell
-git clone https://github.com/emuyx/CubeDock.git
-cd CubeDock
-.\scripts\build.ps1
-.\build\CubeDock.exe
-```
+- **Windows**：双击 `CubeDock.exe`。
+- **Linux / macOS**：在终端运行解压出的程序，必要时先 `chmod +x`。
 
-首次启动会在终端打印一次性管理员密码；控制台默认 `http://127.0.0.1:18321/`。
-</details>
+首次启动会在终端显示控制台地址和一次性管理员密码，并自动打开浏览器；按页面上的首次设置向导完成服务器、账号和预检即可。
 
-<details>
-<summary><strong>Linux / macOS</strong> · 手动构建</summary>
-
-```bash
-git clone https://github.com/emuyx/CubeDock.git
-cd CubeDock
-go build -trimpath -o build/bin/CubeDockMain ./cmd/cubedock
-(cd limbo && go build -trimpath -o ../build/bin/limbo .)
-./build/bin/CubeDockMain
-```
-
-需要 Go 1.26+（会自动使用 `go.mod` 指定的 1.27.3 工具链）与 Node.js 24；前端构建见下方「开发」。
-</details>
-
-> **上游要求**：代理模式的上游必须原生支持网易 RakNet v8，标准 BDS 不能直接作为代理上游。
+> **上游要求**：无论代理还是转服，服务器都必须原生支持网易 RakNet v8；标准 BDS 不能直接使用。
 > 转服模式的目标由客户端直连，但仍需客户端可访问目标、资源包与 limbo 预加载的一致。
 
 ### 使用步骤
@@ -98,9 +76,9 @@ go build -trimpath -o build/bin/CubeDockMain ./cmd/cubedock
    `http://127.0.0.1:18321/`。管理员账号是 `admin`；首次启动会在终端打印一次性密码，
    也可用 `CUBEDOCK_ADMIN_PASSWORD` 指定。
 
-2. **配置上游**
-   进入「设置」填写上游地址（例如 `127.0.0.1:19132`）、房间名、内核版本和人数限制，
-   然后保存。代理模式的上游必须原生支持网易 RakNet v8。
+2. **配置服务器**
+   进入「设置」填写服务器地址（例如 `127.0.0.1:19132`）、房间名和人数，
+   然后保存。无论代理还是转服，服务器都必须原生支持网易 RakNet v8。
 
 3. **添加网易账号**
    进入「账号与房间」→「添加网易账号」，使用互通版邮箱直登，或导入已有的 `sauth`。
@@ -108,16 +86,15 @@ go build -trimpath -o build/bin/CubeDockMain ./cmd/cubedock
 
 4. **启动房间**
    回到「主页」点击「启动房间」。房间进入 online 后，房间号会显示在「本地联机房间」
-   卡片中；上游地址和在线状态也会同步更新。
+   卡片中；服务器地址和连接状态也会同步更新。
 
 5. **手机加入**
    在网易版 Minecraft 客户端打开「本地联机」，刷新后加入刚创建的房间。玩家流量会经
    CubeDock 转发到上游；在上游看到的身份和连接由代理配置决定。
 
 6. **转服模式（可选）**
-   在「转服与资源包」把连接模式改为 `transfer`，配置 limbo 地址、资源包目录和自动拉取，
-   保存后重新启动房间。玩家会先进入 limbo 下载资源包并看到表单，点击按钮后再通过
-   `Transfer` 直连目标服务器。
+   在「连接与资源包」把连接方式改为「转服模式」，配置中转房间和资源包，
+   保存后重新启动房间。玩家会先进入本地中转房间，看到提示页面后再进入你的服务器。
 
 7. **管理玩家**
    在「控制台」使用 `list` 查看玩家、`kick <ID|名称>` 断开玩家；`transfer` 可在代理模式下
@@ -147,6 +124,12 @@ Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 | GET | `/api/packs` | 扫描资源包目录 |
 | POST | `/api/packs/refresh` | 机器人拉取并去重 |
 | POST | `/api/console` | 执行控制台命令 |
+| GET | `/api/players` | 在线玩家列表 |
+| POST | `/api/player/kick` | 断开玩家 |
+| POST | `/api/player/transfer` | 请求玩家转服（实验） |
+| GET | `/api/diagnostics` | 只读运行诊断 |
+| GET | `/api/backup` | 导出配置备份（不含登录凭证） |
+| POST | `/api/restore` | 恢复配置 |
 
 `/api/session/*` 只允许本机访问；控制台只允许白名单 Host/Origin。
 </details>
@@ -167,16 +150,16 @@ Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 <details>
 <summary><strong>标准 BDS 能直接作为上游吗？</strong></summary>
 
-代理模式不能：上游必须原生支持网易 RakNet v8，标准 BDS 不兼容。转服模式的目标由
-客户端直连，但仍需客户端可访问目标、资源包与 limbo 一致；它不会把网易协议翻译成
-标准 Bedrock 协议。
+两种模式都不能直接使用标准 BDS：服务器必须原生支持网易 RakNet v8。转服模式只是让客户端
+直连目标，同样不会把网易协议翻译成标准 Bedrock；此外还要求客户端能访问目标、资源包与
+limbo 预加载的一致。
 </details>
 
 <details>
 <summary><strong>进服/资源包/控制台常见问题</strong></summary>
 
-- `server:` 先断：检查单段登录链、转发地址信任、上游版本和资源包。
-- `client:` 先断：多为玩家侧超时或主动关闭。
+- 玩家刚进房就断开：先检查服务器是否支持网易协议、版本是否接近，以及资源包是否一致。
+- 登录时提示需要安全验证（1351）：点击页面上的「打开网易验证页面」完成验证，再回到 CubeDock 点一次「登录并添加」。CubeDock 不会自动重试。
 - 资源包不下载：网易会忽略 `ResourcePacksInfo`，limbo 默认强制 SendPacks；加密/动态包不支持。
 - 控制台打不开：默认 `http://127.0.0.1:18321/`；忘记密码用 `-reset-admin-password`。
 - 同一网易账号不能同时开两个房间；账号数量不设固定上限，实际受机器资源与网易限制。
@@ -185,6 +168,31 @@ Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 更多 FAQ 见 [项目主页](https://emuyx.github.io/CubeDock/#faq) 和 WebUI 的「常见问题」页面。
 
 ## 开发
+
+<details>
+<summary><strong>从源码构建</strong></summary>
+
+Windows：
+
+```powershell
+git clone https://github.com/emuyx/CubeDock.git
+cd CubeDock
+.\scripts\build.ps1
+.\build\CubeDock.exe
+```
+
+Linux / macOS：
+
+```bash
+git clone https://github.com/emuyx/CubeDock.git
+cd CubeDock
+go build -trimpath -o build/bin/CubeDockMain ./cmd/cubedock
+(cd limbo && go build -trimpath -o ../build/bin/limbo .)
+./build/bin/CubeDockMain
+```
+
+需要 Go 1.26+（会自动使用 `go.mod` 指定的 1.27.3 工具链）与 Node.js 24。
+</details>
 
 ```bash
 go test ./...

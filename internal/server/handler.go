@@ -25,11 +25,12 @@ type consoleHandler struct {
 	manager *core.Manager
 	admin   *Admin
 	interop *interoplogin.Service
+	runtime RuntimeInfo
 }
 
 // NewHandler returns the complete console, including static assets and the
 // admin session middleware.
-func NewHandler(manager *core.Manager, admin *Admin) http.Handler {
+func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.Handler {
 	if admin == nil {
 		panic("console authentication is required")
 	}
@@ -37,6 +38,7 @@ func NewHandler(manager *core.Manager, admin *Admin) http.Handler {
 		manager: manager,
 		admin:   admin,
 		interop: interoplogin.New(manager.Dir()),
+		runtime: runtime.withDefaults(),
 	}
 	mux := http.NewServeMux()
 
@@ -45,6 +47,12 @@ func NewHandler(manager *core.Manager, admin *Admin) http.Handler {
 	mux.HandleFunc("POST /api/logout", admin.logout)
 	mux.HandleFunc("POST /api/admin/password", h.changePassword)
 	mux.HandleFunc("GET /api/status", h.status)
+	mux.HandleFunc("GET /api/players", h.players)
+	mux.HandleFunc("POST /api/player/kick", h.kickPlayer)
+	mux.HandleFunc("POST /api/player/transfer", h.transferPlayer)
+	mux.HandleFunc("GET /api/diagnostics", h.diagnostics)
+	mux.HandleFunc("GET /api/backup", h.backup)
+	mux.HandleFunc("POST /api/restore", h.restore)
 	mux.HandleFunc("GET /api/packs", h.resourcePacks)
 	mux.HandleFunc("POST /api/packs/refresh", h.refreshResourcePacks)
 	mux.HandleFunc("POST /api/start", h.start)

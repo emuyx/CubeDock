@@ -12,7 +12,7 @@
     <meta property="og:title" content="CubeDock 方块码头" />
     <meta
       property="og:description"
-      content="网易本地联机 → 网易协议上游。登录重签、Bedrock 加密握手、limbo 转服与资源包拉取。"
+      content="CubeDock 把网易本地联机房间连接到你的服务器。支持代理与转服、资源包和 Web 控制台。"
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
@@ -101,7 +101,7 @@
               下载最新版
               <span class="btn-arrow">→</span>
             </a>
-            <a class="btn btn-ghost" href="./demo.html">WebUI 演示</a>
+            <a class="btn btn-ghost" href="./demo.html">真实控制台演示</a>
             <a class="btn btn-ghost" href="https://github.com/emuyx/CubeDock" target="_blank" rel="noreferrer">
               查看源码
             </a>
@@ -232,7 +232,7 @@
               </svg>
             </div>
             <h3>Web 控制台</h3>
-            <p>账号与房间、转服与资源包、实时控制台、设置和常见问题；共享配置状态，支持浅色/深色主题。</p>
+            <p>账号与房间、连接与资源包、实时控制台、诊断、常见问题和设置；支持浅色/深色主题。</p>
           </article>
 
           <article class="feature-card reveal">
@@ -403,7 +403,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
 
         <div class="upstream-note reveal">
           <strong>上游要求：</strong>
-          代理模式的上游必须原生支持网易 RakNet v8；标准 BDS 不能直接作为代理上游。
+          无论代理还是转服，服务器都必须原生支持网易 RakNet v8；标准 BDS 不能直接使用。
           转服模式的目标服务器由客户端直连，但仍需资源包匹配，且客户端能访问目标。</div>
       </section>
 
@@ -426,7 +426,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
             <span class="usage-num">02</span>
             <div>
               <h3>配置上游</h3>
-              <p>进入「设置」填写上游地址、房间名、内核版本和人数限制并保存。代理模式的上游必须原生支持网易 RakNet v8；转服模式的目标由客户端直连。</p>
+              <p>进入「设置」填写上游地址、房间名、内核版本和人数限制并保存。无论代理还是转服，服务器都必须原生支持网易 RakNet v8；转服模式还需要客户端能直连目标。</p>
             </div>
           </li>
           <li class="usage-step reveal">
@@ -454,7 +454,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
             <span class="usage-num">06</span>
             <div>
               <h3>转服模式（可选）</h3>
-              <p>在「转服与资源包」把连接模式改为 <code>transfer</code>，配置 limbo 地址、资源包目录和自动拉取，保存后重新启动房间。玩家会先进入 limbo 下载资源包并看到表单，点击按钮后通过 <code>Transfer</code> 进入目标服务器。当前只覆盖未加密、静态资源包。</p>
+              <p>在「连接与资源包」把连接方式改为「转服模式」，配置中转房间和资源包，保存后重新启动房间。玩家会先进入本地中转房间，看到提示页面后再进入你的服务器。当前只覆盖未加密、静态资源包。</p>
             </div>
           </li>
           <li class="usage-step reveal">
@@ -468,7 +468,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
 
         <div class="usage-cta reveal">
           <p>想先点一点？空壳演示可以模拟开房、账号、资源包和控制台操作，不会连接真实服务。</p>
-          <a class="btn btn-ghost" href="./demo.html">打开 WebUI 演示</a>
+          <a class="btn btn-ghost" href="./demo.html">打开 真实控制台演示</a>
         </div>
       </section>
 
@@ -491,21 +491,21 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
           <details class="faq-item reveal">
             <summary>标准 Bedrock Dedicated Server 能直接作为上游吗？</summary>
             <div class="faq-body">
-              <p>代理模式不能：上游必须原生支持网易 RakNet v8，标准 BDS 不兼容。转服模式的目标服务器由客户端直连，但仍要求客户端可访问目标、资源包与 limbo 一致；它不会把网易协议翻译成标准 Bedrock 协议。</p>
+              <p>两种模式都不能直接使用标准 BDS：服务器必须原生支持网易 RakNet v8。转服模式只是让客户端直连目标，同样不会把网易协议翻译成标准 Bedrock；此外还要求客户端能访问目标、资源包与 limbo 一致。</p>
             </div>
           </details>
 
           <details class="faq-item reveal">
             <summary>手机看不到房间 / 开房失败怎么办？</summary>
             <div class="faq-body">
-              <p>确认账号是互通版会话且未过期、PE 认证通过、房间进入 online；同一账号被其他设备登录会把当前房间挤下线。若返回 1351，打开控制台显示的验证链接完成验证后重试。日志中的 <code>server:</code> / <code>client:</code> 前缀可区分上游侧和玩家侧错误。</p>
+              <p>确认账号可以正常登录、没有在其他设备上登录，房间已经显示为在线。若返回 1351，打开验证链接完成验证，再回到页面点一次「登录并添加」；CubeDock 不会自动重试。</p>
             </div>
           </details>
 
           <details class="faq-item reveal">
             <summary>玩家进房后马上断开？</summary>
             <div class="faq-body">
-              <p><code>server:</code> 先断多为上游或 limbo 侧拒绝/失败，检查单段登录链、转发地址信任、上游版本和资源包；<code>client:</code> 先断多为玩家侧超时或主动关闭。代理模式要求上游接受 CubeDock 重签后的单段登录链并完成 Bedrock 加密握手。</p>
+              <p>玩家刚进房就断开：先检查服务器是否支持网易协议、版本是否接近、资源包是否一致；转服模式还要确认玩家能直连服务器。仍失败时可在诊断页复制报告。</p>
             </div>
           </details>
 
@@ -548,7 +548,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
           </div>
           <div class="cta-actions">
             <a class="btn btn-primary" href="./demo.html">
-              打开 WebUI 演示
+              打开 真实控制台演示
               <span class="btn-arrow">→</span>
             </a>
           </div>

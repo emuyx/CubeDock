@@ -41,15 +41,19 @@ export function ConfigFormProvider({ status, onChanged, children }) {
       notify('设置已保存', 'success');
       setDirty(false);
       onChanged?.();
+      return true;
     } catch (failure) {
       setError(failure.message || '保存设置失败');
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <ConfigFormContext.Provider value={{ form, update, save, busy, error, dirty }}>
+    <ConfigFormContext.Provider
+      value={{ form, update, save, busy, error, dirty, discard: () => setDirty(false) }}
+    >
       {children}
     </ConfigFormContext.Provider>
   );

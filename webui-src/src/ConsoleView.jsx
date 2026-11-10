@@ -9,7 +9,6 @@ import {
   Chip,
   CircularProgress,
   Container,
-  Divider,
   Drawer,
   IconButton,
   Menu,
@@ -31,13 +30,14 @@ import {
 } from '@mui/icons-material';
 import { getStatus, logout } from './api.js';
 import { phaseColor, phaseLabel } from './util.js';
-import AccountLogin from './AccountLogin.jsx';
 import AccountsPanel from './AccountsPanel.jsx';
 import ChangePasswordDialog from './ChangePasswordDialog.jsx';
+import DiagnosticsPanel from './DiagnosticsPanel.jsx';
 import FaqPanel from './FaqPanel.jsx';
 import LogsPanel from './LogsPanel.jsx';
 import Overview from './Overview.jsx';
 import SettingsForm from './SettingsForm.jsx';
+import SetupWizard from './SetupWizard.jsx';
 import SidebarNav from './SidebarNav.jsx';
 import TransferPanel from './TransferPanel.jsx';
 import { ConfigFormProvider } from './configForm.jsx';
@@ -81,6 +81,7 @@ export default function ConsoleView({ mode, toggleMode }) {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [setupActive, setSetupActive] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -106,6 +107,14 @@ export default function ConsoleView({ mode, toggleMode }) {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (!status) return;
+    const count = status.accounts?.length ?? 0;
+    if (count === 0 && localStorage.getItem('cubedock-setup-done') !== '1') {
+      setSetupActive(true);
+    }
+  }, [status]);
+
   const refresh = async () => {
     setRefreshing(true);
     await load();
@@ -115,6 +124,10 @@ export default function ConsoleView({ mode, toggleMode }) {
   const logoutAction = async () => {
     setMenuAnchor(null);
     await logout();
+    if (window.__CUBEDOCK_DEMO__) {
+      window.location.reload();
+      return;
+    }
     window.location.replace('/login');
   };
 
@@ -155,8 +168,12 @@ export default function ConsoleView({ mode, toggleMode }) {
     );
   }
 
-  const accounts = status.accounts || [];
-  const isSetup = accounts.length === 0;
+  const isSetup = setupActive;
+  const openSetup = () => setSetupActive(true);
+  const finishSetup = () => {
+    localStorage.setItem('cubedock-setup-done', '1');
+    setSetupActive(false);
+  };
 
   return (
     <Box sx={{ minHeight: '100vh' }}>
@@ -183,9 +200,14 @@ export default function ConsoleView({ mode, toggleMode }) {
             size="small"
             variant="outlined"
             color={status.upstream_online ? 'success' : 'warning'}
-            label={status.upstream_online ? `上游在线${status.upstream_version ? ` · ${status.upstream_version}` : ''}` : '上游离线'}
+            label={status.upstream_online ? `服务器已连接${status.upstream_version ? ` · ${status.upstream_version}` : ''}` : '服务器未连接'}
             sx={{ display: { xs: 'none', md: 'inline-flex' } }}
           />
+          {window.__CUBEDOCK_DEMO__ && (
+            <Tooltip title="演示模式：数据只保存在当前页面，不会连接真实服务">
+              <Chip size="small" color="warning" variant="outlined" label="演示模式" />
+            </Tooltip>
+          )}
           <Tooltip title="刷新">
             <IconButton
               onClick={refresh}
@@ -243,7 +265,7 @@ export default function ConsoleView({ mode, toggleMode }) {
         )}
 
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Container maxWidth={isSetup ? 'sm' : 'xl'} sx={{ py: { xs: 2.5, sm: 4 } }}>
+          <Container maxWidth={isSetup ? 'md' : 'xl'} sx={{ py: { xs: 2.5, sm: 4 } }}>
             {error && (
               <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError('')}>
                 {error}
@@ -251,31 +273,9 @@ export default function ConsoleView({ mode, toggleMode }) {
             )}
 
             {isSetup ? (
-              <Stack spacing={2.4}>
-                <Card>
-                  <CardContent sx={{ p: { xs: 2.4, sm: 3.4 } }}>
-                    <Stack spacing={2.4}>
-                      <Box>
-                        <Typography variant="overline" color="primary" fontWeight={800}>
-                          第一步
-                        </Typography>
-                        <Typography variant="h4" sx={{ mt: 0.4 }}>
-                          先登录一个网易账号
-                        </Typography>
-                        <Typography color="text.secondary" sx={{ mt: 1 }}>
-                          登录成功并添加为房间账号后，才会显示开房界面。每个网易账号对应一个本地联机房间。
-                        </Typography>
-                      </Box>
-                      <AccountLogin onAdded={refresh} />
-                    </Stack>
-                  </CardContent>
-                </Card>
-
-                <Divider />
-                <Typography variant="caption" color="text.secondary" textAlign="center">
-                  管理员密码可在右上角菜单修改；网易登录密码只用于换取会话，不会保存。
-                </Typography>
-              </Stack>
+              <ConfigFormProvider status={status} onChanged={refresh}>
+                <SetupWizard status={status} onChanged={refresh} onDone={finishSetup} />
+              </ConfigFormProvider>
             ) : (
               <ConfigFormProvider status={status} onChanged={refresh}>
                 <Stack spacing={2.6}>
@@ -296,11 +296,14 @@ export default function ConsoleView({ mode, toggleMode }) {
                       active={page === 'console'}
                     />
                   </Box>
+                  <Box hidden={page !== 'diagnostics'}>
+                    <DiagnosticsPanel status={status} active={page === 'diagnostics'} onOpenSetup={openSetup} />
+                  </Box>
                   <Box hidden={page !== 'faq'}>
                     <FaqPanel />
                   </Box>
                   <Box hidden={page !== 'settings'}>
-                    <SettingsForm status={status} />
+                    <SettingsForm status={status} onChanged={refresh} />
                   </Box>
                 </Stack>
               </ConfigFormProvider>
@@ -309,7 +312,7 @@ export default function ConsoleView({ mode, toggleMode }) {
 
           <Box component="footer" sx={{ py: 3, textAlign: 'center' }}>
             <Typography variant="caption" color="text.secondary">
-              CubeDock 方块码头 · 网易本地联机 → 网易协议上游
+              CubeDock 方块码头 · 网易本地联机 → 你的服务器
             </Typography>
           </Box>
         </Box>

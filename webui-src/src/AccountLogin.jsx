@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -30,84 +30,38 @@ export default function AccountLogin({ onAdded, compact = false }) {
   const [sauthBusy, setSauthBusy] = useState(false);
   const [sauthError, setSauthError] = useState('');
   const [sauthProfile, setSauthProfile] = useState(null);
-  const [autoWaiting, setAutoWaiting] = useState(false);
-  const autoTimer = useRef(null);
-  const autoStop = useRef(null);
   const requestRef = useRef(false);
-  const credentialsRef = useRef({ email: '', password: '', label: '' });
 
-  const stopAuto = (notice = '') => {
-    if (autoTimer.current) {
-      clearInterval(autoTimer.current);
-      autoTimer.current = null;
-    }
-    if (autoStop.current) {
-      clearTimeout(autoStop.current);
-      autoStop.current = null;
-    }
-    setAutoWaiting(false);
-    if (notice) setMessage(notice);
-  };
-
-  useEffect(() => () => {
-    if (autoTimer.current) clearInterval(autoTimer.current);
-    if (autoStop.current) clearTimeout(autoStop.current);
-  }, []);
-
-  const runLogin = async (auto = false) => {
+  const runLogin = async () => {
     if (requestRef.current) return;
-    const credentials = auto
-      ? credentialsRef.current
-      : { email: email.trim(), password, label: label.trim() };
+    const credentials = { email: email.trim(), password, label: label.trim() };
     if (!credentials.email || !credentials.password) {
-      if (!auto) setError('请填写网易邮箱和密码');
+      setError('请填写网易邮箱和密码');
       return;
     }
-    if (!auto) {
-      credentialsRef.current = credentials;
-      setBusy(true);
-      setError('');
-      setMessage('');
-      setVerifyURL('');
-      stopAuto();
-    }
     requestRef.current = true;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    setVerifyURL('');
     try {
       const result = await api('session/interop-login', credentials);
       if (result.status === 'need_verify') {
         setVerifyURL(current => result.verify_url || current || '');
         setMessage(result.message || '需要完成网易安全验证');
-        if (!auto) startAuto();
         return;
       }
-      stopAuto();
       setVerifyURL('');
       setMessage('');
       notify(`已添加互通版账号：${result.name} → 房间 ${(result.index ?? 0) + 1}`, 'success');
       setPassword('');
       if (onAdded) onAdded(result);
     } catch (failure) {
-      if (auto) {
-        stopAuto();
-        setMessage('');
-      }
       setError(failure.message || '互通版直登失败');
     } finally {
       requestRef.current = false;
-      if (!auto) setBusy(false);
+      setBusy(false);
     }
-  };
-
-  const startAuto = () => {
-    if (!credentialsRef.current.email) return;
-    stopAuto();
-    setAutoWaiting(true);
-    autoTimer.current = setInterval(() => {
-      runLogin(true);
-    }, 6000);
-    autoStop.current = setTimeout(() => {
-      stopAuto('自动重试已超时，请完成验证后手动点击“登录并添加”。');
-    }, 120000);
   };
 
   const copyVerify = async () => {
@@ -122,7 +76,7 @@ export default function AccountLogin({ onAdded, compact = false }) {
   const importSauth = async () => {
     const value = sauth.trim();
     if (!value) {
-      setSauthError('请粘贴互通版会话 sauth_json');
+      setSauthError('请粘贴登录凭证');
       return;
     }
     setSauthBusy(true);
@@ -146,7 +100,7 @@ export default function AccountLogin({ onAdded, compact = false }) {
     <Stack spacing={compact ? 2 : 2.4}>
       <Box>
         <Alert severity="success" sx={{ mb: 1.5 }}>
-          推荐：用网易邮箱和密码直接登录互通版（官方发烧平台 a50 链路），无需抓包。
+          推荐直接用网易邮箱和密码登录。密码只用于换取登录凭证，CubeDock 不会保存密码。
         </Alert>
         <Stack spacing={1.4}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2}>
@@ -190,7 +144,7 @@ export default function AccountLogin({ onAdded, compact = false }) {
               onChange={event => setLabel(event.target.value)}
               fullWidth
             />
-            <Button variant="contained" onClick={() => runLogin(false)} disabled={busy} sx={{ whiteSpace: 'nowrap' }}>
+            <Button variant="contained" onClick={runLogin} disabled={busy} sx={{ whiteSpace: 'nowrap' }}>
               {busy ? '登录中…' : '登录并添加'}
             </Button>
           </Stack>
@@ -198,7 +152,11 @@ export default function AccountLogin({ onAdded, compact = false }) {
             <Alert severity="warning">
               <Stack spacing={1.2}>
                 <Typography variant="body2">
-                  {message || '需要完成网易安全验证。'}
+                  {message || '网易要求完成一次安全验证。'}
+                </Typography>
+                <Typography variant="body2">
+                  请点击下方按钮完成验证，然后回到这里再次点击「登录并添加」。
+                  CubeDock 不会自动重试，也不会在后台重复登录。
                 </Typography>
                 <TextField
                   value={verifyURL}
@@ -227,21 +185,7 @@ export default function AccountLogin({ onAdded, compact = false }) {
                   >
                     复制链接
                   </Button>
-                  {autoWaiting ? (
-                    <Button color="inherit" onClick={() => stopAuto()}>
-                      停止自动重试
-                    </Button>
-                  ) : (
-                    <Button color="inherit" onClick={startAuto}>
-                      自动等待验证并重试
-                    </Button>
-                  )}
                 </Stack>
-                {autoWaiting && (
-                  <Typography variant="caption" color="text.secondary">
-                    正在每 6 秒自动检查验证状态，最多 2 分钟；完成后会自动添加账号。
-                  </Typography>
-                )}
               </Stack>
             </Alert>
           )}
@@ -254,15 +198,15 @@ export default function AccountLogin({ onAdded, compact = false }) {
 
       <Box>
         <Alert severity="info" sx={{ mb: 1.5 }}>
-          或粘贴已有的互通版会话（高级）：当前网易只接受从网易发烧平台启动的基岩互通版会话。
+          已经有登录凭证？可以粘贴 sauth 会话导入（高级用法）。
         </Alert>
         <Stack spacing={1.4}>
           <TextField
             multiline
             minRows={3}
             maxRows={8}
-            label="互通版会话 sauth_json"
-            placeholder='粘贴 sauth_json 对象或 {"sauth_json":"..."}'
+            label="登录凭证（sauth 会话）"
+            placeholder="每行一个会话，或粘贴完整 JSON"
             value={sauth}
             onChange={event => setSauth(event.target.value)}
             fullWidth
@@ -295,7 +239,7 @@ export default function AccountLogin({ onAdded, compact = false }) {
         <>
           <Divider />
           <Typography variant="caption" color="text.secondary">
-            登录和导入接口仅允许本机控制台访问；密码不会保存，会话保存在本机加密存储中。
+            账号登录只允许在本机控制台操作；密码不会保存，登录凭证保存在本机。
           </Typography>
         </>
       )}

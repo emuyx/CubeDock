@@ -26,6 +26,10 @@ export async function api(path, data, method = 'POST') {
 }
 
 export const getStatus = () => api('status', undefined, 'GET');
+export const getDiagnostics = () => api('diagnostics', undefined, 'GET');
+export const getBackup = includePassword =>
+  api(`backup?include_password=${includePassword ? 'true' : 'false'}`, undefined, 'GET');
+export const restoreConfig = config => api('restore', { config });
 
 export const runConsole = command => api('console', { command });
 

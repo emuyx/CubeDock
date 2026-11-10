@@ -24,6 +24,7 @@ import {
 import { api } from './api.js';
 import { copyText, formatDuration, phaseColor, phaseLabel } from './util.js';
 import { useToast } from './App.jsx';
+import PlayersDialog from './PlayersDialog.jsx';
 
 function StatCard({ icon, label, value, helper, color = 'primary' }) {
   return (
@@ -51,6 +52,7 @@ function StatCard({ icon, label, value, helper, color = 'primary' }) {
 export default function Overview({ status, onChanged }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
+  const [playersRoom, setPlayersRoom] = useState(null);
   const accounts = status.accounts || [];
   const rooms = status.rooms || [];
   const roomIds = (rooms.length ? rooms.map(room => room.room_id) : [status.room_id]).filter(Boolean);
@@ -66,6 +68,15 @@ export default function Overview({ status, onChanged }) {
       notify(failure.message || '操作失败', 'error');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const copyRoom = async roomId => {
+    try {
+      await copyText(String(roomId));
+      notify('房间号已复制', 'success');
+    } catch (failure) {
+      notify(failure.message || '复制失败', 'error');
     }
   };
 
@@ -185,7 +196,7 @@ export default function Overview({ status, onChanged }) {
           <CardContent>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
               <CloudQueue color={status.upstream_online ? 'success' : 'warning'} />
-              <Typography variant="h6">网易协议上游</Typography>
+              <Typography variant="h6">服务器状态</Typography>
             </Stack>
             <Chip
               color={status.upstream_online ? 'success' : 'warning'}
@@ -200,7 +211,7 @@ export default function Overview({ status, onChanged }) {
             </Typography>
             <Divider sx={{ my: 2 }} />
             <Typography variant="caption" color="text.secondary">
-              网易玩家通过本地联机房间进入；其他版本客户端请连接上游服务端的对外地址。
+              网易玩家通过本地联机房间进入；其他版本客户端请直接连接服务器对外地址。
             </Typography>
           </CardContent>
         </Card>
@@ -223,8 +234,8 @@ export default function Overview({ status, onChanged }) {
         />
         <StatCard
           icon={<CloudQueue />}
-          label="后端状态"
-          value={status.upstream_online ? '在线' : '离线'}
+          label="服务器状态"
+          value={status.upstream_online ? '已连接' : '未连接'}
           helper={status.upstream_version || '等待响应'}
           color={status.upstream_online ? 'success' : 'warning'}
         />
@@ -235,6 +246,79 @@ export default function Overview({ status, onChanged }) {
           helper={status.retry_at ? '等待自动重连' : '自动断线重连已启用'}
         />
       </Box>
+
+      {rooms.length > 0 && (
+        <Card>
+          <CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Box>
+                <Typography variant="h6">房间实例</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  每个房间可以单独查看玩家、复制房间号。
+                </Typography>
+              </Box>
+              <Chip size="small" variant="outlined" label={`${rooms.length} 个`} />
+            </Stack>
+            <Box
+              sx={{
+                display: 'grid',
+                gap: 1.5,
+                mt: 1.8,
+                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
+              }}
+            >
+              {rooms.map((room, index) => (
+                <Box
+                  key={index}
+                  sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.6 }}
+                >
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography fontWeight={800}>房间 {index + 1}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {room.account || accounts[index]?.name || '—'}
+                      </Typography>
+                    </Box>
+                    <Chip size="small" color={phaseColor(room.phase)} label={phaseLabel(room.phase)} />
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                    <Typography variant="body2" fontFamily="ui-monospace, monospace">
+                      {room.room_id || '—'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {room.players ?? 0} 人
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
+                    <Button
+                      size="small"
+                      startIcon={<PeopleAlt />}
+                      onClick={() => setPlayersRoom(index)}
+                    >
+                      玩家
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<ContentCopy />}
+                      disabled={!room.room_id}
+                      onClick={() => copyRoom(room.room_id)}
+                    >
+                      复制房间号
+                    </Button>
+                  </Stack>
+                </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      <PlayersDialog
+        open={playersRoom !== null}
+        roomIndex={playersRoom}
+        status={status}
+        onClose={() => setPlayersRoom(null)}
+      />
     </Stack>
   );
 }
