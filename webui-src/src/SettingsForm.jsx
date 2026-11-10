@@ -18,11 +18,12 @@ import { Download, Save, UploadFile } from '@mui/icons-material';
 import { getBackup, restoreConfig } from './api.js';
 import { useConfigForm } from './configForm.jsx';
 import { downloadText, timestamp } from './util.js';
-import { useToast } from './App.jsx';
+import { useConfirm, useToast } from './App.jsx';
 import HelpTip, { FieldHint } from './HelpTip.jsx';
 
 export default function SettingsForm({ status, onChanged }) {
   const notify = useToast();
+  const confirm = useConfirm();
   const { form, update, save, busy, error, discard } = useConfigForm();
   const running = !!status.running;
   const [tab, setTab] = useState(0);
@@ -46,7 +47,13 @@ export default function SettingsForm({ status, onChanged }) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (!window.confirm('恢复配置会覆盖当前设置，且不会恢复网易登录凭证。确认继续？')) return;
+    const confirmed = await confirm({
+      title: '恢复配置',
+      message: '恢复配置会覆盖当前设置，且不会恢复网易登录凭证。确认继续？',
+      confirmLabel: '恢复配置',
+      severity: 'warning',
+    });
+    if (!confirmed) return;
     setRestoring(true);
     setBackupError('');
     try {

@@ -32,13 +32,14 @@ import {
 } from '@mui/icons-material';
 import { api } from './api.js';
 import { copyText, phaseColor, phaseLabel } from './util.js';
-import { useToast } from './App.jsx';
+import { useConfirm, useToast } from './App.jsx';
 import AccountLogin from './AccountLogin.jsx';
 import BulkImportDialog from './BulkImportDialog.jsx';
 import PlayersDialog from './PlayersDialog.jsx';
 
 export default function AccountsPanel({ status, onChanged }) {
   const notify = useToast();
+  const confirm = useConfirm();
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [playersRoom, setPlayersRoom] = useState(null);
@@ -105,7 +106,13 @@ export default function AccountsPanel({ status, onChanged }) {
       notify('请先停止房间，再移除账号', 'warning');
       return;
     }
-    if (!window.confirm(`移除房间 ${index + 1} 的网易账号？该房间保存的会话也会删除。`)) return;
+    const confirmed = await confirm({
+      title: '移除网易账号',
+      message: `移除房间 ${index + 1} 的网易账号？该房间保存的登录凭证也会删除。`,
+      confirmLabel: '移除账号',
+      severity: 'error',
+    });
+    if (!confirmed) return;
     setBusy(true);
     try {
       await api('account/remove', { index });
@@ -332,7 +339,7 @@ export default function AccountsPanel({ status, onChanged }) {
                     </Tooltip>
                     <Tooltip title={running ? '请先停止房间' : '移除账号'}>
                       <span>
-                        <IconButton size="small" color="error" disabled={running || busy} onClick={() => remove(account.index)}>
+                        <IconButton size="small" color="error" aria-label="移除账号" disabled={running || busy} onClick={() => remove(account.index)}>
                           <DeleteOutlined fontSize="small" />
                         </IconButton>
                       </span>

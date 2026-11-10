@@ -24,7 +24,7 @@ import {
 import { ContentCopy, ExitToApp, PersonOff, Refresh } from '@mui/icons-material';
 import { api } from './api.js';
 import { copyText } from './util.js';
-import { useToast } from './App.jsx';
+import { useConfirm, useToast } from './App.jsx';
 
 const STATE = {
   connecting: { label: '连接中', color: 'info' },
@@ -49,6 +49,7 @@ function formatUptime(seconds) {
 
 export default function PlayersDialog({ open, onClose, status, roomIndex = null }) {
   const notify = useToast();
+  const confirm = useConfirm();
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -82,7 +83,13 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
   const proxy = status?.config?.connection_mode === 'proxy';
 
   const kick = async player => {
-    if (!window.confirm(`断开玩家 ${player.name || player.id}？`)) return;
+    const confirmed = await confirm({
+      title: '断开玩家',
+      message: `确定断开 ${player.name || player.id} 吗？`,
+      confirmLabel: '断开玩家',
+      severity: 'warning',
+    });
+    if (!confirmed) return;
     setBusy(player.id);
     try {
       await api('player/kick', { target: player.id });
