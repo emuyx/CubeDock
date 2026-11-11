@@ -156,8 +156,14 @@ func (h *Host) openSignaling(ctx context.Context, info auth.RoomInfo) error {
 	// The signaling package owns its keepalive (ping every 50s, TURN refresh
 	// every 30min); the room survives credential refreshes.
 	conn, err := (signaling.Dialer{
-		NetherNetID: h.networkID,
-		RefreshTime: 30 * time.Minute,
+		NetherNetID:  h.networkID,
+		RefreshTime:  30 * time.Minute,
+		DebugSignals: true,
+		Logf: func(line string) {
+			if h.trace != nil {
+				h.trace("信令：" + line)
+			}
+		},
 	}).DialContext(ctx, info.SignalingAddress, info.UserID, info.SignalingSeed, info.SignalingTicket)
 	if err != nil {
 		return fmt.Errorf("WebRTC 信令连接失败（连接超时、节点拒绝或信令格式不兼容）")

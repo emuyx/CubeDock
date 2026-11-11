@@ -13,10 +13,9 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-const (
-	PrintDebugInfo   = false
-	PrintRefreshInfo = true
-)
+func (c *Conn) logf(format string, args ...any) {
+	c.dialer.logf(format, args...)
+}
 
 // Conn ..
 type Conn struct {
@@ -69,8 +68,10 @@ func (c *Conn) read() {
 			c.Close(fmt.Errorf("read: %v", err))
 			return
 		}
-		if PrintDebugInfo {
-			fmt.Printf("read: Read message %#v\n", message)
+		if c.dialer.DebugSignals {
+			// Only routing metadata is logged; Message.Data can contain SDP,
+			// ICE candidates or credentials.
+			c.logf("收到信令消息：from=%s type=%d", message.From, message.Type)
 		}
 
 		switch message.From {
@@ -134,12 +135,7 @@ func (c *Conn) ping() {
 
 // refreshCredentials ..
 func (c *Conn) refreshCredentials() (err error) {
-	if PrintDebugInfo || PrintRefreshInfo {
-		fmt.Printf(
-			"[%s] refreshCredentials: Start refresh\n",
-			time.Now().Format("2006-01-02 15:04:05"),
-		)
-	}
+	c.logf("开始刷新信令凭据")
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -159,6 +155,7 @@ func (c *Conn) refreshCredentials() (err error) {
 	select {
 	case credentials := <-c.credentials:
 		c.credentials <- credentials
+		c.logf("信令凭据已刷新")
 		return nil
 	case <-ctx.Done():
 		err = fmt.Errorf("refreshCredentials: Refresh timeout")

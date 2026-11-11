@@ -23,6 +23,17 @@ type Dialer struct {
 	Options     *websocket.DialOptions
 	RefreshTime time.Duration
 	NetherNetID uint64
+	// Logf receives credential-free diagnostic lines. It is optional.
+	Logf func(string)
+	// DebugSignals logs the type and sender of every signaling message. Data
+	// (SDP, candidates and credentials) is never passed to Logf.
+	DebugSignals bool
+}
+
+func (d Dialer) logf(format string, args ...any) {
+	if d.Logf != nil {
+		d.Logf(fmt.Sprintf(format, args...))
+	}
 }
 
 // DialContext ..
@@ -55,6 +66,7 @@ func (d Dialer) DialContext(
 		base64.URLEncoding.EncodeToString(signalingSeed),
 		base64.URLEncoding.EncodeToString(signalingTicket),
 	)
+	d.logf("连接信令服务器 %s", serverBaseAddress)
 	c, _, err := websocket.Dial(ctx, finalAddress, d.Options)
 	if err != nil {
 		return nil, err
@@ -64,6 +76,6 @@ func (d Dialer) DialContext(
 	if err != nil {
 		return nil, fmt.Errorf("DialContext: %v", err)
 	}
+	d.logf("信令连接已建立")
 	return conn, nil
 }
-
