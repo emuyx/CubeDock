@@ -14,17 +14,19 @@ import (
 
 	"github.com/emuyx/cubedock/internal/auth"
 	"github.com/emuyx/cubedock/internal/config"
+	"github.com/emuyx/cubedock/internal/room"
 	"github.com/emuyx/cubedock/internal/session"
 )
 
 // fakeRoomHost blocks Accept until Close, which is enough to exercise the
 // manager's startup, supervision and shutdown paths without NetEase.
 type fakeRoomHost struct {
-	id     uint32
-	done   chan struct{}
-	once   sync.Once
-	closed atomic.Int32
-	kicked atomic.Uint32
+	id      uint32
+	done    chan struct{}
+	once    sync.Once
+	closed  atomic.Int32
+	kicked  atomic.Uint32
+	members []room.RoomMember
 }
 
 func newFakeRoomHost(id uint32) *fakeRoomHost {
@@ -43,6 +45,7 @@ func (h *fakeRoomHost) KickPlayer(playerID uint32) error {
 	h.kicked.Store(playerID)
 	return nil
 }
+func (h *fakeRoomHost) RoomMembers() []room.RoomMember { return h.members }
 
 func addTestAccounts(t *testing.T, manager *Manager, count int) {
 	t.Helper()

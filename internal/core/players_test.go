@@ -5,9 +5,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/emuyx/cubedock/internal/relay"
 	"github.com/emuyx/cubedock/internal/relay/relaytest"
+	"github.com/emuyx/cubedock/internal/room"
 )
 
 func TestPlayerRegistryLifecycle(t *testing.T) {
@@ -203,5 +205,44 @@ func TestRoomKickPlayerUsesTanLobbyID(t *testing.T) {
 	}
 	if cancelled.Load() != 1 {
 		t.Fatal("room-side kick did not close the local client after sending the control request")
+	}
+}
+
+func TestRoomMembersMergesWorldState(t *testing.T) {
+	manager := newTestManager(t)
+	host := newFakeRoomHost(1)
+	host.members = []room.RoomMember{
+		{PlayerID: 42, Connected: true, JoinedAt: time.Now()},
+		{PlayerID: 43, JoinedAt: time.Now()},
+	}
+	manager.mu.Lock()
+	manager.hosts[0] = host
+	manager.mu.Unlock()
+	defer func() {
+		manager.mu.Lock()
+		delete(manager.hosts, 0)
+		manager.mu.Unlock()
+	}()
+
+	player := manager.players.register(0, 1, "bot", func() {}, 42)
+	manager.players.noteLogin(player, "Alice")
+	manager.players.notePlayStatus(player, 0)
+	defer manager.players.unregister(player)
+
+	members := manager.RoomMembers(0)
+	if len(members) != 2 {
+		t.Fatalf("members = %+v", members)
+	}
+	if members[0].RoomPlayerID != 42 || members[0].Name != "Alice" || !members[0].InWorld {
+		t.Fatalf("world member = %+v", members[0])
+	}
+	if members[1].RoomPlayerID != 43 || members[1].InWorld || members[1].Connected {
+		t.Fatalf("waiting member = %+v", members[1])
+	}
+	if err := manager.KickRoomMember(0, 43); err != nil {
+		t.Fatal(err)
+	}
+	if host.kicked.Load() != 43 {
+		t.Fatalf("kicked = %d", host.kicked.Load())
 	}
 }

@@ -5,6 +5,7 @@ package room
 
 import (
 	"sync"
+	"time"
 
 	"github.com/Happy2018new/nemc-tan-lobby-solver/core/nethernet"
 	"github.com/Happy2018new/nemc-tan-lobby-solver/core/raknet"
@@ -38,4 +39,17 @@ type Host struct {
 
 	guestMu      sync.Mutex
 	guestPlayers map[uint64]uint32 // NetherNet ID -> TanLobby player ID
+
+	membersMu sync.Mutex
+	members   map[uint32]*RoomMember
+}
+
+// RoomMember is one NetEase room member. Connected means the guest has opened
+// a NetherNet connection; it may still be downloading packs or waiting before
+// entering the upstream world.
+type RoomMember struct {
+	PlayerID    uint32
+	NetherNetID string
+	Connected   bool
+	JoinedAt    time.Time
 }

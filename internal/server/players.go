@@ -32,6 +32,33 @@ func (h *consoleHandler) kickPlayer(w http.ResponseWriter, r *http.Request) {
 	respond(w, status)
 }
 
+func (h *consoleHandler) roomMembers(w http.ResponseWriter, r *http.Request) {
+	index, err := strconv.Atoi(r.URL.Query().Get("index"))
+	if err != nil || index < 0 {
+		http.Error(w, "账号序号无效", http.StatusBadRequest)
+		return
+	}
+	respond(w, map[string]any{"index": index, "members": h.manager.RoomMembers(index)})
+}
+
+func (h *consoleHandler) kickRoomMember(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Index    int    `json:"index"`
+		PlayerID uint32 `json:"player_id"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil || body.Index < 0 || body.PlayerID == 0 {
+		http.Error(w, "请指定账号序号和房间玩家 ID", http.StatusBadRequest)
+		return
+	}
+	if err := h.manager.KickRoomMember(body.Index, body.PlayerID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	respond(w, map[string]any{"ok": true, "index": body.Index, "player_id": body.PlayerID})
+}
+
 func (h *consoleHandler) roomKickPlayer(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Target string `json:"target"`

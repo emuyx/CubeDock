@@ -62,6 +62,7 @@ const state = {
   running: new Set(),
   startedAt: {},
   players: [],
+  waitingMembers: [],
   playerSeq: 0,
   friendRequests: [
     { uid: '9007199254740993', name: '想一起玩的小林', apply_time: '1710000000' },
@@ -172,7 +173,41 @@ function startAccount(index) {
       makePlayer(`玩家${index + 1}-B`, index, 96),
     ];
   }
+  // A NetEase room member that has not entered the upstream world yet.
+  state.waitingMembers = [
+    ...state.waitingMembers,
+    {
+      player_id: 9000 + index,
+      name: `等待中的玩家${index + 1}`,
+      room: index + 1,
+      connected: false,
+      in_world: false,
+      joined_at: nowISO(),
+    },
+  ];
   append(`房间 ${index + 1}`, '房间已上线，玩家可以加入了。', 'info', index + 1, profile?.name);
+}
+
+function roomMembersView(index) {
+  const world = state.players
+    .filter(player => player.room === index + 1)
+    .map(player => ({
+      id: `r${player.room_player_id}`,
+      room: index + 1,
+      room_player_id: player.room_player_id,
+      name: player.name,
+      connected: true,
+      in_world: true,
+      joined_at: player.joined_at,
+    }));
+  const waiting = state.waitingMembers
+    .filter(member => member.room === index + 1)
+    .map(member => ({
+      ...member,
+      id: `r${member.player_id}`,
+      room_player_id: member.player_id,
+    }));
+  return [...world, ...waiting].sort((left, right) => left.room_player_id - right.room_player_id);
 }
 
 function stopAccount(index) {
@@ -180,6 +215,7 @@ function stopAccount(index) {
   state.running.delete(index);
   const profile = profileOf(state.accounts[index]);
   state.players = state.players.filter(player => player.room !== index + 1);
+  state.waitingMembers = state.waitingMembers.filter(member => member.room !== index + 1);
   append(`房间 ${index + 1}`, '房间已停止。', 'info', index + 1, profile?.name);
 }
 
@@ -493,6 +529,23 @@ export function installDemoApi() {
           const account = state.accounts[Number(body.index)];
           if (!account) return failure('账号序号无效');
           return json({ ok: true, name: account.name, uid: account.uid, level: account.level });
+        }
+        case 'GET room/members': {
+          const index = Number(parsed.searchParams.get('index'));
+          if (!Number.isInteger(index)) return failure('账号序号无效');
+          return json({ index, members: roomMembersView(index) });
+        }
+        case 'POST room/kick-member': {
+          const index = Number(body.index);
+          const playerId = Number(body.player_id);
+          state.waitingMembers = state.waitingMembers.filter(
+            member => !(member.room === index + 1 && member.player_id === playerId),
+          );
+          state.players = state.players.filter(
+            player => !(player.room === index + 1 && player.room_player_id === playerId),
+          );
+          append('控制台', `演示：已请求从房间踢出玩家 ${playerId}`, 'info', index + 1);
+          return json({ ok: true, index, player_id: playerId });
         }
         case 'GET friends': {
           const index = Number(parsed.searchParams.get('index'));

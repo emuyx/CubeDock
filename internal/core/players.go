@@ -285,6 +285,23 @@ func (r *playerRegistry) markRoomKicked(player *livePlayer) (PlayerStatus, error
 	return playerStatus(player, time.Now()), nil
 }
 
+// cancelByTanID closes the local World connection for a TanLobby player ID.
+func (r *playerRegistry) cancelByTanID(tanPlayerID uint32) context.CancelFunc {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, player := range r.players {
+		if player.tanPlayerID != tanPlayerID {
+			continue
+		}
+		if player.state == PlayerKicked {
+			return nil
+		}
+		player.state = PlayerKicked
+		return player.cancel
+	}
+	return nil
+}
+
 // transferTarget resolves a joined player and returns the client stream. The
 // caller writes the Transfer batch after the registry lock is released.
 func (r *playerRegistry) transferTarget(target string) (PlayerStatus, *relay.SyncStream, error) {

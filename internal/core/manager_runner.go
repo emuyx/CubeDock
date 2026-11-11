@@ -11,6 +11,7 @@ import (
 	"github.com/emuyx/cubedock/internal/auth"
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/redact"
+	"github.com/emuyx/cubedock/internal/room"
 )
 
 // roomHost is the part of room.Host the manager supervises. Tests substitute a
@@ -23,6 +24,7 @@ type roomHost interface {
 	Close()
 	PlayerIDFor(net.Conn) uint32
 	KickPlayer(uint32) error
+	RoomMembers() []room.RoomMember
 }
 
 func (m *Manager) run(ctx context.Context, index int, profile config.Profile, token string) {

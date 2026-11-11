@@ -66,6 +66,7 @@ func newHost(trace func(string)) (*Host, error) {
 	host := &Host{
 		trace: trace, done: make(chan struct{}),
 		guestPlayers: make(map[uint64]uint32),
+		members:      make(map[uint32]*RoomMember),
 	}
 	var raw [8]byte
 	if _, err := rand.Read(raw[:]); err != nil {

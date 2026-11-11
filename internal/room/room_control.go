@@ -61,6 +61,7 @@ func (h *Host) controlLoop() {
 			if h.trace != nil {
 				h.trace("收到玩家加入请求，发送服务器就绪信息")
 			}
+			h.upsertMember(event.PlayerID, event.NetherNetID)
 			if networkID, parseErr := strconv.ParseUint(event.NetherNetID, 10, 64); parseErr == nil {
 				h.guestMu.Lock()
 				h.guestPlayers[networkID] = event.PlayerID
