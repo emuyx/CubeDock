@@ -9,7 +9,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/emuyx/cubedock/internal/funauth"
+	"github.com/emuyx/cubedock/internal/netease"
 )
 
 // RoomInfo is the material returned by NetEase for hosting one room.
@@ -43,37 +43,37 @@ func PrepareRoom(ctx context.Context, lobbyProtocolID uint8, token string) (Room
 	if err != nil {
 		return info, err
 	}
-	client, err := funauth.NewClient(ctx)
+	client, err := netease.New(ctx)
 	if err != nil {
 		return info, fmt.Errorf("初始化网易认证客户端失败: %w", err)
 	}
-	if err = client.G79AuthenticateWithCookie(session); err != nil {
+	if err = client.Authenticate(ctx, session); err != nil {
 		return info, fmt.Errorf("网易账号验证失败: %w", err)
 	}
-	result, err := funauth.TanLobbyCreate(ctx, client)
+	result, err := client.CreateRoom(ctx)
 	if err != nil {
 		return info, fmt.Errorf("获取网易房间信息失败: %w", err)
 	}
-	if result.UserUniqueID == 0 || result.UserPlayerName == "" ||
-		result.RaknetServerAddress == "" || result.SignalingServerAddress == "" {
+	if result.UserID == 0 || result.PlayerName == "" ||
+		result.RaknetAddress == "" || result.SignalingAddress == "" {
 		return info, fmt.Errorf("网易认证返回的房主信息不完整")
 	}
-	for _, address := range []string{result.RaknetServerAddress, result.SignalingServerAddress} {
+	for _, address := range []string{result.RaknetAddress, result.SignalingAddress} {
 		if _, err := net.ResolveUDPAddr("udp", address); err != nil {
 			return info, fmt.Errorf("网易认证返回的转发地址无效")
 		}
 	}
 	info = RoomInfo{
-		UserID:           result.UserUniqueID,
-		PlayerName:       result.UserPlayerName,
-		RaknetAddress:    result.RaknetServerAddress,
+		UserID:           result.UserID,
+		PlayerName:       result.PlayerName,
+		RaknetAddress:    result.RaknetAddress,
 		RaknetRand:       result.RaknetRand,
 		RaknetAESRand:    result.RaknetAESRand,
-		SignalingAddress: result.SignalingServerAddress,
+		SignalingAddress: result.SignalingAddress,
 		SignalingSeed:    result.SignalingSeed,
 		SignalingTicket:  result.SignalingTicket,
-		EncryptKey:       result.EncryptKeyBytes,
-		DecryptKey:       result.DecryptKeyBytes,
+		EncryptKey:       result.EncryptKey,
+		DecryptKey:       result.DecryptKey,
 		ProtocolID:       lobbyProtocolID,
 	}
 	if info.ProtocolID == 0 {
@@ -115,21 +115,18 @@ func LookupProfile(ctx context.Context, token string) (Profile, error) {
 	if err != nil {
 		return profile, err
 	}
-	client, err := funauth.NewClient(ctx)
+	client, err := netease.New(ctx)
 	if err != nil {
 		return profile, fmt.Errorf("初始化网易认证客户端失败: %w", err)
 	}
-	if err = client.G79AuthenticateWithCookie(session); err != nil {
+	if err = client.Authenticate(ctx, session); err != nil {
 		return profile, fmt.Errorf("网易账号验证失败: %w", err)
 	}
-	profile.UID = client.UserID
-	if client.UserDetail != nil {
-		profile.Name = client.UserDetail.Name
-		profile.Level = int(client.UserDetail.Level.Int64())
+	identity, err := client.Profile(ctx)
+	if err != nil {
+		return profile, err
 	}
-	if profile.Name == "" {
-		profile.Name = client.UserID
-	}
+	profile = Profile{Name: identity.Name, UID: identity.UID, Level: identity.Level}
 	if profile.Name == "" {
 		return profile, fmt.Errorf("网易账号验证成功但没有返回游戏名")
 	}

@@ -53,12 +53,9 @@ func TestDiscoverRejectsNonHTTPS(t *testing.T) {
 	}
 }
 
-func TestAuthenticateRequiresCaptures(t *testing.T) {
+func TestAuthenticateRejectsInvalidSession(t *testing.T) {
 	client := NewClient(nil)
-	if err := client.Authenticate(context.Background(), testInnerSession); err != ErrAwaitingCaptures {
-		t.Fatalf("Authenticate error = %v", err)
-	}
-	if client.Credentials().Session.SDKUID != "42" {
-		t.Fatalf("credentials = %+v", client.Credentials())
+	if err := client.Authenticate(context.Background(), `{"sauth_json":"{}"}`); err == nil {
+		t.Fatal("empty session accepted")
 	}
 }

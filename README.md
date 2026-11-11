@@ -5,7 +5,6 @@
   <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/emuyx/CubeDock/release.yml?branch=main&label=build"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.26%2B-34d399?logo=go&logoColor=white">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-f59e0b">
-  <img alt="AGPL" src="https://img.shields.io/badge/components-AGPL--3.0-34d399">
   <a href="https://emuyx.github.io/CubeDock/"><img alt="Pages" src="https://img.shields.io/badge/docs-GitHub%20Pages-34d399"></a>
 </p>
 
@@ -221,13 +220,13 @@ Windows 一键构建：`.\scripts\build.ps1`。前端缺少依赖时会自动 `n
 
 | 组件 | 许可 |
 | --- | --- |
-| CubeDock 原创代码 | MIT，`Copyright (c) 2026 emuyx` |
-| `vendor-src/g79client`、`internal/funauth` | AGPL-3.0 |
+| CubeDock 原创代码（含认证链 `internal/netease`） | MIT，`Copyright (c) 2026 emuyx` |
 | `vendor-src/nemc-tan-lobby-solver` | MIT 子目录各自保留 LICENSE |
 | `limbo/third_party/gophertunnel` | MIT |
 
 完整归属见 [NOTICE](NOTICE)、[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和
-[LICENSE](LICENSE)。发布包中的 `SOURCE/` 提供 AGPL 组件的对应源码。
+[LICENSE](LICENSE)。发布包中的 `licenses/` 提供 MIT/BSD/Apache 许可文本与
+vendored 组件的 LICENSE 副本，不再包含 AGPL 源码包。
 
 > CubeDock 是独立项目，与 Mojang、Microsoft、网易无隶属关系；不附带游戏客户端或
 > 官方资源。使用网易账号与本地联机功能可能受网易服务条款约束，风险由使用者承担。

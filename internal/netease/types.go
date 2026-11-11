@@ -2,17 +2,10 @@
 // authentication path. It is intentionally independent from the historical
 // AGPL authentication modules.
 //
-// The package is being built from an internal protocol specification derived
-// from packet captures and the constants already verified in
-// docs/rewrite/VERIFIED_STATUS.md. Steps that still require capture evidence
-// return ErrAwaitingCaptures rather than guessing protocol details.
+// It is derived from an internal protocol specification and the constants
+// already verified in docs/rewrite/VERIFIED_STATUS.md. The PE envelope, user
+// detail and transfer-node flows have been verified against a real account.
 package netease
-
-import "errors"
-
-// ErrAwaitingCaptures marks a protocol step whose constants or envelope must be
-// confirmed from user-provided captures before it can be implemented.
-var ErrAwaitingCaptures = errors.New("该认证步骤需要抓包/明文资料后才能实现")
 
 // ReleaseInfo is the G79 service discovery document.
 type ReleaseInfo struct {

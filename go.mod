@@ -6,7 +6,6 @@ toolchain go1.27.3
 
 require (
 	github.com/Happy2018new/nemc-tan-lobby-solver v0.2.8
-	github.com/Yeah114/g79client v0.0.0
 	github.com/df-mc/jsonc v1.0.5
 	github.com/google/uuid v1.6.0
 	github.com/pion/logging v0.2.4
@@ -41,5 +40,3 @@ require (
 )
 
 replace github.com/Happy2018new/nemc-tan-lobby-solver => ./vendor-src/nemc-tan-lobby-solver
-
-replace github.com/Yeah114/g79client => ./vendor-src/g79client

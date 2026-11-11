@@ -11,6 +11,27 @@ import tempfile
 import zipfile
 
 
+def copy_license_tree(root, source, target):
+    """Copy only LICENSE/COPYING files and LICENSES directories."""
+    base = root / source
+    if not base.exists():
+        return
+    for path in base.rglob("*"):
+        if path.is_file() and path.name.upper() in ("LICENSE", "LICENCE", "COPYING"):
+            relative = path.relative_to(base)
+            destination = target / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, destination)
+        elif path.is_dir() and path.name.upper() == "LICENSES":
+            for child in path.rglob("*"):
+                if not child.is_file():
+                    continue
+                relative = child.relative_to(base)
+                destination = target / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(child, destination)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--os", choices=("linux", "windows", "darwin"), required=True)
@@ -53,57 +74,13 @@ def main():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(root / source, target)
 
-        # AGPL-3.0 requires the corresponding source when binaries are
-        # distributed. Ship the authentication components, the patched
-        # gophertunnel copy and the vendored MIT module with every archive
-        # instead of relying on a network offer.
-        source_dir = package / "SOURCE"
-        source_dir.mkdir()
-        (source_dir / "README.md").write_text(
-            "Corresponding source for this CubeDock release.\n\n"
-            "This directory contains the source of the third-party components\n"
-            "embedded in the binary, including the AGPL-3.0 authentication code\n"
-            "(vendor-src/g79client and internal/funauth) and the locally patched\n"
-            "gophertunnel copy used by limbo. See THIRD_PARTY_NOTICES.md for the\n"
-            "full license map.\n",
-            encoding="utf-8",
-        )
-        for source in (
-            "vendor-src/g79client",
-            "internal/funauth",
-            "vendor-src/nemc-tan-lobby-solver",
-            "limbo/third_party/gophertunnel",
-        ):
-            shutil.copytree(
-                root / source,
-                source_dir / source,
-                ignore=shutil.ignore_patterns(
-                    "node_modules", "*.exe", "*.zip", "*.mcpack", "*.mcapk"
-                ),
-            )
-        shutil.copyfile(
-            root / "vendor-src/g79client/LICENSE",
-            source_dir / "internal/funauth/LICENSE",
-        )
-        for source in (
-            "LICENSE",
-            "NOTICE",
-            "THIRD_PARTY_NOTICES.md",
-            "go.mod",
-            "go.sum",
-            "limbo/go.mod",
-            "limbo/go.sum",
-            "vendor-src/g79client/go.mod",
-            "vendor-src/g79client/go.sum",
-            "vendor-src/nemc-tan-lobby-solver/go.mod",
-            "vendor-src/nemc-tan-lobby-solver/go.sum",
-        ):
-            path = root / source
-            if not path.exists():
-                continue
-            target = source_dir / source
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(path, target)
+        # The authentication chain is first-party, so the release no longer
+        # ships SOURCE/. Keep the third-party license texts instead.
+        license_dir = package / "licenses"
+        shutil.copytree(root / "licenses", license_dir)
+        vendored = license_dir / "vendored"
+        copy_license_tree(root, "vendor-src/nemc-tan-lobby-solver", vendored / "nemc")
+        copy_license_tree(root, "limbo/third_party/gophertunnel", vendored / "gophertunnel")
 
         if args.os == "windows":
             with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as target:

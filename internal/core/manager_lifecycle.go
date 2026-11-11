@@ -440,8 +440,13 @@ func (m *Manager) finishRuntime(runtime *roomRuntime) {
 			status.Attempts = 0
 			status.LastError = ""
 		}
+		var idle, replacement chan struct{}
 		if len(m.runtimes) == 0 {
-			close(m.idle)
+			// Keep the idle channels open until the final status write is
+			// complete, so Wait and test cleanup do not race with persist.
+			idle = m.idle
+			replacement = make(chan struct{})
+			m.idle = replacement
 		}
 		m.mu.Unlock()
 
@@ -454,6 +459,10 @@ func (m *Manager) finishRuntime(runtime *roomRuntime) {
 		m.persist()
 		m.record("系统", fmt.Sprintf("房间 %d 已停止", runtime.index+1), false,
 			runtime.index+1, runtime.profile.Name)
+		if idle != nil {
+			close(idle)
+			close(replacement)
+		}
 	})
 }
 
