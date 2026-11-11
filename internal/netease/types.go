@@ -55,6 +55,7 @@ type Profile struct {
 type TransferServer struct {
 	ID            int
 	IP            string
+	ServerType    string
 	SignalWebPort int
 	Ports         []int
 	Status        int

@@ -70,7 +70,7 @@ func TestSelectTransferServerFiltersUnusableEntries(t *testing.T) {
 		{IP: "", SignalWebPort: 1, Ports: []int{1}},
 		{IP: "1.2.3.4", SignalWebPort: 0, Ports: []int{1}},
 		{IP: "1.2.3.4", SignalWebPort: 1, Ports: nil},
-		{IP: "5.6.7.8", SignalWebPort: 18080, Ports: []int{19132}},
+		{IP: "5.6.7.8", ServerType: "dockerB", SignalWebPort: 18080, Ports: []int{19132}},
 	}
 	selected, err := SelectTransferServer(servers, bytes.NewReader([]byte{0}))
 	if err != nil {
@@ -78,6 +78,16 @@ func TestSelectTransferServerFiltersUnusableEntries(t *testing.T) {
 	}
 	if selected.IP != "5.6.7.8" {
 		t.Fatalf("selected = %+v", selected)
+	}
+	preferred, err := SelectTransferServer([]TransferServer{
+		{IP: "1.1.1.1", ServerType: "dockerA", SignalWebPort: 8899, Ports: []int{10000}},
+		{IP: "2.2.2.2", ServerType: "dockerB", SignalWebPort: 8900, Ports: []int{10008}},
+	}, bytes.NewReader([]byte{0}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preferred.ServerType != "dockerB" {
+		t.Fatalf("preferred = %+v", preferred)
 	}
 	if _, err := SelectTransferServer(servers[:3], bytes.NewReader([]byte{0})); err == nil {
 		t.Fatal("unusable list accepted")

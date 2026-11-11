@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 )
 
 // md5Token returns the 16-byte key derived from the account token.
@@ -42,6 +43,7 @@ func repeatByte(value byte, count int) []byte {
 // SelectTransferServer filters unusable entries and picks one at random.
 func SelectTransferServer(servers []TransferServer, random io.Reader) (TransferServer, error) {
 	available := make([]TransferServer, 0, len(servers))
+	preferred := make([]TransferServer, 0, len(servers))
 	for _, server := range servers {
 		if server.IP == "" || server.SignalWebPort < 1 || server.SignalWebPort > 65535 || len(server.Ports) == 0 {
 			continue
@@ -53,12 +55,21 @@ func SelectTransferServer(servers []TransferServer, random io.Reader) (TransferS
 				break
 			}
 		}
-		if usable {
-			available = append(available, server)
+		if !usable {
+			continue
+		}
+		available = append(available, server)
+		// dockerB is the legacy room-control node type used by protocol 43;
+		// dockerA nodes accept rooms but ignore room-side kick requests.
+		if strings.EqualFold(server.ServerType, "dockerB") {
+			preferred = append(preferred, server)
 		}
 	}
 	if len(available) == 0 {
 		return TransferServer{}, fmt.Errorf("没有可用的网易房间转发节点")
+	}
+	if len(preferred) > 0 {
+		available = preferred
 	}
 	value, err := readRandomByte(random)
 	if err != nil {

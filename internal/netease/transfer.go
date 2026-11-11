@@ -30,6 +30,7 @@ type transferEntry struct {
 	Status        flexibleInt `json:"status"`
 	IP            string      `json:"ip"`
 	ID            flexibleInt `json:"id"`
+	ServerType    string      `json:"ServerType"`
 	SignalWebPort flexibleInt `json:"SignalWebPort"`
 	Ports         []int       `json:"ports"`
 }
@@ -94,8 +95,8 @@ func (c *Client) fetchTransferServers(ctx context.Context) ([]TransferServer, er
 	servers := make([]TransferServer, 0, len(entries))
 	for _, entry := range entries {
 		servers = append(servers, TransferServer{
-			ID: int(entry.ID), IP: entry.IP, SignalWebPort: int(entry.SignalWebPort),
-			Ports: entry.Ports, Status: int(entry.Status),
+			ID: int(entry.ID), IP: entry.IP, ServerType: entry.ServerType,
+			SignalWebPort: int(entry.SignalWebPort), Ports: entry.Ports, Status: int(entry.Status),
 		})
 	}
 	return servers, nil
