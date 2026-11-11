@@ -659,6 +659,15 @@ summary:focus-visible {
   font-size: 13.5px;
 }
 
+.feature-card code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--amber-soft);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
 .mode-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

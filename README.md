@@ -11,7 +11,7 @@
 > 网易「本地联机」房间 → 原生支持网易 RakNet v8 的 Bedrock 服务器。<br>
 > 独立实现：不翻译游戏协议，只做登录链重签、Bedrock 加密握手、limbo/Transfer 和资源包处理。
 
-[项目主页](https://emuyx.github.io/CubeDock/) · [真实界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [FAQ](#faq) · [Issues](https://github.com/emuyx/CubeDock/issues)
+[项目主页](https://emuyx.github.io/CubeDock/) · [使用文档](https://emuyx.github.io/CubeDock/docs.html) · [真实界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [FAQ](#faq) · [Issues](https://github.com/emuyx/CubeDock/issues)
 
 ## 一眼看懂
 
@@ -20,8 +20,12 @@
 | 连接模式 | 代理模式（推荐）/ 转服模式（先进中转房间） |
 | 兼容性 | 网易互通版 3.10；服务器需原生支持网易 RakNet v8 |
 | 上游要求 | 代理和转服都要求服务器原生支持网易 RakNet v8；转服还需要客户端能直连该服务器 |
+| 配置方案 | 多套服务器/房间/资源包设置；每个账号选择一套方案 |
+| 认证 | 第一方 `internal/netease`：PE 认证、用户资料、transfer 节点、房主凭据 |
 | 平台 | Windows / Linux / macOS |
-| 控制台 | React + MUI，默认 `http://127.0.0.1:18321/` |
+| 控制台 | React + MUI；配置方案页 + 每账号仪表盘，默认 `http://127.0.0.1:18321/` |
+
+> `main` 当前对应 **v0.3.0 开发版**；Releases 中的最新稳定版仍是 **v0.2.0**。
 
 ## 架构
 
@@ -32,7 +36,12 @@ flowchart LR
   Room -->|转服模式| Limbo[limbo 虚空世界]
   Limbo -->|Transfer| Target[目标服务器]
   Room -.->|登录重签 · ECDH · AES-CTR| Upstream
+  Account[网易账号] --> Room
+  Profile[配置方案] --> Room
 ```
+
+每个账号拥有独立 runtime、独立启停和独立房间；账号使用的服务器、房间与资源包设置来自
+它选择的配置方案。切换方案需要先停止全部房间，下次启动该账号时生效。
 
 ## 模式怎么选
 
@@ -50,10 +59,15 @@ flowchart LR
 | 能力 | 说明 |
 | --- | --- |
 | 互通版直登 | 邮箱密码走 a50 / x19 / uni_sauth，无需抓包 |
+| 第一方认证链 | `internal/netease` 实现 PE 认证、资料、transfer 节点和开房凭据；不再依赖 AGPL 组件 |
 | 加密中继 | P-384 单段链重签、ECDH / AES-CTR、游戏包直通 |
 | limbo 转服 | 虚空世界、SimpleForm、关闭重开、`Transfer.ReloadWorld=false` |
 | 资源包 | 强制 SendPacks、Stack fallback、拉取、本地跳过、去重 |
-| Web 控制台 | 账号/房间、连接方式、实时控制台、诊断、设置、FAQ、玩家管理（代理模式）、深浅色主题 |
+| 配置方案 | 多套连接/房间/资源包/表单设置；支持复制方案、按方案查看资源包 |
+| 账号仪表盘 | 每账号独立启动/停止/重连、房间状态、玩家、好友申请、资源包、诊断、日志 |
+| 房间管理 | 房间侧踢人、房间标签（最多 3 个）、准入等级、网易房间成员列表 |
+| 好友申请 | 运行中房间读取待处理申请，可自动或手动同意 |
+| Web 控制台 | 账号/房间、配置方案、实时控制台、诊断、设置、FAQ、深浅色主题 |
 | 多房间 | 多账号、不设固定上限，一账号一房间；代理模式下支持 `list` / `kick` |
 
 ## 下载与安装
@@ -72,33 +86,42 @@ flowchart LR
 
 1. **启动并登录控制台**
    运行 `CubeDock.exe`（或 `build/bin/CubeDockMain`），打开终端显示的地址，默认
-   `http://127.0.0.1:18321/`。首次打开控制台时会要求你创建管理员账号和密码。无头环境可用
-   `CUBEDOCK_ADMIN_USERNAME` / `CUBEDOCK_ADMIN_PASSWORD` 仅做首次初始化。
+   `http://127.0.0.1:18321/`。首次打开控制台时会要求你创建管理员账号和密码；初始化只允许本机。
+   无头环境可用 `CUBEDOCK_ADMIN_USERNAME` / `CUBEDOCK_ADMIN_PASSWORD` 仅做首次初始化。
 
-2. **配置服务器**
-   进入「设置」填写服务器地址（例如 `127.0.0.1:19132`）、房间名和人数，
-   然后保存。无论代理还是转服，服务器都必须原生支持网易 RakNet v8。
+2. **完成全局设置**
+   在「设置」中确认控制台端口、limbo 程序路径和是否自动启动全部房间。服务器、房间、
+   资源包和提示页面属于配置方案，不在「设置」页修改。
 
-3. **添加网易账号**
-   进入「账号与房间」→「添加网易账号」，使用互通版邮箱直登，或导入已有的 `sauth`。
-   每个账号对应一个房间；同一账号不能重复添加。
+3. **创建配置方案**
+   进入「配置方案」新建或复制方案，按需要填写：
+   - 「连接」：连接方式（代理/转服）、服务器地址、房间协议版本；
+   - 「房间」：房间名、密码、人数、准入等级、房间标签、仅好友可见、自动同意好友、PvP；
+   - 「资源包」：资源包目录与是否开房时自动拉取；
+   - 「提示页面」：转服模式 limbo 表单标题、内容和按钮文字。
 
-4. **启动房间**
-   回到「主页」点击「启动房间」。房间进入 online 后，房间号会显示在「本地联机房间」
-   卡片中；服务器地址和连接状态也会同步更新。
+4. **添加网易账号**
+   进入「账号与房间」→「添加网易账号」，选择配置方案，使用互通版邮箱直登，或导入已有的
+   `sauth`。每个账号对应一个房间；同一账号不能重复添加。
 
-5. **手机加入**
+5. **启动房间**
+   在「账号与房间」或侧边栏账号入口打开该账号的仪表盘，单独「启动 / 停止 / 重连」。
+   房间进入 online 后，房间号会显示在「本地联机房间」卡片中；主页的全局启动/停止会作用于全部账号。
+
+6. **手机加入**
    在网易版 Minecraft 客户端打开「本地联机」，刷新后加入刚创建的房间。玩家流量会经
-   CubeDock 转发到上游；在上游看到的身份和连接由代理配置决定。
+   CubeDock 转发到上游；在上游看到的身份和连接由配置方案决定。
 
-6. **转服模式（可选）**
-   在「连接与资源包」把连接方式改为「转服模式」，配置中转房间和资源包，
-   保存后重新启动房间。玩家会先进入本地中转房间，看到提示页面后再进入你的服务器。
+7. **转服模式（可选）**
+   在「配置方案」把连接方式改为「转服模式」，配置中转房间地址/端口、limbo 提示页面和资源包，
+   保存后重新启动该账号的房间。玩家会先进入本地中转房间，看到提示页面后再进入你的服务器。
 
-7. **管理玩家**
+8. **管理玩家、房间成员与好友**
    代理模式下可在「控制台」使用 `list` 查看玩家、`kick <ID|名称>` 断开玩家；`transfer`
-   可向指定玩家注入 Transfer（POC）。转服模式的玩家已交给中转房间/目标服务器，
-   CubeDock 不再提供玩家管理。停止房间会结束房主机器人和 limbo。
+   可向指定玩家注入 Transfer（POC）。玩家弹窗还提供「已进入世界」和「网易房间成员」两个标签：
+   后者包含已进房但尚未进入世界的玩家，可按房间玩家 ID 踢出。房间运行后，账号仪表盘可读取
+   并手动同意好友申请。转服模式的玩家由中转房间/目标服务器承载，CubeDock 不提供世界玩家管理。
+   停止房间会结束房主机器人和 limbo。
 
 ## 常用操作
 
@@ -109,20 +132,34 @@ flowchart LR
 | `kick <ID\|名称>` | 断开指定玩家；名称含空格时加引号 |
 | `transfer <ID\|名称> <host:port>` | 代理模式下注入 Transfer（POC） |
 
-配置字段见 [`config.example.json`](config.example.json)。数据文件：`config.json`、
-`room-tokens.dat`、`accounts.json`、`interop-device.dat`、`admin.json`、`logs/`。
-Windows 使用 DPAPI，其他平台使用 `0600` 权限。
+房间侧踢人、标签和准入等级在 Web 控制台操作：
+
+- **世界玩家**：玩家弹窗的「已进入世界」标签，可断开本地 NetherNet 连接；
+- **网易房间成员**：「网易房间成员」标签，包含等待中的玩家；房间踢出依赖 `dockerB`
+  transfer 节点（SignalWebPort 8900），踢出不等于封禁，玩家仍可能重新加入；
+- **标签/准入等级**：在配置方案中设置，保存后重新启动房间生效；
+- **等待中的成员**：`TanNewGuestResponse` 不带游戏名，未进入世界时显示为 `房间玩家 <ID>`。
+
+配置字段见 [`config.example.json`](config.example.json)。数据文件：`config.json`
+（全局设置 + 配置方案）、`room-tokens.dat`、`accounts.json`（含 `profile_id`）、
+`interop-device.dat`、`admin.json`、`logs/`。Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 
 <details>
-<summary><strong>HTTP API</strong> · 需要管理员会话</summary>
+<summary><strong>HTTP API</strong> · 除登录/初始化外需要管理员会话</summary>
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/status` | 状态、账号、方案、房间、事件 |
+| GET | `/api/setup/status` | 是否仍需要初始化管理员 |
+| POST | `/api/setup` | 创建首个管理员（仅本机） |
+| POST | `/api/login` / `/api/logout` | 管理员登录/退出 |
+| POST | `/api/admin/password` | 修改管理员密码 |
+| GET | `/api/status` | 状态、账号、配置方案、房间、事件 |
 | POST | `/api/start` / `/api/stop` | 启动/停止全部房间 |
 | POST | `/api/room/start` / `/api/room/stop` / `/api/room/restart` | 单账号开房/停止/重连 |
 | POST | `/api/config` | 保存配置方案与全局设置 |
 | POST | `/api/account/assign-profile` | 为账号切换配置方案 |
+| POST | `/api/account/profile` | 刷新账号资料 |
+| POST | `/api/account/remove` | 移除账号 |
 | GET | `/api/packs?profile_id=` | 扫描某方案的资源包目录 |
 | POST | `/api/packs/refresh` | 机器人拉取并去重 |
 | POST | `/api/console` | 执行控制台命令 |
@@ -137,6 +174,7 @@ Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 | GET | `/api/diagnostics?profile_id=` | 只读运行诊断 |
 | GET | `/api/backup` | 导出配置备份（不含登录凭证） |
 | POST | `/api/restore` | 恢复配置 |
+| POST | `/api/session/import` / `/api/session/interop-login` | 导入 sauth / 邮箱登录（仅本机） |
 
 `/api/session/*` 只允许本机访问；控制台只允许白名单 Host/Origin。
 </details>
@@ -155,11 +193,35 @@ Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 </details>
 
 <details>
+<summary><strong>配置方案、账号和房间是什么关系？</strong></summary>
+
+配置方案保存服务器、房间、资源包和提示页面设置；账号在添加时选择一套方案，并获得
+独立的房间 runtime。一个账号只能有一个房间；多个账号可以共用同一方案，也可以使用不同方案。
+切换账号的方案需要先停止全部房间，切换后下次启动该账号的房间时生效。
+</details>
+
+<details>
 <summary><strong>标准 BDS 能直接作为上游吗？</strong></summary>
 
 两种模式都不能直接使用标准 BDS：服务器必须原生支持网易 RakNet v8。转服模式只是让客户端
 直连目标，同样不会把网易协议翻译成标准 Bedrock；此外还要求客户端能访问目标、资源包与
 limbo 预加载的一致。
+</details>
+
+<details>
+<summary><strong>房间踢人和世界玩家踢人有什么区别？</strong></summary>
+
+「已进入世界」标签断开的是已经进入上游世界的玩家；「网易房间成员」标签踢出的是 TanLobby
+房间成员，包含已进房但还没进入世界的玩家。房间踢出依赖 `dockerB` transfer 节点；踢出不会
+封禁，玩家仍可能重新加入，除非房间设置了仅好友、密码或准入等级。
+</details>
+
+<details>
+<summary><strong>为什么认证链不再使用 AGPL 组件？</strong></summary>
+
+当前认证链由 `internal/netease` 第一方实现，覆盖 PE 认证、用户资料、transfer 节点选择和
+房主凭据派生。`vendor-src/g79client`、`internal/funauth` 已删除，发布包也不再生成
+`SOURCE/`；第三方许可文本仍随包分发。协议常量仍以真实抓包和实机验证为准。
 </details>
 
 <details>
@@ -170,10 +232,11 @@ limbo 预加载的一致。
 - 登录凭据过期：刷新不会续期；在账号页点「更新登录」，用邮箱密码或新的 sauth 重新登录。
 - 资源包不下载：网易会忽略 `ResourcePacksInfo`，limbo 默认强制 SendPacks；加密/动态包不支持。
 - 控制台打不开：默认 `http://127.0.0.1:18321/`；忘记密码需停止程序、备份并删除数据目录中的 `admin.json`，重启后在本机控制台重新创建管理员账户。
+- 房间踢出生效但玩家又回来了：踢出不封禁；可配合仅好友、密码或准入等级限制。
 - 同一网易账号不能同时开两个房间；账号数量不设固定上限，实际受机器资源与网易限制。
 </details>
 
-更多 FAQ 见 [项目主页](https://emuyx.github.io/CubeDock/#faq) 和 WebUI 的「常见问题」页面。
+更多 FAQ 见 [使用文档](https://emuyx.github.io/CubeDock/docs.html#troubleshooting) 和 WebUI 的「常见问题」页面。
 
 ## 开发
 
@@ -206,11 +269,14 @@ go build -trimpath -o build/bin/CubeDockMain ./cmd/cubedock
 go test ./...
 go vet ./...
 go -C limbo test ./...
+go -C limbo vet ./...
+
 npm --prefix webui-src ci
 npm --prefix webui-src run build
 ```
 
 Windows 一键构建：`.\scripts\build.ps1`。前端缺少依赖时会自动 `npm ci`。
+站点文件在 `site/`，其中 `docs.html` 是使用文档，`demo.html` 是控制台演示。
 
 ## 当前状态
 
@@ -219,9 +285,20 @@ Windows 一键构建：`.\scripts\build.ps1`。前端缺少依赖时会自动 `n
 | 代理模式真实进服 | ✅ 实机验证 |
 | 转服 / limbo / 资源包 | ✅ 实机验证 |
 | 资源包拉取、跳过、去重 | ✅ 实机验证 |
-| 真实 1351 / 多账号 / 多房间 | ✅ 实机验证 |
+| 真实 1351 / 多账号 / 多房间（≤8） | ✅ 实机验证 |
 | 真实玩家 `list` / `kick`（代理模式） | ✅ 实机验证 |
+| 多配置方案 + 每账号仪表盘 | ✅ 实机验证 |
+| 第一方认证链（PE/资料/开房） | ✅ 本地测试 + 真实账号探针 + 实机 |
+| 房间侧踢人 / 标签 / 准入等级 | ✅ 实机验证（踢人依赖 dockerB） |
+| 网易房间成员列表（含未进世界） | ✅ 实机验证 |
+| 手动同意好友申请 | ✅ 实机验证 |
 | 加密 / 动态资源包 | 🚧 未支持 |
+| >8 账号真实并发 | ⏳ 未覆盖 |
+| Linux / macOS 实机 | ⏳ 部分覆盖（WSL + 交叉编译） |
+| `go test -race` | ⏳ 未运行（本机无 gcc/cgo） |
+
+证书与兼容性说明：PE 认证常量仍为 `3.10.5.301486`，默认房间版本 `1.21.130.0`、协议 `43`。
+互通版客户端 manifest 更新后，必须重新抓包并验证，不能只改常量。
 
 ## 许可
 
