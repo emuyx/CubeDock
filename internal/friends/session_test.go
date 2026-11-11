@@ -61,7 +61,10 @@ func TestNewSessionRejectsInvalidInput(t *testing.T) {
 	if _, err := NewSession(0, make([]byte, 32)); err == nil {
 		t.Fatal("zero UID accepted")
 	}
-	if _, err := NewSession(42, make([]byte, 16)); err == nil {
+	if _, err := NewSession(42, make([]byte, 8)); err == nil {
 		t.Fatal("short encryption key accepted")
+	}
+	if _, err := NewSession(42, make([]byte, 16)); err != nil {
+		t.Fatalf("16-byte key rejected: %v", err)
 	}
 }

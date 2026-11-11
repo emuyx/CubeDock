@@ -41,7 +41,7 @@ func (m *Manager) serveRoom(ctx context.Context, index int, profile config.Profi
 	if info.UserID != 0 && len(info.EncryptKey) >= 16 {
 		m.friendSessions[index] = friendCredentials{
 			uid: info.UserID,
-			key: append([]byte(nil), info.EncryptKey[:16]...),
+			key: append([]byte(nil), info.EncryptKey...),
 		}
 	}
 	m.mu.Unlock()

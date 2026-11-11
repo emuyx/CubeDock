@@ -26,7 +26,10 @@ func NewSession(uid uint32, encryptionKey []byte) (*Session, error) {
 	if uid == 0 {
 		return nil, fmt.Errorf("房间账号 UID 无效")
 	}
-	if len(encryptionKey) != 32 {
+	// The gateway signature uses the first 16 bytes. The room handshake
+	// normally provides 32 bytes, but callers may already have the 16-byte
+	// half, so accept both forms.
+	if len(encryptionKey) < 16 {
 		return nil, fmt.Errorf("房间加密密钥长度无效")
 	}
 	return &Session{client: newGatewayClient(uid, encryptionKey)}, nil

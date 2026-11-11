@@ -14,6 +14,9 @@ func (m *Manager) friendCredentials(index int) (friendCredentials, error) {
 	if !ok || creds.uid == 0 || len(creds.key) < 16 {
 		return friendCredentials{}, fmt.Errorf("房间未运行或尚未完成网易登录")
 	}
+	if len(creds.key) != 32 {
+		return friendCredentials{}, fmt.Errorf("房间加密密钥长度无效")
+	}
 	return friendCredentials{uid: creds.uid, key: append([]byte(nil), creds.key...)}, nil
 }
 
