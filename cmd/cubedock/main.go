@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -48,7 +49,6 @@ func run() error {
 	runNow := flag.Bool("run", false, "启动后自动开房")
 	debug := flag.Bool("debug", false, "开启详细诊断日志（也可在控制台即时切换）")
 	check := flag.Bool("check", false, "检查本地服务器和账号鉴权，然后退出")
-	resetAdmin := flag.Bool("reset-admin-password", false, "重置管理密码并在终端显示新密码")
 	runSeconds := flag.Int("run-seconds", 0, "运行指定秒数后关房退出（测试用）")
 	flag.Parse()
 
@@ -116,11 +116,28 @@ func run() error {
 	}
 	defer listener.Close()
 
-	adminPassword := os.Getenv("CUBEDOCK_ADMIN_PASSWORD")
-	admin, initialPassword, err := server.LoadAdmin(dir, adminPassword, *resetAdmin)
-	_ = os.Unsetenv("CUBEDOCK_ADMIN_PASSWORD")
+	admin, err := server.LoadAdmin(dir)
 	if err != nil {
 		return err
+	}
+	// CUBEDOCK_ADMIN_PASSWORD is an initial-setup helper for headless runs.
+	// It is only used when admin.json does not exist; it never resets an
+	// existing password.
+	adminPassword := os.Getenv("CUBEDOCK_ADMIN_PASSWORD")
+	adminUsername := strings.TrimSpace(os.Getenv("CUBEDOCK_ADMIN_USERNAME"))
+	_ = os.Unsetenv("CUBEDOCK_ADMIN_PASSWORD")
+	_ = os.Unsetenv("CUBEDOCK_ADMIN_USERNAME")
+	if adminPassword != "" {
+		if admin.NeedsSetup() {
+			if adminUsername == "" {
+				adminUsername = "admin"
+			}
+			if err := admin.CompleteSetup(adminUsername, adminPassword); err != nil {
+				return fmt.Errorf("初始化管理员账户失败: %w", err)
+			}
+		} else {
+			fmt.Println("管理员账户已存在，已忽略 CUBEDOCK_ADMIN_PASSWORD（不会重置密码）。")
+		}
 	}
 	httpServer := &http.Server{
 		Handler:           server.NewHandler(manager, admin, server.RuntimeInfo{Version: version, Commit: commit}),
@@ -138,15 +155,11 @@ func run() error {
 	if packsDir != "" {
 		fmt.Println("Limbo 资源包目录：", packsDir)
 	}
-	fmt.Println("管理员账号：admin")
-	switch {
-	case initialPassword != "":
-		fmt.Println("管理员初始密码：", initialPassword)
-		fmt.Println("请保存此密码；后续启动不再显示，可用 -reset-admin-password 重置。")
-	case adminPassword != "":
-		fmt.Println("管理密码：由 CUBEDOCK_ADMIN_PASSWORD 设置。")
-	default:
-		fmt.Println("管理密码：已设置，忘记密码可用 -reset-admin-password 重置。")
+	fmt.Println("管理员账号：", admin.Username())
+	if admin.NeedsSetup() {
+		fmt.Println("管理员账户尚未创建：请打开控制台，按页面提示设置账号和密码。")
+	} else {
+		fmt.Println("管理员密码：已设置。忘记密码需停止程序后备份并删除 admin.json，重启后在控制台重新初始化。")
 	}
 	if !*headless {
 		openBrowser(address)

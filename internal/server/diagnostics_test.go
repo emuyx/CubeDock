@@ -179,8 +179,11 @@ func TestRestoreRejectsInvalidConfig(t *testing.T) {
 
 func TestDiagnosticsRequiresAdminSession(t *testing.T) {
 	manager := newDiagnosticsTestManager(t)
-	admin, _, err := LoadAdmin(t.TempDir(), "correct-horse", false)
+	admin, err := LoadAdmin(t.TempDir())
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.CompleteSetup("admin", "correct-horse"); err != nil {
 		t.Fatal(err)
 	}
 	handler := NewHandler(manager, admin, RuntimeInfo{Version: "test"})

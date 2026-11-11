@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -12,7 +14,7 @@ import (
 // ChangePassword verifies the current password, writes the new bcrypt hash and
 // drops every existing console session.
 func (a *Admin) ChangePassword(current, next string) error {
-	if len([]byte(next)) < 8 || len([]byte(next)) > 72 {
+	if err := validateAdminPassword(next); err != nil {
 		return fmt.Errorf("新密码必须为 8–72 字节")
 	}
 	if current == "" {
@@ -25,7 +27,8 @@ func (a *Admin) ChangePassword(current, next string) error {
 	if err != nil {
 		return err
 	}
-	if err := saveAdminFile(a.filePath, adminFile{Username: "admin", Hash: string(hash)}); err != nil {
+	username := a.Username()
+	if err := saveAdminFile(a.filePath, adminFile{Username: username, Hash: string(hash)}); err != nil {
 		return err
 	}
 	a.passwordMu.Lock()
@@ -39,6 +42,10 @@ func (a *Admin) ChangePassword(current, next string) error {
 }
 
 func (a *Admin) login(w http.ResponseWriter, r *http.Request) {
+	if a.NeedsSetup() {
+		http.Error(w, "请先在控制台创建管理员账户", http.StatusConflict)
+		return
+	}
 	if !a.allowAttempt(r) {
 		w.Header().Set("Retry-After", "60")
 		http.Error(w, "登录尝试过于频繁，请一分钟后再试", http.StatusTooManyRequests)
@@ -61,15 +68,27 @@ func (a *Admin) login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "登录服务繁忙，请稍后重试", http.StatusTooManyRequests)
 		return
 	}
-	hash, version := a.passwordSnapshot()
-	if input.Username != "admin" || bcrypt.CompareHashAndPassword(hash, []byte(input.Password)) != nil {
+	username, hash, version := a.credentials()
+	if strings.TrimSpace(input.Username) != username ||
+		bcrypt.CompareHashAndPassword(hash, []byte(input.Password)) != nil {
 		http.Error(w, "账号或密码错误", http.StatusUnauthorized)
 		return
 	}
+	if err := a.issueSession(w, r, version); err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write([]byte(`{"ok":true}`))
+}
+
+// issueSession creates a new session token and stores it in the in-memory
+// session map. version prevents a login that validated an old password from
+// surviving a concurrent password change.
+func (a *Admin) issueSession(w http.ResponseWriter, r *http.Request, version uint64) error {
 	token, err := randomText(32)
 	if err != nil {
-		http.Error(w, "创建登录会话失败", http.StatusInternalServerError)
-		return
+		return errors.New("创建登录会话失败")
 	}
 	now := time.Now()
 	a.sessionMu.Lock()
@@ -78,8 +97,7 @@ func (a *Admin) login(w http.ResponseWriter, r *http.Request) {
 	a.passwordMu.RUnlock()
 	if stale {
 		a.sessionMu.Unlock()
-		http.Error(w, "账号或密码错误", http.StatusUnauthorized)
-		return
+		return errors.New("管理员密码已更改，请重新登录")
 	}
 	for key, expiry := range a.sessions {
 		if !now.Before(expiry) {
@@ -104,8 +122,7 @@ func (a *Admin) login(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil,
 		MaxAge: int(adminSessionTTL.Seconds()),
 	})
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_, _ = w.Write([]byte(`{"ok":true}`))
+	return nil
 }
 
 func (a *Admin) logout(w http.ResponseWriter, r *http.Request) {

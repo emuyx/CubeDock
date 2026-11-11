@@ -54,3 +54,19 @@ export async function logout() {
   }
 }
 
+export async function getSetupStatus() {
+  const response = await fetch('/api/setup/status', { credentials: 'same-origin' });
+  if (!response.ok) throw new Error((await response.text()) || '读取初始化状态失败');
+  return response.json();
+}
+
+export async function completeSetup(username, password, confirm) {
+  const response = await fetch('/api/setup', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: jsonHeaders,
+    body: JSON.stringify({ username, password, confirm }),
+  });
+  if (!response.ok) throw new Error((await response.text()) || '创建管理员账户失败');
+  return response.json();
+}

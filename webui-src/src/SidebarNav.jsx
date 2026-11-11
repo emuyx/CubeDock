@@ -42,6 +42,7 @@ export default function SidebarNav({ page, onSelect, status }) {
   const [playersRoom, setPlayersRoom] = useState(null);
   const accounts = status?.accounts || [];
   const rooms = status?.rooms || [];
+  const proxy = status?.config?.connection_mode === 'proxy';
 
   const copyRoom = async roomId => {
     try {
@@ -108,14 +109,16 @@ export default function SidebarNav({ page, onSelect, status }) {
           return (
             <Box
               key={account.index}
-              onClick={() => setPlayersRoom(account.index)}
+              onClick={() => {
+                if (proxy) setPlayersRoom(account.index);
+              }}
               sx={{
                 p: 1,
                 borderRadius: 2,
                 border: 1,
                 borderColor: 'divider',
-                cursor: 'pointer',
-                '&:hover': { bgcolor: 'action.hover' },
+                cursor: proxy ? 'pointer' : 'default',
+                '&:hover': proxy ? { bgcolor: 'action.hover' } : undefined,
               }}
             >
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
@@ -131,13 +134,16 @@ export default function SidebarNav({ page, onSelect, status }) {
               </Stack>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.2 }}>
                 <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
-                  {room?.room_id ? `${room.room_id} · ${room.players ?? 0} 人` : '未开房'}
+                  {room?.room_id
+                    ? `${room.room_id} · ${proxy ? `${room.players ?? 0} 人` : '转服模式'}`
+                    : '未开房'}
                 </Typography>
                 <Stack direction="row" spacing={0} sx={{ flexShrink: 0 }}>
-                  <Tooltip title="管理玩家">
+                  <Tooltip title={proxy ? '管理玩家' : '转服模式下玩家由目标服务器管理'}>
                     <IconButton
                       size="small"
                       aria-label="管理玩家"
+                      disabled={!proxy}
                       onClick={event => {
                         event.stopPropagation();
                         setPlayersRoom(account.index);
@@ -188,7 +194,7 @@ export default function SidebarNav({ page, onSelect, status }) {
             在线玩家
           </Typography>
           <Typography variant="caption" fontWeight={800}>
-            {status?.players ?? 0}
+            {proxy ? status?.players ?? 0 : '—'}
           </Typography>
         </Stack>
       </Box>

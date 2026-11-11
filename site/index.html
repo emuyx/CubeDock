@@ -245,7 +245,7 @@
               </svg>
             </div>
             <h3>多账号 / 多房间</h3>
-            <p>可添加多个网易账号，不设固定数量上限；每个账号一个本地联机房间，真实玩家注册表、稳定玩家 ID、list / kick 控制台命令。</p>
+            <p>可添加多个网易账号，不设固定数量上限；每个账号一个本地联机房间；代理模式下提供真实玩家注册表、稳定玩家 ID 和 list / kick 控制台命令。</p>
           </article>
         </div>
       </section>
@@ -379,7 +379,7 @@
 cd CubeDock
 .\scripts\build.ps1
 .\build\CubeDock.exe</code></pre>
-            <p class="code-note">首次启动会在终端打印一次性管理员密码；控制台默认 <code>http://127.0.0.1:18321/</code>。</p>
+            <p class="code-note">首次打开控制台会要求创建管理员账号和密码；控制台默认 <code>http://127.0.0.1:18321/</code>。</p>
           </article>
 
           <article class="code-card reveal">
@@ -419,7 +419,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
             <span class="usage-num">01</span>
             <div>
               <h3>启动并登录控制台</h3>
-              <p>运行 <code>CubeDock.exe</code>（或 <code>build/bin/CubeDockMain</code>），打开终端显示的地址。默认 <code>http://127.0.0.1:18321/</code>，管理员账号 <code>admin</code>；首次启动会在终端打印一次性密码，也可用 <code>CUBEDOCK_ADMIN_PASSWORD</code> 指定。</p>
+              <p>运行 <code>CubeDock.exe</code>（或 <code>build/bin/CubeDockMain</code>），打开终端显示的地址。默认 <code>http://127.0.0.1:18321/</code>；首次打开时在本机创建管理员账号和密码，之后用这个账号登录。</p>
             </div>
           </li>
           <li class="usage-step reveal">
@@ -461,7 +461,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
             <span class="usage-num">07</span>
             <div>
               <h3>管理玩家与停止房间</h3>
-              <p>在「控制台」使用 <code>list</code> 查看玩家、<code>kick &lt;ID|名称&gt;</code> 断开玩家；代理模式下可用 <code>transfer</code> 注入 Transfer（POC）。停止房间会结束房主机器人和 limbo。</p>
+              <p>代理模式下可在「控制台」使用 <code>list</code> 查看玩家、<code>kick &lt;ID|名称&gt;</code> 断开玩家，并用 <code>transfer</code> 注入 Transfer（POC）。转服模式的玩家已交给中转房间/目标服务器，CubeDock 不再管理这些玩家。停止房间会结束房主机器人和 limbo。</p>
             </div>
           </li>
         </ol>
@@ -519,7 +519,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
           <details class="faq-item reveal">
             <summary>控制台打不开 / 忘记管理员密码？</summary>
             <div class="faq-body">
-              <p>默认地址是 <code>http://127.0.0.1:18321/</code>。首次启动会在终端打印一次性管理员密码，也可通过 <code>CUBEDOCK_ADMIN_PASSWORD</code> 设置；忘记密码时使用 <code>-reset-admin-password</code>。控制台只允许白名单 Host/Origin，<code>/api/session/*</code> 只允许本机访问。</p>
+              <p>默认地址是 <code>http://127.0.0.1:18321/</code>。首次启动时在本机控制台创建管理员账号和密码；初始化只允许本机。忘记密码需停止程序、备份并删除数据目录中的 <code>admin.json</code>，重启后重新创建。控制台只允许白名单 Host/Origin，<code>/api/session/*</code> 只允许本机访问。</p>
             </div>
           </details>
 

@@ -280,7 +280,7 @@ export default function ConsoleView({ mode, toggleMode }) {
               <ConfigFormProvider status={status} onChanged={refresh}>
                 <Stack spacing={2.6}>
                   <Box hidden={page !== 'home'}>
-                    <Overview status={status} onChanged={refresh} />
+                    <Overview status={status} onChanged={refresh} onOpenSetup={openSetup} />
                   </Box>
                   <Box hidden={page !== 'accounts'}>
                     <AccountsPanel status={status} onChanged={refresh} />

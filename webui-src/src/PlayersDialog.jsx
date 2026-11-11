@@ -56,6 +56,9 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
   const [busy, setBusy] = useState('');
   const [transfer, setTransfer] = useState(null);
   const [address, setAddress] = useState('');
+  // Player management is only meaningful in proxy mode. In transfer mode the
+  // guest is handed to limbo/the target server and is no longer ours to manage.
+  const proxy = status?.config?.connection_mode === 'proxy';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,17 +73,16 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
   }, []);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open || !proxy) return undefined;
     setTransfer(null);
     setAddress('');
     load();
     const timer = setInterval(load, 2000);
     return () => clearInterval(timer);
-  }, [open, load]);
+  }, [open, proxy, load]);
 
   // PlayerStatus.Room is 1-based; roomIndex is the 0-based account index.
   const visible = players.filter(player => roomIndex === null || player.room === roomIndex + 1);
-  const proxy = status?.config?.connection_mode === 'proxy';
 
   const kick = async player => {
     const confirmed = await confirm({
@@ -135,13 +137,21 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>
         {roomIndex === null ? '在线玩家' : `房间 ${roomIndex + 1} 的玩家`}
-        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-          {visible.length} 人
-        </Typography>
+        {proxy && (
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+            {visible.length} 人
+          </Typography>
+        )}
       </DialogTitle>
       <DialogContent>
         <Stack spacing={1.6}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {!proxy && (
+            <Alert severity="info">
+              当前为转服模式。玩家会被送到目标服务器，CubeDock 不再持有玩家连接，
+              因此这里不提供玩家列表、踢人或转服操作。请在目标服务器管理玩家。
+            </Alert>
+          )}
+          {proxy && error && <Alert severity="error">{error}</Alert>}
           {transfer && (
             <Alert severity="warning">
               <Stack spacing={1}>
@@ -165,7 +175,7 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
               </Stack>
             </Alert>
           )}
-          {loading && !players.length ? (
+          {!proxy ? null : loading && !players.length ? (
             <Box sx={{ py: 5, display: 'grid', placeItems: 'center' }}>
               <CircularProgress />
             </Box>
@@ -266,9 +276,11 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button startIcon={<Refresh />} onClick={load} disabled={loading}>
-          {loading ? '刷新中…' : '刷新'}
-        </Button>
+        {proxy && (
+          <Button startIcon={<Refresh />} onClick={load} disabled={loading}>
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+        )}
         <Button onClick={onClose}>关闭</Button>
       </DialogActions>
     </Dialog>

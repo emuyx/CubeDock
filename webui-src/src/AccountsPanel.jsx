@@ -52,6 +52,7 @@ export default function AccountsPanel({ status, onChanged }) {
   const accounts = status.accounts || [];
   const rooms = status.rooms || [];
   const running = !!status.running;
+  const proxy = status.config?.connection_mode === 'proxy';
   const canAdd = !running;
 
   const phaseOf = account => rooms[account.index]?.phase || 'stopped';
@@ -305,12 +306,26 @@ export default function AccountsPanel({ status, onChanged }) {
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2">{room?.players ?? 0}</Typography>
+                    {proxy ? (
+                      <Typography variant="body2">{room?.players ?? 0}</Typography>
+                    ) : (
+                      <Tooltip title="转服模式下玩家由目标服务器管理">
+                        <Typography variant="body2" color="text.secondary">—</Typography>
+                      </Tooltip>
+                    )}
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title="管理这个房间的玩家">
+                    <Tooltip
+                      title={proxy ? '管理这个房间的玩家' : '转服模式下玩家由目标服务器管理'}
+                    >
                       <span>
-                        <IconButton size="small" color="info" aria-label="管理玩家" onClick={() => setPlayersRoom(account.index)}>
+                        <IconButton
+                          size="small"
+                          color="info"
+                          aria-label="管理玩家"
+                          disabled={!proxy}
+                          onClick={() => setPlayersRoom(account.index)}
+                        >
                           <PeopleAlt fontSize="small" />
                         </IconButton>
                       </span>

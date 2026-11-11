@@ -45,6 +45,8 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 	mux.HandleFunc("GET /login", h.loginPage)
 	mux.HandleFunc("POST /api/login", admin.login)
 	mux.HandleFunc("POST /api/logout", admin.logout)
+	mux.HandleFunc("GET /api/setup/status", h.setupStatus)
+	mux.HandleFunc("POST /api/setup", h.completeSetup)
 	mux.HandleFunc("POST /api/admin/password", h.changePassword)
 	mux.HandleFunc("GET /api/status", h.status)
 	mux.HandleFunc("GET /api/players", h.players)

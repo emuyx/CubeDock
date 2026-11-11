@@ -49,12 +49,13 @@ function StatCard({ icon, label, value, helper, color = 'primary' }) {
   );
 }
 
-export default function Overview({ status, onChanged }) {
+export default function Overview({ status, onChanged, onOpenSetup }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
   const [playersRoom, setPlayersRoom] = useState(null);
   const accounts = status.accounts || [];
   const rooms = status.rooms || [];
+  const proxy = status.config?.connection_mode === 'proxy';
   const roomIds = (rooms.length ? rooms.map(room => room.room_id) : [status.room_id]).filter(Boolean);
   const multiplier = rooms.length > 1;
 
@@ -96,6 +97,30 @@ export default function Overview({ status, onChanged }) {
   return (
     <Stack spacing={2.4}>
       {status.last_error && <Alert severity="warning">{status.last_error}</Alert>}
+
+      {accounts.length === 0 && onOpenSetup && (
+        <Card variant="outlined">
+          <CardContent
+            sx={{
+              display: 'flex',
+              gap: 2,
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'stretch', sm: 'center' },
+              justifyContent: 'space-between',
+            }}
+          >
+            <Box>
+              <Typography fontWeight={800}>还没有完成首次设置？</Typography>
+              <Typography variant="body2" color="text.secondary">
+                按向导配置服务器、添加账号并运行预检。
+              </Typography>
+            </Box>
+            <Button variant="contained" onClick={onOpenSetup}>
+              打开首次设置
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Box
         sx={{
@@ -224,7 +249,12 @@ export default function Overview({ status, onChanged }) {
           gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(0, 1fr))' },
         }}
       >
-        <StatCard icon={<PeopleAlt />} label="在线玩家" value={status.players ?? 0} helper="所有房间合计" />
+        <StatCard
+          icon={<PeopleAlt />}
+          label="在线玩家"
+          value={proxy ? status.players ?? 0 : '—'}
+          helper={proxy ? '所有房间合计' : '转服模式由目标服务器管理'}
+        />
         <StatCard
           icon={<RoomPreferences />}
           label="网易账号"
@@ -286,17 +316,23 @@ export default function Overview({ status, onChanged }) {
                       {room.room_id || '—'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {room.players ?? 0} 人
+                      {proxy ? `${room.players ?? 0} 人` : '转服模式'}
                     </Typography>
                   </Stack>
                   <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-                    <Button
-                      size="small"
-                      startIcon={<PeopleAlt />}
-                      onClick={() => setPlayersRoom(index)}
-                    >
-                      玩家
-                    </Button>
+                    {proxy ? (
+                      <Button
+                        size="small"
+                        startIcon={<PeopleAlt />}
+                        onClick={() => setPlayersRoom(index)}
+                      >
+                        玩家
+                      </Button>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                        玩家由目标服务器管理
+                      </Typography>
+                    )}
                     <Button
                       size="small"
                       startIcon={<ContentCopy />}

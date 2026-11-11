@@ -38,7 +38,8 @@ func (a *Admin) authenticated(r *http.Request) bool {
 func (a *Admin) Protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/api/login" || path == "/favicon.svg" || strings.HasPrefix(path, "/assets/") {
+		if path == "/api/login" || path == "/api/setup/status" || path == "/api/setup" ||
+			path == "/favicon.svg" || strings.HasPrefix(path, "/assets/") {
 			// Static assets are public, but the embedded file server would
 			// otherwise list the directory for a trailing slash.
 			if strings.HasSuffix(path, "/") {
