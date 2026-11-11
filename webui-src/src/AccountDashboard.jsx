@@ -10,6 +10,7 @@ import {
   Divider,
   IconButton,
   InputAdornment,
+  MenuItem,
   Stack,
   TextField,
   Tooltip,
@@ -30,6 +31,7 @@ import {
   Tune,
 } from '@mui/icons-material';
 import {
+  assignProfile,
   getDiagnostics,
   getPacks,
   refreshPacks,
@@ -98,6 +100,7 @@ export default function AccountDashboard({
   const phase = room.phase || 'stopped';
   const busyPhase = phase === 'starting' || phase === 'stopping';
   const [busy, setBusy] = useState('');
+  const [assigning, setAssigning] = useState(false);
   const [playersOpen, setPlayersOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
@@ -137,6 +140,20 @@ export default function AccountDashboard({
       notify('已复制', 'success');
     } catch (failure) {
       notify(failure.message || '复制失败', 'error');
+    }
+  };
+
+  const changeProfile = async event => {
+    const next = event.target.value;
+    setAssigning(true);
+    try {
+      await assignProfile(accountIndex, next);
+      notify('已切换配置方案', 'success');
+      onChanged?.();
+    } catch (failure) {
+      notify(failure.message || '切换配置方案失败', 'error');
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -319,9 +336,29 @@ export default function AccountDashboard({
               <Alert severity="error" sx={{ mt: 1.6 }}>{room.last_error}</Alert>
             )}
             <Divider sx={{ my: 2 }} />
-            <Stack spacing={0.5}>
+            <Stack spacing={1}>
+              <TextField
+                select
+                size="small"
+                label="该账号使用的配置方案"
+                value={account?.profile_id || profile?.id || ''}
+                onChange={changeProfile}
+                disabled={status.running || assigning || profiles.length === 0}
+                sx={{ maxWidth: 360 }}
+                helperText={
+                  status.running
+                    ? '需要先停止全部房间才能切换方案'
+                    : '切换后下次启动该账号的房间时生效'
+                }
+              >
+                {profiles.map(item => (
+                  <MenuItem key={item.id} value={item.id}>
+                    {item.name}（{item.connection_mode === 'transfer' ? '转服' : '代理'} · {item.upstream}）
+                  </MenuItem>
+                ))}
+              </TextField>
               <Typography variant="caption" color="text.secondary">
-                配置方案：{profile?.name || '—'}
+                {profile?.name || '—'}
                 {transfer
                   ? ` · 中转 ${profile?.limbo_upstream || '—'} → ${profile?.upstream || '—'}`
                   : ` · 服务器 ${profile?.upstream || '—'}`}

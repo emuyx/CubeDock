@@ -65,6 +65,7 @@ export default function ProfilesPanel({ status, active }) {
     busy,
     error,
     dirty,
+    discard,
   } = useConfigForm();
   const profiles = form?.profiles || [];
   const accounts = status.accounts || [];
@@ -541,6 +542,11 @@ export default function ProfilesPanel({ status, active }) {
                 )}
 
                 <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                  {dirty && (
+                    <Button type="button" color="inherit" onClick={discard} disabled={busy}>
+                      取消修改
+                    </Button>
+                  )}
                   <Button type="submit" variant="contained" startIcon={<Save />} disabled={running || busy}>
                     {busy ? '保存中…' : '保存配置方案'}
                   </Button>
