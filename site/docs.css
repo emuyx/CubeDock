@@ -376,9 +376,15 @@
     left: 0;
     z-index: 70;
     width: min(86vw, 340px);
-    max-height: none;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
     padding: 22px 20px calc(22px + env(safe-area-inset-bottom));
     overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
     border: 0;
     border-right: 1px solid var(--line);
     border-radius: 0;
