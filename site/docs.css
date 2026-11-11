@@ -48,9 +48,16 @@
 }
 
 .docs-toc nav a:hover,
-.docs-toc nav a:focus-visible {
+.docs-toc nav a:focus-visible,
+.docs-toc nav a[aria-current="page"] {
   color: var(--text);
   background: var(--amber-soft);
+}
+
+.docs-drawer-close,
+.docs-backdrop,
+.docs-mobilebar {
+  display: none;
 }
 
 .docs-toc-actions {
@@ -314,35 +321,180 @@
   font-size: 12px !important;
 }
 
+.docs-pager {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 40px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.docs-pager-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.docs-pager-link strong {
+  color: var(--text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.docs-pager-link:hover,
+.docs-pager-link:focus-visible {
+  border-color: var(--line-strong);
+  background: var(--amber-soft);
+}
+
+.docs-pager-link[hidden] {
+  display: none;
+}
+
+.docs-pager-link:last-child {
+  margin-left: auto;
+  text-align: right;
+  align-items: flex-end;
+}
+
 @media (max-width: 1000px) {
   .docs-layout {
     grid-template-columns: 1fr;
   }
 
   .docs-toc {
-    position: static;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 70;
+    width: min(86vw, 340px);
     max-height: none;
-    overflow: visible;
+    padding: 22px 20px calc(22px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--panel);
+    transform: translateX(-105%);
+    transition: transform 0.25s ease;
+  }
+
+  .docs-toc.is-open {
+    transform: none;
   }
 
   .docs-toc nav {
-    display: flex;
-    min-width: 0;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 8px;
-    scrollbar-width: thin;
+    display: grid;
+    gap: 2px;
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   .docs-toc nav a {
-    flex: 0 0 auto;
-    white-space: nowrap;
+    padding: 10px 8px;
+    font-size: 13.5px;
+    white-space: normal;
+  }
+
+  .docs-drawer-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
     border: 1px solid var(--line);
-    scroll-snap-align: start;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .docs-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 65;
+    display: block;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .docs-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .docs-mobilebar {
+    position: sticky;
+    top: 68px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(14px);
+  }
+
+  .docs-menu-toggle {
+    flex-shrink: 0;
+    padding: 7px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .docs-menu-toggle:hover,
+  .docs-menu-toggle:focus-visible {
+    border-color: var(--line-strong);
+  }
+
+  .docs-current-title {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .docs-page-count {
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  body.docs-drawer-open {
+    overflow: hidden;
   }
 }
 
 @media (max-width: 720px) {
+  .docs-mobilebar {
+    top: 62px;
+  }
+
   .docs-footer-cta {
     flex-direction: column;
     align-items: flex-start;
@@ -352,5 +504,24 @@
     display: block;
     overflow-x: auto;
     white-space: nowrap;
+  }
+}
+
+@media print {
+  .docs-toc,
+  .docs-backdrop,
+  .docs-mobilebar,
+  .docs-pager,
+  .docs-footer-cta {
+    display: none !important;
+  }
+
+  .docs-layout {
+    display: block;
+  }
+
+  .doc-section[hidden],
+  .docs-hero[hidden] {
+    display: block !important;
   }
 }

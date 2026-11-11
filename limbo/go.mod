@@ -2,7 +2,7 @@ module github.com/emuyx/cubedock/limbo
 
 go 1.26.0
 
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	github.com/Happy2018new/nemc-tan-lobby-solver v0.2.8
@@ -23,16 +23,9 @@ require (
 	github.com/df-mc/go-playfab v1.0.0 // indirect
 	github.com/df-mc/go-xsapi v1.0.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
-	github.com/pion/dtls/v3 v3.1.4 // indirect
-	github.com/pion/logging v0.2.4 // indirect
-	github.com/pion/stun/v3 v3.1.5 // indirect
-	github.com/pion/transport/v4 v4.0.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/sandertv/go-raknet v1.14.3-0.20250305181847-6af3e95113d6 // indirect
-	github.com/wlynxg/anet v0.0.5 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 )

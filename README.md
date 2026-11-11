@@ -25,7 +25,7 @@
 | 平台 | Windows / Linux / macOS |
 | 控制台 | React + MUI；配置方案页 + 每账号仪表盘，默认 `http://127.0.0.1:18321/` |
 
-> `main` 当前对应 **v0.3.1 开发版**；Releases 中的最新稳定版仍是 **v0.2.0**。
+> `main` 当前对应 **v0.3.2 开发版**；Releases 中的最新稳定版仍是 **v0.2.0**。
 
 ## 架构
 
@@ -266,7 +266,7 @@ go build -trimpath -o build/bin/CubeDockMain ./cmd/cubedock
 ./build/bin/CubeDockMain
 ```
 
-需要 Go 1.26+（会自动使用 `go.mod` 指定的 1.27.3 工具链）与 Node.js 24。
+需要 Go 1.26+（会自动使用 `go.mod` 指定的 1.27.4 工具链）与 Node.js 24。
 </details>
 
 ```bash
@@ -296,6 +296,9 @@ Windows 一键构建：`.\scripts\build.ps1`。前端缺少依赖时会自动 `n
 | 房间侧踢人 / 标签 / 准入等级 | ✅ 实机验证（踢人依赖 dockerB） |
 | 网易房间成员列表（含未进世界） | ✅ 实机验证 |
 | 手动同意好友申请 | ✅ 实机验证 |
+| `govulncheck`（root / limbo） | ✅ 0 个可达漏洞（Go 1.27.4） |
+| `npm audit` | ✅ 0 vulnerabilities |
+| 重复测试 / 跨平台构建 | ✅ 3× 全量测试 / 6 平台构建 |
 | 加密 / 动态资源包 | 🚧 未支持 |
 | >8 账号真实并发 | ⏳ 未覆盖 |
 | Linux / macOS 实机 | ⏳ 部分覆盖（WSL + 交叉编译） |

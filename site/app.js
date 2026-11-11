@@ -120,6 +120,141 @@
     });
   }
 
+  var docsContent = document.querySelector('.docs-content');
+  if (docsContent) {
+    var docSections = Array.prototype.slice.call(docsContent.querySelectorAll('.doc-section'));
+    var docToc = document.getElementById('docs-toc');
+    var docLinks = docToc
+      ? Array.prototype.slice.call(docToc.querySelectorAll('nav a'))
+      : [];
+    var docHero = docsContent.querySelector('.docs-hero');
+    var docTitle = document.getElementById('docs-current-title');
+    var docCount = document.getElementById('docs-page-count');
+    var docPrev = document.getElementById('docs-prev');
+    var docNext = document.getElementById('docs-next');
+    var docBackdrop = document.querySelector('.docs-backdrop');
+    var docMenu = document.querySelector('.docs-menu-toggle');
+    var docClose = document.querySelector('.docs-drawer-close');
+    var docIds = docSections.map(function (section) {
+      return section.id;
+    });
+    var docTitles = docSections.map(function (section) {
+      var heading = section.querySelector('h2');
+      return heading ? heading.textContent.trim() : section.id;
+    });
+
+    function setDocDrawer(open) {
+      if (!docToc) return;
+      docToc.classList.toggle('is-open', open);
+      if (docBackdrop) docBackdrop.classList.toggle('is-open', open);
+      if (docMenu) docMenu.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.body.classList.toggle('docs-drawer-open', open);
+    }
+
+    function currentDocId() {
+      var hash = decodeURIComponent((location.hash || '').replace(/^#/, ''));
+      return docIds.indexOf(hash) >= 0 ? hash : 'overview';
+    }
+
+    function showDocSection(id, options) {
+      options = options || {};
+      var index = docIds.indexOf(id);
+      if (index < 0) index = 0;
+      id = docIds[index];
+      docSections.forEach(function (section, position) {
+        var active = position === index;
+        section.hidden = !active;
+        section.classList.toggle('is-active', active);
+      });
+      if (docHero) docHero.hidden = id !== 'overview';
+      docLinks.forEach(function (link) {
+        var active = link.getAttribute('href') === '#' + id;
+        if (active) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+      });
+      if (docTitle) docTitle.textContent = docTitles[index];
+      if (docCount) docCount.textContent = index + 1 + ' / ' + docSections.length;
+      if (docPrev) {
+        docPrev.hidden = index === 0;
+        if (index > 0) {
+          docPrev.href = '#' + docIds[index - 1];
+          docPrev.querySelector('strong').textContent = docTitles[index - 1];
+        }
+      }
+      if (docNext) {
+        var last = index === docSections.length - 1;
+        docNext.hidden = last;
+        if (!last) {
+          docNext.href = '#' + docIds[index + 1];
+          docNext.querySelector('strong').textContent = docTitles[index + 1];
+        }
+      }
+      document.title = docTitles[index] + ' · CubeDock 使用文档';
+      if (options.scroll) {
+        var offset = window.innerWidth <= 1000 ? 120 : 84;
+        var top = docsContent.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({
+          top: Math.max(0, top),
+          behavior: options.instant ? 'auto' : 'smooth',
+        });
+      }
+      setDocDrawer(false);
+    }
+
+    function activateDocLink(event) {
+      var href = event.currentTarget.getAttribute('href') || '';
+      if (href.charAt(0) !== '#') return;
+      event.preventDefault();
+      var id = href.slice(1);
+      setDocDrawer(false);
+      if (location.hash === href) {
+        showDocSection(id, { scroll: true });
+      } else {
+        history.pushState(null, '', href);
+        showDocSection(id, { scroll: true });
+      }
+    }
+
+    if (docSections.length) {
+      showDocSection(currentDocId(), { scroll: false });
+      if (location.hash && docIds.indexOf(location.hash.slice(1)) >= 0) {
+        requestAnimationFrame(function () {
+          showDocSection(currentDocId(), { scroll: true, instant: true });
+        });
+      }
+    }
+
+    docLinks.forEach(function (link) {
+      link.addEventListener('click', activateDocLink);
+    });
+    if (docPrev) docPrev.addEventListener('click', activateDocLink);
+    if (docNext) docNext.addEventListener('click', activateDocLink);
+
+    window.addEventListener('hashchange', function () {
+      showDocSection(currentDocId(), { scroll: true });
+    });
+    window.addEventListener('popstate', function () {
+      showDocSection(currentDocId(), { scroll: true });
+    });
+
+    if (docMenu) {
+      docMenu.addEventListener('click', function () {
+        setDocDrawer(!docToc.classList.contains('is-open'));
+      });
+    }
+    if (docClose) docClose.addEventListener('click', function () { setDocDrawer(false); });
+    if (docBackdrop) docBackdrop.addEventListener('click', function () { setDocDrawer(false); });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') setDocDrawer(false);
+    });
+    var wideDocs = window.matchMedia('(min-width: 1001px)');
+    var closeDocsWide = function (event) {
+      if (event.matches) setDocDrawer(false);
+    };
+    if (wideDocs.addEventListener) wideDocs.addEventListener('change', closeDocsWide);
+    else if (wideDocs.addListener) wideDocs.addListener(closeDocsWide);
+  }
+
   var year = document.getElementById('year');
   if (year) year.textContent = String(new Date().getFullYear());
 })();

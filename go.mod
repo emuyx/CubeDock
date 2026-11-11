@@ -2,7 +2,7 @@ module github.com/emuyx/cubedock
 
 go 1.26.0
 
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	github.com/Happy2018new/nemc-tan-lobby-solver v0.2.8
@@ -10,9 +10,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/pion/logging v0.2.4
 	github.com/sandertv/go-raknet v1.15.2
-	golang.org/x/crypto v0.57.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.46.0
+	golang.org/x/crypto v0.58.1-0.20261009181718-2f1f834330b2
+	golang.org/x/sys v0.49.0
+	golang.org/x/term v0.47.0
 )
 
 require (
@@ -20,7 +20,7 @@ require (
 	github.com/database64128/chacha8-go v0.0.0-20250815115417-e0f2726d8bd0 // indirect
 	github.com/go-gl/mathgl v1.2.0 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/klauspost/compress v1.18.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/pion/dtls/v3 v3.1.4 // indirect
 	github.com/pion/ice/v4 v4.0.10 // indirect
 	github.com/pion/interceptor v0.1.40 // indirect
@@ -36,7 +36,7 @@ require (
 	github.com/pion/turn/v4 v4.1.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
-	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 )
 
 replace github.com/Happy2018new/nemc-tan-lobby-solver => ./vendor-src/nemc-tan-lobby-solver

@@ -91,10 +91,12 @@
     </header>
 
     <main id="main" class="container docs-layout">
-      <aside class="docs-toc reveal" aria-label="文档目录">
+      <div class="docs-backdrop" data-docs-close></div>
+      <aside class="docs-toc" id="docs-toc" aria-label="文档目录">
+        <button class="docs-drawer-close" type="button" aria-label="关闭目录">×</button>
         <span class="eyebrow">DOCUMENTATION</span>
         <h2>使用文档</h2>
-        <p class="docs-version">v0.3.1-dev · 最新稳定版 v0.2.0</p>
+        <p class="docs-version">v0.3.2-dev · 最新稳定版 v0.2.0</p>
         <nav>
           <a href="#overview">概览</a>
           <a href="#requirements">运行要求</a>
@@ -121,6 +123,14 @@
       </aside>
 
       <article class="docs-content">
+        <div class="docs-mobilebar">
+          <button class="docs-menu-toggle" type="button" aria-controls="docs-toc" aria-expanded="false">
+            目录
+          </button>
+          <span class="docs-current-title" id="docs-current-title">概览</span>
+          <span class="docs-page-count" id="docs-page-count"></span>
+        </div>
+
         <header class="docs-hero reveal">
           <span class="pill"><span class="pulse"></span>从安装到排障</span>
           <h1>CubeDock 使用文档</h1>
@@ -145,7 +155,7 @@
             准入等级、网易房间成员列表、手动好友申请和第一方认证链。
           </p>
           <div class="doc-callout doc-note">
-            <strong>版本提示：</strong>本站对应 <code>main</code> 分支的 v0.3.1 开发版；
+            <strong>版本提示：</strong>本站对应 <code>main</code> 分支的 v0.3.2 开发版；
             Releases 中的最新稳定版仍是 v0.2.0。下载按钮始终指向最新稳定版。
             <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">GitHub Actions 的测试版构建</a>
             会保留每次 <code>main</code> 推送的构建产物，适合提前试用，但不保证稳定。
@@ -163,7 +173,7 @@
               <tr><td>上游服务器</td><td>必须原生支持网易 RakNet v8；标准 BDS 不能直接使用</td></tr>
               <tr><td>转服模式</td><td>客户端能直连目标服务器；资源包需与 limbo 预加载一致，且未加密、静态</td></tr>
               <tr><td>运行平台</td><td>Windows / Linux / macOS</td></tr>
-              <tr><td>从源码构建</td><td>Go 1.26+（会自动使用 1.27.3 工具链）与 Node.js 24</td></tr>
+              <tr><td>从源码构建</td><td>Go 1.26+（会自动使用 1.27.4 工具链）与 Node.js 24</td></tr>
             </tbody>
           </table>
           <div class="doc-callout doc-warn">
@@ -479,7 +489,7 @@
               <summary>多账号并发、Linux/macOS 和资源包的限制</summary>
               <div class="faq-body">
                 <p>&gt;8 账号真实并发、Linux/macOS 实机、<code>go test -race</code>、
-                WebUI 移动端专项和非 Windows 管理员登录仍未覆盖；加密/动态资源包当前不支持。
+                真实移动设备/跨浏览器和非 Windows 管理员登录仍未覆盖；加密/动态资源包当前不支持。
                 公开分发前仍建议对 vendored solver 做许可复核。</p>
               </div>
             </details>
@@ -502,6 +512,9 @@
               <tr><td>房间侧踢人 / 标签 / 准入等级</td><td>✅ 实机验证（踢人依赖 dockerB）</td></tr>
               <tr><td>网易房间成员列表</td><td>✅ 实机验证</td></tr>
               <tr><td>手动同意好友申请</td><td>✅ 实机验证</td></tr>
+              <tr><td><code>govulncheck</code>（root / limbo）</td><td>✅ 0 个可达漏洞（Go 1.27.4）</td></tr>
+              <tr><td><code>npm audit</code></td><td>✅ 0 vulnerabilities</td></tr>
+              <tr><td>重复测试 / 跨平台构建</td><td>✅ 3× 全量测试 / 6 平台构建</td></tr>
               <tr><td>加密 / 动态资源包</td><td>🚧 未支持</td></tr>
               <tr><td>&gt;8 账号真实并发</td><td>⏳ 未覆盖</td></tr>
               <tr><td>Linux / macOS 实机、<code>go test -race</code></td><td>⏳ 部分覆盖</td></tr>
@@ -512,6 +525,12 @@
             <code>3.10.5.301486</code>。互通版客户端 manifest 更新后必须重新抓包并验证，
             不能只改常量。
           </p>
+          <div class="doc-callout doc-note">
+            <strong>安全与稳定性：</strong>当前工具链为 Go 1.27.4；root 与 limbo 的
+            <code>govulncheck</code> 均为 0 个可达漏洞，<code>npm audit</code> 为 0。
+            运行时冒烟覆盖了未认证访问拒绝、管理员初始化仅 loopback、Host/Origin 校验、
+            CSP/X-Frame-Options 和敏感日志检查。
+          </div>
         </section>
 
         <section id="license" class="doc-section reveal">
@@ -530,6 +549,15 @@
             CubeDock 是独立项目，与 Mojang、Microsoft、网易无隶属关系；不附带游戏客户端或官方资源。
           </p>
         </section>
+
+        <nav class="docs-pager" aria-label="文档翻页">
+          <a class="docs-pager-link" id="docs-prev" href="#overview" hidden>
+            <span>上一篇</span><strong>概览</strong>
+          </a>
+          <a class="docs-pager-link" id="docs-next" href="#requirements">
+            <span>下一篇</span><strong>运行要求</strong>
+          </a>
+        </nav>
 
         <div class="docs-footer-cta reveal">
           <div>
