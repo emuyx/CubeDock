@@ -14,6 +14,9 @@ const palettes = {
     textSecondary: '#9db5a8',
     border: alpha('#ffffff', 0.09),
     appBar: alpha('#0a1410', 0.78),
+    scrollbar: alpha('#9db5a8', 0.26),
+    scrollbarHover: alpha('#9db5a8', 0.46),
+    menuShadow: '0 18px 48px rgba(0,0,0,.55)',
     glow: 'radial-gradient(1100px 520px at 8% -10%, rgba(245,158,11,.18), transparent 62%), radial-gradient(900px 420px at 100% 0%, rgba(52,211,153,.12), transparent 58%)',
   },
   light: {
@@ -29,6 +32,9 @@ const palettes = {
     textSecondary: '#5c7267',
     border: alpha('#14532d', 0.12),
     appBar: alpha('#fffdf6', 0.82),
+    scrollbar: alpha('#5c7267', 0.24),
+    scrollbarHover: alpha('#5c7267', 0.42),
+    menuShadow: '0 18px 48px rgba(28,42,35,.16)',
     glow: 'radial-gradient(1100px 520px at 8% -10%, rgba(180,83,9,.12), transparent 62%), radial-gradient(900px 420px at 100% 0%, rgba(4,120,87,.08), transparent 58%)',
   },
 };
@@ -78,6 +84,17 @@ export function buildTheme(mode) {
           },
           '#root': { minHeight: '100vh' },
           '::selection': { background: alpha(c.primary, 0.35) },
+          '*': { scrollbarWidth: 'thin', scrollbarColor: `${c.scrollbar} transparent` },
+          '*::-webkit-scrollbar': { width: 10, height: 10 },
+          '*::-webkit-scrollbar-track': { background: 'transparent' },
+          '*::-webkit-scrollbar-thumb': {
+            backgroundColor: c.scrollbar,
+            borderRadius: 10,
+            border: '2px solid transparent',
+            backgroundClip: 'padding-box',
+          },
+          '*::-webkit-scrollbar-thumb:hover': { backgroundColor: c.scrollbarHover },
+          '*::-webkit-scrollbar-corner': { background: 'transparent' },
         },
       },
       MuiCard: {
@@ -107,6 +124,36 @@ export function buildTheme(mode) {
       MuiChip: { styleOverrides: { root: { fontWeight: 700 } } },
       MuiTooltip: { defaultProps: { arrow: true } },
       MuiTableCell: { styleOverrides: { head: { fontWeight: 750, whiteSpace: 'nowrap' } } },
+      MuiMenu: {
+        styleOverrides: {
+          paper: {
+            marginTop: 4,
+            borderRadius: 12,
+            border: `1px solid ${c.border}`,
+            backgroundColor: c.paper,
+            boxShadow: c.menuShadow,
+            backgroundImage: 'none',
+          },
+          list: { padding: 6 },
+        },
+      },
+      MuiMenuItem: {
+        styleOverrides: {
+          root: {
+            borderRadius: 8,
+            margin: '1px 4px',
+            '&:hover': { backgroundColor: alpha(c.primary, 0.12) },
+            '&.Mui-selected': { backgroundColor: alpha(c.primary, 0.2) },
+            '&.Mui-selected:hover': { backgroundColor: alpha(c.primary, 0.26) },
+          },
+        },
+      },
+      MuiSelect: {
+        styleOverrides: {
+          icon: { color: c.textSecondary },
+          select: { '&:focus': { backgroundColor: 'transparent' } },
+        },
+      },
     },
   });
 }
