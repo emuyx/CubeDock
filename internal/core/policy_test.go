@@ -7,20 +7,20 @@ import (
 )
 
 func TestAutoAcceptFriendsHonoursFriendsOnly(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.AutoAcceptFriends = true
-	cfg.FriendsOnly = false
-	if !shouldAutoAcceptFriends(cfg) {
+	profile := config.DefaultProfile()
+	profile.AutoAcceptFriends = true
+	profile.FriendsOnly = false
+	if !shouldAutoAcceptFriends(profile) {
 		t.Fatal("auto-accept disabled for an open room")
 	}
 
-	cfg.FriendsOnly = true
-	if shouldAutoAcceptFriends(cfg) {
+	profile.FriendsOnly = true
+	if shouldAutoAcceptFriends(profile) {
 		t.Fatal("auto-accept enabled for a friends-only room")
 	}
 
-	cfg.AutoAcceptFriends = false
-	if shouldAutoAcceptFriends(cfg) {
+	profile.AutoAcceptFriends = false
+	if shouldAutoAcceptFriends(profile) {
 		t.Fatal("auto-accept enabled while disabled by the operator")
 	}
 }

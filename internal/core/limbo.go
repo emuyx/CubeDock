@@ -19,7 +19,6 @@ import (
 
 	"github.com/emuyx/cubedock/internal/bridge"
 	"github.com/emuyx/cubedock/internal/config"
-	"github.com/emuyx/cubedock/internal/relay"
 )
 
 type limboProcess struct {
@@ -30,8 +29,32 @@ type limboProcess struct {
 	once    sync.Once
 }
 
-func limboExecutable(cfg config.Config) (string, error) {
-	path := cfg.LimboPath
+// limboGroup tracks one profile's limbo process and how many running rooms use
+// it. The process is stopped only after the last reference is released.
+type limboGroup struct {
+	process  *limboProcess
+	refs     int
+	starting bool
+	wait     chan struct{}
+	err      error
+}
+
+type limboLease struct {
+	manager   *Manager
+	profileID string
+	once      sync.Once
+}
+
+// Release gives up one room's use of the profile's limbo process.
+func (l *limboLease) Release() {
+	if l == nil {
+		return
+	}
+	l.once.Do(func() { l.manager.releaseLimbo(l.profileID) })
+}
+
+func limboExecutable(limboPath string) (string, error) {
+	path := strings.TrimSpace(limboPath)
 	if path == "" {
 		exe, err := os.Executable()
 		if err != nil {
@@ -60,29 +83,39 @@ func limboExecutable(cfg config.Config) (string, error) {
 	return absolute, nil
 }
 
-// DefaultLimboPacksDir returns where CubeDock expects limbo resource packs.
-// limbo_packs_dir wins; otherwise the directory next to limbo.exe (or the main
-// executable) is used, matching limbo's own auto-discovery.
-func DefaultLimboPacksDir(cfg config.Config) string {
-	if dir := strings.TrimSpace(cfg.LimboPacksDir); dir != "" {
+func safeProfileID(id string) string {
+	var builder strings.Builder
+	for _, r := range id {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+			builder.WriteRune(r)
+		default:
+			builder.WriteByte('_')
+		}
+	}
+	value := builder.String()
+	if value == "" || value == "." || value == ".." {
+		return "default"
+	}
+	return value
+}
+
+// ProfilePacksDir returns the resource pack directory for one profile. An
+// explicit directory wins; otherwise packs live under the data directory so
+// different upstream servers do not mix their packs.
+func ProfilePacksDir(dataDir string, profile config.Profile) string {
+	if dir := strings.TrimSpace(profile.LimboPacksDir); dir != "" {
 		if absolute, err := filepath.Abs(dir); err == nil {
 			return absolute
 		}
 		return dir
 	}
-	base := ""
-	if path := strings.TrimSpace(cfg.LimboPath); path != "" {
-		base = filepath.Dir(path)
-	} else if exe, err := os.Executable(); err == nil {
-		base = filepath.Dir(exe)
-	}
-	return filepath.Join(base, "packs")
+	return filepath.Join(dataDir, "packs", safeProfileID(profile.ID))
 }
 
-// EnsureLimboPacksDir creates the resource pack directory so users can drop
-// packs in it before starting transfer mode.
-func EnsureLimboPacksDir(cfg config.Config) (string, error) {
-	dir := DefaultLimboPacksDir(cfg)
+// EnsureLimboPacksDir creates the profile's resource pack directory.
+func EnsureLimboPacksDir(dataDir string, profile config.Profile) (string, error) {
+	dir := ProfilePacksDir(dataDir, profile)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return dir, fmt.Errorf("创建资源包目录 %s 失败: %w", dir, err)
 	}
@@ -125,27 +158,25 @@ func (o *limboOutput) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func startLimboProcess(cfg config.Config, logger *log.Logger, onLine func(string)) (*limboProcess, error) {
-	path, err := limboExecutable(cfg)
+func startLimboProcess(dataDir string, profile config.Profile, limboPath string, logger *log.Logger, onLine func(string)) (*limboProcess, error) {
+	path, err := limboExecutable(limboPath)
 	if err != nil {
 		return nil, err
 	}
 	// The pack directory may have been changed after startup; create it before
 	// limbo is launched so an explicit path never points at a missing folder.
-	packsDir, err := EnsureLimboPacksDir(cfg)
+	packsDir, err := EnsureLimboPacksDir(dataDir, profile)
 	if err != nil {
 		return nil, err
 	}
 	args := []string{
-		"-listen", cfg.LimboUpstream,
-		"-target", cfg.Upstream,
+		"-listen", profile.LimboUpstream,
+		"-target", profile.Upstream,
 		"-watch-parent=true",
-		"-form-title", cfg.LimboFormTitle,
-		"-form-content", cfg.LimboFormContent,
-		"-form-button", cfg.LimboFormButton,
-	}
-	if cfg.LimboPacksDir != "" {
-		args = append(args, "-packs", packsDir)
+		"-packs", packsDir,
+		"-form-title", profile.LimboFormTitle,
+		"-form-content", profile.LimboFormContent,
+		"-form-button", profile.LimboFormButton,
 	}
 	cmd := exec.Command(path, args...)
 	cmd.Env = childEnv()
@@ -181,7 +212,7 @@ func startLimboProcess(cfg config.Config, logger *log.Logger, onLine func(string
 
 	deadline := time.Now().Add(6 * time.Second)
 	for {
-		if _, err := goraknet.PingTimeout(cfg.LimboUpstream, 400*time.Millisecond); err == nil {
+		if _, err := goraknet.PingTimeout(profile.LimboUpstream, 400*time.Millisecond); err == nil {
 			return process, nil
 		}
 		select {
@@ -192,98 +223,191 @@ func startLimboProcess(cfg config.Config, logger *log.Logger, onLine func(string
 		}
 		if time.Now().After(deadline) {
 			process.stop()
-			return nil, fmt.Errorf("limbo 辅助进程未在 %s 响应", cfg.LimboUpstream)
+			return nil, fmt.Errorf("limbo 辅助进程未在 %s 响应", profile.LimboUpstream)
 		}
 	}
 }
 
-func (m *Manager) ensureLimbo() error {
+// ensureLimboProcess starts the profile's limbo if it is not running. It does
+// not change the reference count; callers that own a room use acquireLimbo.
+func (m *Manager) ensureLimboProcess(profile config.Profile) error {
 	m.mu.Lock()
-	if m.limbo != nil {
+	limboPath := m.cfg.LimboPath
+	group := m.limbos[profile.ID]
+	if group != nil && group.process != nil {
 		m.mu.Unlock()
 		return nil
 	}
-	cfg := m.cfg
-	logger := m.logger
 	m.mu.Unlock()
 
-	process, err := startLimboProcess(cfg, logger, m.recordLimboLine)
-	if err != nil {
-		return err
-	}
+	m.limboMu.Lock()
+	defer m.limboMu.Unlock()
+
 	m.mu.Lock()
-	if m.limbo != nil {
+	group = m.limbos[profile.ID]
+	if group != nil && group.process != nil {
 		m.mu.Unlock()
-		process.stop()
 		return nil
 	}
-	m.limbo = process
+	if group == nil {
+		group = &limboGroup{wait: make(chan struct{})}
+		m.limbos[profile.ID] = group
+	}
+	group.starting = true
+	group.err = nil
+	group.wait = make(chan struct{})
 	m.mu.Unlock()
-	go func() {
-		<-process.done
-		m.mu.Lock()
-		if m.limbo == process {
-			m.limbo = nil
-		}
+
+	process, err := m.startLimboFn(m.dir, profile, limboPath, m.logger, func(line string) {
+		m.recordLimboLine(profile.Name, line)
+	})
+
+	m.mu.Lock()
+	group.starting = false
+	if err != nil {
+		group.err = err
+		close(group.wait)
 		m.mu.Unlock()
-	}()
+		return err
+	}
+	group.process = process
+	close(group.wait)
+	m.mu.Unlock()
+	go m.watchLimbo(profile.ID, group, process)
 	return nil
 }
 
-// recordLimboLine surfaces important limbo diagnostics in the console without
-// forwarding the routine per-connection logs.
-func (m *Manager) recordLimboLine(line string) {
-	lower := strings.ToLower(line)
-	switch {
-	case strings.Contains(lower, "login"), strings.Contains(lower, "encryption"),
-		strings.Contains(lower, "failed"), strings.Contains(lower, "panic"),
-		strings.Contains(lower, "accept:"), strings.Contains(lower, "start game:"):
-		m.Record("limbo", line)
+func (m *Manager) watchLimbo(profileID string, group *limboGroup, process *limboProcess) {
+	<-process.done
+	m.mu.Lock()
+	if group.process == process {
+		group.process = nil
+	}
+	m.mu.Unlock()
+}
+
+// acquireLimbo registers one room's use of a profile's limbo process, starting
+// the process when needed.
+func (m *Manager) acquireLimbo(profile config.Profile) (*limboLease, error) {
+	for {
+		m.mu.Lock()
+		group := m.limbos[profile.ID]
+		if group != nil && group.starting {
+			wait := group.wait
+			m.mu.Unlock()
+			<-wait
+			continue
+		}
+		if group != nil && group.process != nil {
+			group.refs++
+			m.mu.Unlock()
+			return &limboLease{manager: m, profileID: profile.ID}, nil
+		}
+		if group != nil && group.err != nil {
+			// Retry a previous automatic start failure instead of pinning
+			// the profile to a stale error forever.
+			group.err = nil
+			m.mu.Unlock()
+			if err := m.ensureLimboProcess(profile); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		m.mu.Unlock()
+		if err := m.ensureLimboProcess(profile); err != nil {
+			return nil, err
+		}
 	}
 }
 
-func (m *Manager) stopLimbo() {
+func (m *Manager) releaseLimbo(profileID string) {
 	m.mu.Lock()
-	process := m.limbo
-	m.limbo = nil
+	group := m.limbos[profileID]
+	if group == nil {
+		m.mu.Unlock()
+		return
+	}
+	if group.refs > 0 {
+		group.refs--
+	}
+	var process *limboProcess
+	if group.refs == 0 && !group.starting {
+		process = group.process
+		delete(m.limbos, profileID)
+	}
 	m.mu.Unlock()
 	if process != nil {
 		process.stop()
 	}
 }
 
-func dialUpstream(ctx context.Context, cfg config.Config) (relay.Stream, error) {
-	if cfg.ConnectionMode == config.ConnectionTransfer {
-		return goraknet.DialContext(ctx, cfg.LimboUpstream)
+// stopAllLimbos kills every helper, used when all rooms are stopped or the
+// process exits.
+func (m *Manager) stopAllLimbos() {
+	m.limboMu.Lock()
+	m.mu.Lock()
+	groups := m.limbos
+	m.limbos = make(map[string]*limboGroup)
+	m.mu.Unlock()
+	for _, group := range groups {
+		if group.process != nil {
+			group.process.stop()
+		}
 	}
-	return nemcraknet.DialContext(ctx, cfg.Upstream)
+	m.limboMu.Unlock()
 }
 
-func upstreamAddress(cfg config.Config) string {
-	if cfg.ConnectionMode == config.ConnectionTransfer {
-		return cfg.LimboUpstream
+// recordLimboLine surfaces important limbo diagnostics in the console without
+// forwarding the routine per-connection logs.
+func (m *Manager) recordLimboLine(profileName, line string) {
+	lower := strings.ToLower(line)
+	switch {
+	case strings.Contains(lower, "login"), strings.Contains(lower, "encryption"),
+		strings.Contains(lower, "failed"), strings.Contains(lower, "panic"),
+		strings.Contains(lower, "accept:"), strings.Contains(lower, "start game:"):
+		m.record("limbo", line, false, 0, profileName)
 	}
-	return cfg.Upstream
 }
 
-func upstreamDescription(cfg config.Config) string {
-	if cfg.ConnectionMode == config.ConnectionTransfer {
-		return fmt.Sprintf("limbo %s → %s", cfg.LimboUpstream, cfg.Upstream)
+func dialUpstream(ctx context.Context, profile config.Profile) (relayStream, error) {
+	if profile.ConnectionMode == config.ConnectionTransfer {
+		return goraknet.DialContext(ctx, profile.LimboUpstream)
 	}
-	return cfg.Upstream
+	return nemcraknet.DialContext(ctx, profile.Upstream)
 }
 
-func pingUpstream(ctx context.Context, cfg config.Config) (string, error) {
-	if cfg.ConnectionMode == config.ConnectionTransfer {
+// relayStream is the subset of relay.Stream used by dialUpstream.
+type relayStream = interface {
+	ReadPacket() ([]byte, error)
+	Write([]byte) (int, error)
+	Close() error
+}
+
+func upstreamAddress(profile config.Profile) string {
+	if profile.ConnectionMode == config.ConnectionTransfer {
+		return profile.LimboUpstream
+	}
+	return profile.Upstream
+}
+
+func upstreamDescription(profile config.Profile) string {
+	if profile.ConnectionMode == config.ConnectionTransfer {
+		return fmt.Sprintf("limbo %s → %s", profile.LimboUpstream, profile.Upstream)
+	}
+	return profile.Upstream
+}
+
+func pingUpstream(ctx context.Context, profile config.Profile) (string, error) {
+	if profile.ConnectionMode == config.ConnectionTransfer {
 		// go-raknet's PingContext may wait indefinitely on a silent endpoint.
 		pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		if _, err := goraknet.PingContext(pingCtx, cfg.LimboUpstream); err != nil {
+		if _, err := goraknet.PingContext(pingCtx, profile.LimboUpstream); err != nil {
 			return "", err
 		}
 		return "limbo", nil
 	}
-	return bridge.PingServer(ctx, cfg.Upstream)
+	return bridge.PingServer(ctx, profile.Upstream)
 }
 
 func (p *limboProcess) stop() {
@@ -294,7 +418,7 @@ func (p *limboProcess) stop() {
 		if p.stdin != nil {
 			_ = p.stdin.Close()
 		}
-		if p.cmd.Process != nil {
+		if p.cmd != nil && p.cmd.Process != nil {
 			_ = p.cmd.Process.Kill()
 		}
 		if p.cleanup != nil {

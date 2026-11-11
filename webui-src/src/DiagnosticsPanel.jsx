@@ -111,7 +111,7 @@ function groupChecks(checks = []) {
   return groups;
 }
 
-export default function DiagnosticsPanel({ status, active, onOpenSetup }) {
+export default function DiagnosticsPanel({ status, active, autoRun = false, onOpenSetup }) {
   const notify = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -130,9 +130,12 @@ export default function DiagnosticsPanel({ status, active, onOpenSetup }) {
     }
   }, []);
 
+  // Opening the diagnostics page must not start a run by itself. The setup
+  // wizard opts into autoRun because its preflight step is meant to execute
+  // as soon as it is shown.
   useEffect(() => {
-    if (active) load();
-  }, [active, load]);
+    if (active && autoRun) load();
+  }, [active, autoRun, load]);
 
   const buildReport = () => {
     if (!data) return '';
@@ -216,7 +219,7 @@ export default function DiagnosticsPanel({ status, active, onOpenSetup }) {
                 onClick={load}
                 disabled={loading}
               >
-                {loading ? '检测中…' : '重新检测'}
+                {loading ? '检测中…' : data ? '重新检测' : '开始检测'}
               </Button>
               <Button variant="outlined" startIcon={<ContentCopy />} onClick={copyReport} disabled={!data}>
                 复制报告
@@ -277,6 +280,16 @@ export default function DiagnosticsPanel({ status, active, onOpenSetup }) {
         <Box sx={{ py: 8, display: 'grid', placeItems: 'center' }}>
           <CircularProgress />
         </Box>
+      )}
+
+      {!data && !loading && !error && (
+        <Card variant="outlined">
+          <CardContent sx={{ py: 5, textAlign: 'center' }}>
+            <Typography color="text.secondary">
+              还没有运行检测。点击「开始检测」查看服务器、中转房间、资源包、账号与本地环境。
+            </Typography>
+          </CardContent>
+        </Card>
       )}
 
       {data &&

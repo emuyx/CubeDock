@@ -98,13 +98,19 @@ func run() error {
 	defer logFile.Close()
 
 	if *check {
-		return checkRooms(cfg, tokens)
+		return checkRooms(dir, cfg, tokens)
 	}
 
-	packsDir, err := core.EnsureLimboPacksDir(cfg)
-	if err != nil {
-		logger.Printf("资源包目录创建失败: %v", err)
-		packsDir = ""
+	for _, profile := range cfg.Profiles {
+		if profile.ConnectionMode != config.ConnectionTransfer {
+			continue
+		}
+		packsDir, packsErr := core.EnsureLimboPacksDir(dir, profile)
+		if packsErr != nil {
+			logger.Printf("配置方案「%s」的资源包目录创建失败: %v", profile.Name, packsErr)
+			continue
+		}
+		fmt.Printf("Limbo 资源包目录（%s）：%s\n", profile.Name, packsDir)
 	}
 	manager, err := core.New(dir, cfg, tokens, logger)
 	if err != nil {
@@ -152,9 +158,6 @@ func run() error {
 	address := fmt.Sprintf("http://127.0.0.1:%d", cfg.WebPort)
 	console.Banner(os.Stdout, version, commit)
 	console.URLs(os.Stdout, cfg.WebPort, console.IPv4Addresses())
-	if packsDir != "" {
-		fmt.Println("Limbo 资源包目录：", packsDir)
-	}
 	fmt.Println("管理员账号：", admin.Username())
 	if admin.NeedsSetup() {
 		fmt.Println("管理员账户尚未创建：请打开控制台，按页面提示设置账号和密码。")
@@ -222,9 +225,13 @@ func loadTokens(dir string) ([]string, error) {
 }
 
 // checkRooms is a one-shot diagnostic for scripts and first-time setup.
-func checkRooms(cfg config.Config, tokens []string) error {
+func checkRooms(dataDir string, cfg config.Config, tokens []string) error {
 	if len(tokens) == 0 {
 		return fmt.Errorf("请先在控制台添加网易账号")
+	}
+	profiles, err := core.AccountProfiles(dataDir, cfg, len(tokens))
+	if err != nil {
+		return err
 	}
 	leases := make([]*session.Lease, 0, len(tokens))
 	defer func() {
@@ -239,16 +246,23 @@ func checkRooms(cfg config.Config, tokens []string) error {
 		}
 		leases = append(leases, lease)
 	}
-	version, err := bridge.PingServer(context.Background(), cfg.Upstream)
-	if err != nil {
-		return fmt.Errorf("本地 Bedrock 服务器不可达")
+	pinged := make(map[string]bool)
+	for _, profile := range profiles {
+		if profile.ConnectionMode == config.ConnectionTransfer || pinged[profile.Upstream] {
+			continue
+		}
+		pinged[profile.Upstream] = true
+		version, pingErr := bridge.PingServer(context.Background(), profile.Upstream)
+		if pingErr != nil {
+			return fmt.Errorf("配置方案「%s」的服务器 %s 不可达", profile.Name, profile.Upstream)
+		}
+		fmt.Printf("配置方案「%s」服务器在线，版本：%s\n", profile.Name, version)
 	}
-	fmt.Println("本地服务器在线，版本:", version)
 
 	players := map[string]int{}
 	for index, token := range tokens {
 		ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
-		info, err := auth.PrepareRoom(ctx, cfg, token)
+		info, err := auth.PrepareRoom(ctx, profiles[index].LobbyProtocolID, token)
 		cancel()
 		if err != nil {
 			return fmt.Errorf("%s%w", roomPrefix(index, len(tokens)), err)

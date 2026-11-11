@@ -20,8 +20,8 @@ import {
   PeopleAlt,
   RoomPreferences,
   Settings as SettingsIcon,
-  SwapHoriz,
   Terminal,
+  Tune,
 } from '@mui/icons-material';
 import { copyText, phaseColor, phaseLabel } from './util.js';
 import { useToast } from './App.jsx';
@@ -30,19 +30,24 @@ import PlayersDialog from './PlayersDialog.jsx';
 export const PAGES = [
   { key: 'home', label: '主页', icon: Home },
   { key: 'accounts', label: '账号与房间', icon: RoomPreferences },
-  { key: 'transfer', label: '连接与资源包', icon: SwapHoriz },
+  { key: 'profiles', label: '配置方案', icon: Tune },
   { key: 'console', label: '控制台', icon: Terminal },
   { key: 'diagnostics', label: '诊断', icon: MonitorHeart },
   { key: 'faq', label: '常见问题', icon: Help },
   { key: 'settings', label: '设置', icon: SettingsIcon },
 ];
 
-export default function SidebarNav({ page, onSelect, status }) {
+export function accountMode(status, account) {
+  const room = status?.rooms?.[account.index];
+  return room?.connection_mode || account.connection_mode || 'proxy';
+}
+
+export default function SidebarNav({ page, onSelect, status, onOpenAccount }) {
   const notify = useToast();
   const [playersRoom, setPlayersRoom] = useState(null);
   const accounts = status?.accounts || [];
   const rooms = status?.rooms || [];
-  const proxy = status?.config?.connection_mode === 'proxy';
+  const anyProxy = accounts.some(account => accountMode(status, account) === 'proxy');
 
   const copyRoom = async roomId => {
     try {
@@ -105,20 +110,19 @@ export default function SidebarNav({ page, onSelect, status }) {
         {accounts.map(account => {
           const room = rooms[account.index];
           const phase = room?.phase || 'stopped';
+          const proxy = accountMode(status, account) === 'proxy';
           const name = account.name || account.label || account.email || `房间 ${account.index + 1}`;
           return (
             <Box
               key={account.index}
-              onClick={() => {
-                if (proxy) setPlayersRoom(account.index);
-              }}
+              onClick={() => onOpenAccount?.(account.index)}
               sx={{
                 p: 1,
                 borderRadius: 2,
                 border: 1,
                 borderColor: 'divider',
-                cursor: proxy ? 'pointer' : 'default',
-                '&:hover': proxy ? { bgcolor: 'action.hover' } : undefined,
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'action.hover' },
               }}
             >
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
@@ -133,11 +137,16 @@ export default function SidebarNav({ page, onSelect, status }) {
                 />
               </Stack>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.2 }}>
-                <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
-                  {room?.room_id
-                    ? `${room.room_id} · ${proxy ? `${room.players ?? 0} 人` : '转服模式'}`
-                    : '未开房'}
-                </Typography>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="caption" color="text.secondary" noWrap display="block">
+                    {room?.room_id
+                      ? `${room.room_id} · ${proxy ? `${room.players ?? 0} 人` : '转服模式'}`
+                      : '未开房'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" noWrap display="block">
+                    {room?.profile_name || account.profile_name || '默认配置'}
+                  </Typography>
+                </Box>
                 <Stack direction="row" spacing={0} sx={{ flexShrink: 0 }}>
                   <Tooltip title={proxy ? '管理玩家' : '转服模式下玩家由目标服务器管理'}>
                     <IconButton
@@ -194,7 +203,7 @@ export default function SidebarNav({ page, onSelect, status }) {
             在线玩家
           </Typography>
           <Typography variant="caption" fontWeight={800}>
-            {proxy ? status?.players ?? 0 : '—'}
+            {anyProxy ? status?.players ?? 0 : '—'}
           </Typography>
         </Stack>
       </Box>

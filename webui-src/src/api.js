@@ -26,10 +26,21 @@ export async function api(path, data, method = 'POST') {
 }
 
 export const getStatus = () => api('status', undefined, 'GET');
-export const getDiagnostics = () => api('diagnostics', undefined, 'GET');
+export const getDiagnostics = profileId =>
+  api(`diagnostics${profileId ? `?profile_id=${encodeURIComponent(profileId)}` : ''}`, undefined, 'GET');
 export const getBackup = includePassword =>
   api(`backup?include_password=${includePassword ? 'true' : 'false'}`, undefined, 'GET');
 export const restoreConfig = config => api('restore', { config });
+
+export const startRoom = index => api('room/start', { index });
+export const stopRoom = index => api('room/stop', { index });
+export const restartRoom = index => api('room/restart', { index });
+export const assignProfile = (index, profileId) =>
+  api('account/assign-profile', { index, profile_id: profileId });
+
+export const getPacks = profileId =>
+  api(`packs${profileId ? `?profile_id=${encodeURIComponent(profileId)}` : ''}`, undefined, 'GET');
+export const refreshPacks = profileId => api('packs/refresh', { profile_id: profileId });
 
 export const runConsole = command => api('console', { command });
 

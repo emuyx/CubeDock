@@ -77,7 +77,7 @@ func TestManagerSupervisesSixteenRooms(t *testing.T) {
 	const count = 16
 	manager := newTestManager(t)
 	cfg := config.Defaults()
-	cfg.AutoAcceptFriends = false
+	cfg.Profiles[0].AutoAcceptFriends = false
 	if err := manager.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -87,16 +87,16 @@ func TestManagerSupervisesSixteenRooms(t *testing.T) {
 	manager.claimSession = func(token string) (*session.Lease, error) {
 		return session.ClaimIn(lockDir, token)
 	}
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
-	manager.prepareRoom = func(_ context.Context, _ config.Config, token string) (auth.RoomInfo, error) {
+	manager.prepareRoom = func(_ context.Context, _ uint8, token string) (auth.RoomInfo, error) {
 		return auth.RoomInfo{UserID: 1, PlayerName: "bot-" + token, ProtocolID: 43}, nil
 	}
 
 	var openedMu sync.Mutex
 	opened := make([]*fakeRoomHost, 0, count)
-	manager.openRoom = func(context.Context, config.Config, auth.RoomInfo, func(string)) (roomHost, error) {
+	manager.openRoom = func(context.Context, config.Profile, auth.RoomInfo, func(string)) (roomHost, error) {
 		openedMu.Lock()
 		defer openedMu.Unlock()
 		host := newFakeRoomHost(uint32(900000 + len(opened)))
@@ -139,8 +139,14 @@ func TestManagerSupervisesSixteenRooms(t *testing.T) {
 	if manager.Snapshot().Running {
 		t.Fatal("manager still running after Stop")
 	}
-	if rooms := manager.Snapshot().Rooms; len(rooms) != 0 {
-		t.Fatalf("rooms left after Stop: %+v", rooms)
+	if rooms := manager.Snapshot().Rooms; len(rooms) != count {
+		t.Fatalf("rooms after Stop = %d, want %d", len(rooms), count)
+	} else {
+		for index, room := range rooms {
+			if room.Phase != "stopped" {
+				t.Fatalf("room %d phase after Stop = %q", index, room.Phase)
+			}
+		}
 	}
 
 	openedMu.Lock()
@@ -180,7 +186,7 @@ func TestManagerReleasesLeasesWhenAccountIsBusy(t *testing.T) {
 		}
 		return session.ClaimIn(lockDir, token)
 	}
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
 
@@ -197,8 +203,14 @@ func TestManagerReleasesLeasesWhenAccountIsBusy(t *testing.T) {
 	if manager.Snapshot().Running {
 		t.Fatal("manager marked running after a rejected start")
 	}
-	if rooms := manager.Snapshot().Rooms; len(rooms) != 0 {
-		t.Fatalf("rooms created after a rejected start: %+v", rooms)
+	if rooms := manager.Snapshot().Rooms; len(rooms) != count {
+		t.Fatalf("rooms after rejected start = %d, want %d", len(rooms), count)
+	} else {
+		for index, room := range rooms {
+			if room.Phase != "stopped" {
+				t.Fatalf("room %d phase after rejected start = %q", index, room.Phase)
+			}
+		}
 	}
 
 	for index := 0; index < 7; index++ {
@@ -222,10 +234,10 @@ func TestManagerStopCancelsBlockedAuthentication(t *testing.T) {
 	manager.claimSession = func(token string) (*session.Lease, error) {
 		return session.ClaimIn(lockDir, token)
 	}
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
-	manager.prepareRoom = func(ctx context.Context, _ config.Config, _ string) (auth.RoomInfo, error) {
+	manager.prepareRoom = func(ctx context.Context, _ uint8, _ string) (auth.RoomInfo, error) {
 		<-ctx.Done()
 		return auth.RoomInfo{}, ctx.Err()
 	}
@@ -265,7 +277,7 @@ func TestManagerKeepsHealthyRoomsAfterOneFailure(t *testing.T) {
 	const count = 10
 	manager := newTestManager(t)
 	cfg := config.Defaults()
-	cfg.AutoAcceptFriends = false
+	cfg.Profiles[0].AutoAcceptFriends = false
 	if err := manager.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -274,13 +286,13 @@ func TestManagerKeepsHealthyRoomsAfterOneFailure(t *testing.T) {
 	manager.claimSession = func(token string) (*session.Lease, error) {
 		return session.ClaimIn(t.TempDir(), token)
 	}
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
-	manager.prepareRoom = func(_ context.Context, _ config.Config, token string) (auth.RoomInfo, error) {
+	manager.prepareRoom = func(_ context.Context, _ uint8, token string) (auth.RoomInfo, error) {
 		return auth.RoomInfo{UserID: 1, PlayerName: "bot-" + token, ProtocolID: 43}, nil
 	}
-	manager.openRoom = func(_ context.Context, _ config.Config, info auth.RoomInfo, _ func(string)) (roomHost, error) {
+	manager.openRoom = func(_ context.Context, _ config.Profile, info auth.RoomInfo, _ func(string)) (roomHost, error) {
 		if info.PlayerName == "bot-token-03" {
 			return nil, errors.New("room node rejected")
 		}

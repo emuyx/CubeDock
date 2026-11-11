@@ -6,6 +6,7 @@ import {
   Divider,
   IconButton,
   InputAdornment,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -15,9 +16,20 @@ import { api } from './api.js';
 import { useToast } from './App.jsx';
 import { copyText } from './util.js';
 
-export default function AccountLogin({ onAdded, compact = false, replaceIndex = null, initialEmail = '' }) {
+export default function AccountLogin({
+  onAdded,
+  compact = false,
+  replaceIndex = null,
+  initialEmail = '',
+  profiles = [],
+  defaultProfileId = '',
+  initialProfileId = '',
+}) {
   const notify = useToast();
   const [email, setEmail] = useState(initialEmail);
+  const [profileId, setProfileId] = useState(
+    initialProfileId || defaultProfileId || profiles[0]?.id || '',
+  );
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [label, setLabel] = useState('');
@@ -36,9 +48,14 @@ export default function AccountLogin({ onAdded, compact = false, replaceIndex = 
     if (initialEmail) setEmail(initialEmail);
   }, [initialEmail, replaceIndex]);
 
+  useEffect(() => {
+    const next = initialProfileId || defaultProfileId || profiles[0]?.id || '';
+    if (next) setProfileId(current => current || next);
+  }, [initialProfileId, defaultProfileId, profiles]);
+
   const runLogin = async () => {
     if (requestRef.current) return;
-    const credentials = { email: email.trim(), password, label: label.trim() };
+    const credentials = { email: email.trim(), password, label: label.trim(), profile_id: profileId };
     if (replaceIndex !== null) credentials.index = replaceIndex;
     if (!credentials.email || !credentials.password) {
       setError('请填写网易邮箱和密码');
@@ -93,7 +110,7 @@ export default function AccountLogin({ onAdded, compact = false, replaceIndex = 
     setSauthError('');
     setSauthProfile(null);
     try {
-      const payload = { sauth: value, label: sauthLabel.trim() };
+      const payload = { sauth: value, label: sauthLabel.trim(), profile_id: profileId };
       if (replaceIndex !== null) payload.index = replaceIndex;
       const result = await api('session/import', payload);
       notify(
@@ -122,6 +139,23 @@ export default function AccountLogin({ onAdded, compact = false, replaceIndex = 
             : '推荐直接用网易邮箱和密码登录。密码只用于换取登录凭证，CubeDock 不会保存密码。'}
         </Alert>
         <Stack spacing={1.4}>
+          {profiles.length > 0 && (
+            <TextField
+              select
+              size="small"
+              label="配置方案"
+              value={profileId}
+              onChange={event => setProfileId(event.target.value)}
+              fullWidth
+              helperText="这个网易账号使用哪套服务器和房间设置"
+            >
+              {profiles.map(profile => (
+                <MenuItem key={profile.id} value={profile.id}>
+                  {profile.name}（{profile.connection_mode === 'transfer' ? '转服' : '代理'} · {profile.upstream}）
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2}>
             <TextField
               label="网易邮箱"

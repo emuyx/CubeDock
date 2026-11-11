@@ -27,11 +27,14 @@ const grid = { display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1
 
 export default function SetupWizard({ status, onChanged, onDone }) {
   const notify = useToast();
-  const { form, update, save, busy, error } = useConfigForm();
+  const { form, update, updateProfile, save, busy, error } = useConfigForm();
   const [step, setStep] = useState(0);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState('');
   const accounts = status.accounts || [];
+  const profiles = form?.profiles || [];
+  const profile = profiles[0] || null;
+  const profileID = profile?.id || '';
   const running = !!status.running;
 
   if (!form) {
@@ -42,7 +45,15 @@ export default function SetupWizard({ status, onChanged, onDone }) {
     );
   }
 
-  const transfer = form.connection_mode === 'transfer';
+  if (!profile) {
+    return (
+      <Alert severity="error">
+        还没有配置方案。请先在「配置方案」页添加一个方案，再回到首次设置。
+      </Alert>
+    );
+  }
+
+  const transfer = profile.connection_mode === 'transfer';
   const next = () => setStep(current => Math.min(current + 1, STEPS.length - 1));
   const back = () => setStep(current => Math.max(current - 1, 0));
 
@@ -104,8 +115,8 @@ export default function SetupWizard({ status, onChanged, onDone }) {
                 <TextField
                   select
                   label="连接模式"
-                  value={form.connection_mode || 'proxy'}
-                  onChange={event => update('connection_mode', event.target.value)}
+                  value={profile.connection_mode || 'proxy'}
+                  onChange={event => updateProfile(profile.id, 'connection_mode', event.target.value)}
                   disabled={running || busy}
                   fullWidth
                 >
@@ -114,8 +125,8 @@ export default function SetupWizard({ status, onChanged, onDone }) {
                 </TextField>
                 <TextField
                   label="服务器地址"
-                  value={form.upstream || ''}
-                  onChange={event => update('upstream', event.target.value)}
+                  value={profile.upstream || ''}
+                  onChange={event => updateProfile(profile.id, 'upstream', event.target.value)}
                   disabled={running || busy}
                   fullWidth
                   required
@@ -129,8 +140,8 @@ export default function SetupWizard({ status, onChanged, onDone }) {
               {transfer && (
                 <TextField
                   label="中转房间监听地址"
-                  value={form.limbo_upstream || ''}
-                  onChange={event => update('limbo_upstream', event.target.value)}
+                  value={profile.limbo_upstream || ''}
+                  onChange={event => updateProfile(profile.id, 'limbo_upstream', event.target.value)}
                   disabled={running || busy}
                   fullWidth
                   helperText={
@@ -143,8 +154,8 @@ export default function SetupWizard({ status, onChanged, onDone }) {
               <Box sx={grid}>
                 <TextField
                   label="房间名称"
-                  value={form.room_name || ''}
-                  onChange={event => update('room_name', event.target.value)}
+                  value={profile.room_name || ''}
+                  onChange={event => updateProfile(profile.id, 'room_name', event.target.value)}
                   disabled={running || busy}
                   fullWidth
                   inputProps={{ maxLength: 40 }}
@@ -152,8 +163,8 @@ export default function SetupWizard({ status, onChanged, onDone }) {
                 <TextField
                   label="房间密码（可选）"
                   type="password"
-                  value={form.room_password || ''}
-                  onChange={event => update('room_password', event.target.value)}
+                  value={profile.room_password || ''}
+                  onChange={event => updateProfile(profile.id, 'room_password', event.target.value)}
                   disabled={running || busy}
                   fullWidth
                   autoComplete="off"
@@ -174,7 +185,13 @@ export default function SetupWizard({ status, onChanged, onDone }) {
                   ? `已添加 ${accounts.length} 个账号，可以继续预检。`
                   : '添加第一个网易账号。每个账号对应一个本地联机房间。'}
               </Alert>
-              <AccountLogin compact onAdded={() => onChanged?.()} />
+              <AccountLogin
+                compact
+                profiles={profiles}
+                defaultProfileId={profileID}
+                initialProfileId={profileID}
+                onAdded={() => onChanged?.()}
+              />
               <Stack direction="row" justifyContent="space-between">
                 <Button startIcon={<ArrowBack />} onClick={back}>
                   上一步
@@ -191,7 +208,7 @@ export default function SetupWizard({ status, onChanged, onDone }) {
               <Typography color="text.secondary">
                 预检不会登录网易账号。失败项可以继续，但开房前建议先处理。
               </Typography>
-              <DiagnosticsPanel status={status} active />
+              <DiagnosticsPanel status={status} active autoRun />
               <Stack direction="row" justifyContent="space-between">
                 <Button startIcon={<ArrowBack />} onClick={back}>
                   上一步
@@ -213,13 +230,13 @@ export default function SetupWizard({ status, onChanged, onDone }) {
               </Alert>
               <Stack spacing={0.6}>
                 <Typography variant="body2" color="text.secondary">
-                  连接方式：{transfer ? '转服模式（先进中转房间）' : '代理模式'}
+                  默认方案：{profile.name} · {transfer ? '转服模式（先进中转房间）' : '代理模式'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  服务器：{form.upstream || '未填写'}
+                  服务器：{profile.upstream || '未填写'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  账号：{accounts.length} 个
+                  账号：{accounts.length} 个（每个账号可在「账号与房间」选择不同方案）
                 </Typography>
               </Stack>
               <Stack direction="row" justifyContent="space-between">

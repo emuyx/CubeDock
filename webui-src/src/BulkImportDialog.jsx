@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
   LinearProgress,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -19,10 +20,18 @@ import { useToast } from './App.jsx';
 const MAX_LINES = 50;
 const MAX_CHARS = 64 * 1024;
 
-export default function BulkImportDialog({ open, onClose, onChanged, running }) {
+export default function BulkImportDialog({
+  open,
+  onClose,
+  onChanged,
+  running,
+  profiles = [],
+  defaultProfileId = '',
+}) {
   const notify = useToast();
   const [text, setText] = useState('');
   const [label, setLabel] = useState('');
+  const [profileId, setProfileId] = useState(defaultProfileId || profiles[0]?.id || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [results, setResults] = useState([]);
@@ -32,6 +41,7 @@ export default function BulkImportDialog({ open, onClose, onChanged, running }) 
     if (busy) return;
     setText('');
     setLabel('');
+    setProfileId(defaultProfileId || profiles[0]?.id || '');
     setError('');
     setResults([]);
   };
@@ -76,6 +86,7 @@ export default function BulkImportDialog({ open, onClose, onChanged, running }) 
         const result = await api('session/import', {
           sauth: lines[index],
           label: label.trim() ? `${label.trim()}-${index + 1}` : '',
+          profile_id: profileId,
         });
         ok += 1;
         setResults(current =>
@@ -123,6 +134,22 @@ export default function BulkImportDialog({ open, onClose, onChanged, running }) 
             inputProps={{ style: { fontFamily: 'ui-monospace, monospace', fontSize: 12 } }}
             helperText={`${text.length} / ${MAX_CHARS} 字符`}
           />
+          {profiles.length > 0 && (
+            <TextField
+              select
+              label="配置方案"
+              value={profileId}
+              onChange={event => setProfileId(event.target.value)}
+              disabled={busy}
+              fullWidth
+            >
+              {profiles.map(profile => (
+                <MenuItem key={profile.id} value={profile.id}>
+                  {profile.name}（{profile.connection_mode === 'transfer' ? '转服' : '代理'} · {profile.upstream}）
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
           <TextField
             label="标签前缀（可选）"
             value={label}

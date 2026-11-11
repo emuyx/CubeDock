@@ -49,15 +49,24 @@ function StatCard({ icon, label, value, helper, color = 'primary' }) {
   );
 }
 
-export default function Overview({ status, onChanged, onOpenSetup }) {
+export default function Overview({ status, onChanged, onOpenSetup, onOpenAccount }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
   const [playersRoom, setPlayersRoom] = useState(null);
   const accounts = status.accounts || [];
   const rooms = status.rooms || [];
-  const proxy = status.config?.connection_mode === 'proxy';
-  const roomIds = (rooms.length ? rooms.map(room => room.room_id) : [status.room_id]).filter(Boolean);
-  const multiplier = rooms.length > 1;
+  const activeRooms = rooms
+    .map((room, index) => ({ room, index }))
+    .filter(({ room }) => room.phase && room.phase !== 'stopped');
+  const roomIds = activeRooms.map(({ room }) => room.room_id).filter(Boolean);
+  const multiplier = activeRooms.length > 1;
+  const profiles = status.config?.profiles || [];
+  const accountProfiles = accounts
+    .map(account => profiles.find(profile => profile.id === account.profile_id) || profiles[0])
+    .filter(Boolean);
+  const upstreams = [...new Set(accountProfiles.map(profile => profile.upstream).filter(Boolean))];
+  const primaryUpstream = upstreams.length === 1 ? upstreams[0] : '';
+  const allRunning = accounts.length > 0 && activeRooms.length === accounts.length;
 
   const call = async (path, message) => {
     setBusy(true);
@@ -191,22 +200,22 @@ export default function Overview({ status, onChanged, onOpenSetup }) {
                 size="large"
                 startIcon={<PlayArrow />}
                 disabled={
-                  busy || status.running ||
+                  busy || allRunning ||
                   accounts.filter(account => account.email).length === 0
                 }
-                onClick={() => call('start', '房间正在启动')}
+                onClick={() => call('start', '剩余房间正在启动')}
               >
-                {status.running ? '房间运行中' : '启动房间'}
+                {allRunning ? '全部房间运行中' : activeRooms.length ? '启动其余房间' : '启动全部房间'}
               </Button>
               <Button
                 variant="outlined"
                 size="large"
                 color="inherit"
                 startIcon={<Stop />}
-                disabled={busy || !status.running}
-                onClick={() => call('stop', '正在停止房间')}
+                disabled={busy || activeRooms.length === 0}
+                onClick={() => call('stop', '正在停止全部房间')}
               >
-                停止房间
+                停止全部房间
               </Button>
               <Chip
                 sx={{ alignSelf: 'center' }}
@@ -229,10 +238,14 @@ export default function Overview({ status, onChanged, onOpenSetup }) {
               size="small"
             />
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, wordBreak: 'break-all' }}>
-              {status.config?.upstream || '—'}
+              {primaryUpstream || (upstreams.length > 1 ? `多配置方案（${upstreams.length} 个服务器）` : '—')}
             </Typography>
             <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-              {status.upstream_version ? `版本 ${status.upstream_version}` : '等待服务器响应'}
+              {upstreams.length > 1
+                ? '每个账号使用自己的配置方案'
+                : status.upstream_version
+                  ? `版本 ${status.upstream_version}`
+                  : '等待服务器响应'}
             </Typography>
             <Divider sx={{ my: 2 }} />
             <Typography variant="caption" color="text.secondary">
@@ -252,8 +265,8 @@ export default function Overview({ status, onChanged, onOpenSetup }) {
         <StatCard
           icon={<PeopleAlt />}
           label="在线玩家"
-          value={proxy ? status.players ?? 0 : '—'}
-          helper={proxy ? '所有房间合计' : '转服模式由目标服务器管理'}
+          value={status.players ?? 0}
+          helper="所有代理房间合计"
         />
         <StatCard
           icon={<RoomPreferences />}
@@ -277,17 +290,17 @@ export default function Overview({ status, onChanged, onOpenSetup }) {
         />
       </Box>
 
-      {rooms.length > 0 && (
+      {activeRooms.length > 0 && (
         <Card>
           <CardContent>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Box>
-                <Typography variant="h6">房间实例</Typography>
+                <Typography variant="h6">运行中的房间</Typography>
                 <Typography variant="caption" color="text.secondary">
-                  每个房间可以单独查看玩家、复制房间号。
+                  点击「仪表盘」查看该账号的房间、玩家和日志。
                 </Typography>
               </Box>
-              <Chip size="small" variant="outlined" label={`${rooms.length} 个`} />
+              <Chip size="small" variant="outlined" label={`${activeRooms.length} 个`} />
             </Stack>
             <Box
               sx={{
@@ -297,7 +310,7 @@ export default function Overview({ status, onChanged, onOpenSetup }) {
                 gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
               }}
             >
-              {rooms.map((room, index) => (
+              {activeRooms.map(({ room, index }) => (
                 <Box
                   key={index}
                   sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.6 }}
@@ -307,6 +320,7 @@ export default function Overview({ status, onChanged, onOpenSetup }) {
                       <Typography fontWeight={800}>房间 {index + 1}</Typography>
                       <Typography variant="caption" color="text.secondary" noWrap>
                         {room.account || accounts[index]?.name || '—'}
+                        {room.profile_name ? ` · ${room.profile_name}` : ''}
                       </Typography>
                     </Box>
                     <Chip size="small" color={phaseColor(room.phase)} label={phaseLabel(room.phase)} />
@@ -316,11 +330,11 @@ export default function Overview({ status, onChanged, onOpenSetup }) {
                       {room.room_id || '—'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {proxy ? `${room.players ?? 0} 人` : '转服模式'}
+                      {room.connection_mode === 'proxy' ? `${room.players ?? 0} 人` : '转服模式'}
                     </Typography>
                   </Stack>
-                  <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-                    {proxy ? (
+                  <Stack direction="row" spacing={0.5} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+                    {room.connection_mode === 'proxy' ? (
                       <Button
                         size="small"
                         startIcon={<PeopleAlt />}
@@ -340,6 +354,9 @@ export default function Overview({ status, onChanged, onOpenSetup }) {
                       onClick={() => copyRoom(room.room_id)}
                     >
                       复制房间号
+                    </Button>
+                    <Button size="small" onClick={() => onOpenAccount?.(index)}>
+                      仪表盘
                     </Button>
                   </Stack>
                 </Box>

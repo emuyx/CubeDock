@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/df-mc/jsonc"
+
+	"github.com/emuyx/cubedock/internal/config"
 )
 
 // ResourcePack is one entry shown in the console's limbo pack list.
@@ -45,33 +47,53 @@ type ResourcePackRefresh struct {
 	Output   string   `json:"output,omitempty"`
 }
 
-// ResourcePacks scans the configured limbo resource pack directory. limbo loads
+// resolveProfile returns the requested profile, falling back to the default
+// when the caller does not name one.
+func (m *Manager) resolveProfile(profileID string) (config.Profile, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if strings.TrimSpace(profileID) == "" {
+		profileID = m.cfg.DefaultProfileID()
+	}
+	profile, ok := m.cfg.Profile(profileID)
+	if !ok {
+		return config.Profile{}, fmt.Errorf("配置方案不存在")
+	}
+	return profile, nil
+}
+
+// ResourcePacks scans one profile's limbo resource pack directory. limbo loads
 // packs only when it starts, so this list reflects the directory contents, not
 // necessarily the running limbo instance.
-func (m *Manager) ResourcePacks() (ResourcePackList, error) {
-	m.mu.Lock()
-	cfg := m.cfg
-	m.mu.Unlock()
-
-	dir, err := EnsureLimboPacksDir(cfg)
+func (m *Manager) ResourcePacks(profileID string) (ResourcePackList, error) {
+	profile, err := m.resolveProfile(profileID)
+	if err != nil {
+		return ResourcePackList{}, err
+	}
+	dir, err := EnsureLimboPacksDir(m.dir, profile)
 	if err != nil {
 		return ResourcePackList{Dir: dir}, err
 	}
 	return scanResourcePacks(dir)
 }
 
-// RefreshResourcePacks pulls packs from the backend server as a bot, removes
-// exact duplicates, and returns the resulting directory listing.
-func (m *Manager) RefreshResourcePacks(ctx context.Context) (ResourcePackRefresh, error) {
+// RefreshResourcePacks pulls one profile's packs from its backend server as a
+// bot, removes exact duplicates, and returns the resulting directory listing.
+func (m *Manager) RefreshResourcePacks(ctx context.Context, profileID string) (ResourcePackRefresh, error) {
 	var result ResourcePackRefresh
-	m.mu.Lock()
-	cfg := m.cfg
-	m.mu.Unlock()
-	dir, err := EnsureLimboPacksDir(cfg)
+	profile, err := m.resolveProfile(profileID)
 	if err != nil {
 		return result, err
 	}
-	output, err := m.pullResourcePacks(ctx)
+	if profile.ConnectionMode != config.ConnectionTransfer {
+		return result, fmt.Errorf("只有转服模式使用资源包")
+	}
+	dir, err := EnsureLimboPacksDir(m.dir, profile)
+	if err != nil {
+		return result, err
+	}
+	name, uid := m.packIdentity(profile.ID)
+	output, err := m.pullFn(ctx, profile, name, uid)
 	if err != nil {
 		return result, err
 	}
@@ -98,6 +120,9 @@ func (m *Manager) RefreshResourcePacks(ctx context.Context) (ResourcePackRefresh
 		return result, err
 	}
 	result.ResourcePackList = list
+	m.mu.Lock()
+	m.preparedPacks[profile.ID] = true
+	m.mu.Unlock()
 	return result, nil
 }
 

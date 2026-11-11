@@ -9,7 +9,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/funauth"
 )
 
@@ -38,7 +37,7 @@ type Profile struct {
 // PrepareRoom performs PE authentication and obtains a fresh room transfer
 // ticket. NetEase does not accept unmodified phone (platform=ad) sessions, so
 // only 互通版 sessions are useful here.
-func PrepareRoom(ctx context.Context, cfg config.Config, token string) (RoomInfo, error) {
+func PrepareRoom(ctx context.Context, lobbyProtocolID uint8, token string) (RoomInfo, error) {
 	var info RoomInfo
 	session, err := unwrapToken(token)
 	if err != nil {
@@ -75,7 +74,7 @@ func PrepareRoom(ctx context.Context, cfg config.Config, token string) (RoomInfo
 		SignalingTicket:  result.SignalingTicket,
 		EncryptKey:       result.EncryptKeyBytes,
 		DecryptKey:       result.DecryptKeyBytes,
-		ProtocolID:       cfg.LobbyProtocolID,
+		ProtocolID:       lobbyProtocolID,
 	}
 	if info.ProtocolID == 0 {
 		info.ProtocolID = 43

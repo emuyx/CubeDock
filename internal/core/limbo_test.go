@@ -9,15 +9,15 @@ import (
 )
 
 func TestEnsureLimboPacksDirCreatesExplicitDirectory(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.LimboPacksDir = filepath.Join(t.TempDir(), "explicit-packs")
+	profile := config.DefaultProfile()
+	profile.LimboPacksDir = filepath.Join(t.TempDir(), "explicit-packs")
 
-	resolved, err := EnsureLimboPacksDir(cfg)
+	resolved, err := EnsureLimboPacksDir(t.TempDir(), profile)
 	if err != nil {
 		t.Fatalf("EnsureLimboPacksDir: %v", err)
 	}
-	if resolved != cfg.LimboPacksDir {
-		t.Fatalf("resolved = %q, want %q", resolved, cfg.LimboPacksDir)
+	if resolved != profile.LimboPacksDir {
+		t.Fatalf("resolved = %q, want %q", resolved, profile.LimboPacksDir)
 	}
 	info, err := os.Stat(resolved)
 	if err != nil {
@@ -28,13 +28,18 @@ func TestEnsureLimboPacksDirCreatesExplicitDirectory(t *testing.T) {
 	}
 }
 
-func TestDefaultLimboPacksDirFollowsExecutable(t *testing.T) {
-	base := t.TempDir()
-	cfg := config.Defaults()
-	cfg.LimboPath = filepath.Join(base, "limbo.exe")
+func TestProfilePacksDirIsolatedByProfile(t *testing.T) {
+	dataDir := t.TempDir()
+	first := config.DefaultProfile()
+	first.ID = "survival"
+	second := config.DefaultProfile()
+	second.ID = "creative"
 
-	want := filepath.Join(base, "packs")
-	if got := DefaultLimboPacksDir(cfg); got != want {
-		t.Fatalf("DefaultLimboPacksDir = %q, want %q", got, want)
+	want := filepath.Join(dataDir, "packs", "survival")
+	if got := ProfilePacksDir(dataDir, first); got != want {
+		t.Fatalf("ProfilePacksDir = %q, want %q", got, want)
+	}
+	if ProfilePacksDir(dataDir, first) == ProfilePacksDir(dataDir, second) {
+		t.Fatal("different profiles share one packs directory")
 	}
 }

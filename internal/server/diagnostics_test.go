@@ -18,8 +18,8 @@ func newDiagnosticsTestManager(t *testing.T) *core.Manager {
 		t.Fatal(err)
 	}
 	cfg := config.Defaults()
-	cfg.Upstream = "127.0.0.1:1"
-	cfg.LimboPacksDir = t.TempDir()
+	cfg.Profiles[0].Upstream = "127.0.0.1:1"
+	cfg.Profiles[0].LimboPacksDir = t.TempDir()
 	if err := manager.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -75,9 +75,15 @@ func TestDiagnosticsEndpoint(t *testing.T) {
 func TestBackupEndpointExcludesSecrets(t *testing.T) {
 	manager := newDiagnosticsTestManager(t)
 	cfg := config.Defaults()
-	cfg.Upstream = "127.0.0.1:1"
-	cfg.LimboPacksDir = manager.Dir() + "/packs"
-	cfg.RoomPassword = "room-secret"
+	cfg.Profiles[0].Upstream = "127.0.0.1:1"
+	cfg.Profiles[0].LimboPacksDir = manager.Dir() + "/packs"
+	cfg.Profiles[0].RoomPassword = "room-secret"
+	second := config.DefaultProfile()
+	second.ID = "second"
+	second.Name = "第二方案"
+	second.Upstream = "127.0.0.1:19134"
+	second.RoomPassword = "second-secret"
+	cfg.Profiles = append(cfg.Profiles, second)
 	if err := manager.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -100,11 +106,13 @@ func TestBackupEndpointExcludesSecrets(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Format != 1 || payload.Version != "test" || len(payload.Accounts) != 1 {
+	if payload.Format != 2 || payload.Version != "test" || len(payload.Accounts) != 1 {
 		t.Fatalf("payload = %+v", payload)
 	}
-	if payload.Config.RoomPassword != "" {
-		t.Fatal("room password exported by default")
+	for _, profile := range payload.Config.Profiles {
+		if profile.RoomPassword != "" {
+			t.Fatalf("room password exported by default: %+v", profile)
+		}
 	}
 	if strings.Contains(recorder.Body.String(), "token-secret-1") {
 		t.Fatal("backup contains the account token")
@@ -115,8 +123,72 @@ func TestBackupEndpointExcludesSecrets(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Config.RoomPassword != "room-secret" {
-		t.Fatal("room password was not included when requested")
+	if payload.Config.Profiles[0].RoomPassword != "room-secret" ||
+		payload.Config.Profiles[1].RoomPassword != "second-secret" {
+		t.Fatal("room passwords were not included when requested")
+	}
+}
+
+func TestRestoreLegacyFormatMigrates(t *testing.T) {
+	manager := newDiagnosticsTestManager(t)
+	handler := &consoleHandler{manager: manager}
+	legacy := map[string]any{
+		"upstream": "127.0.0.1:19133", "room_name": "旧备份",
+		"web_port": 18321, "retry_seconds": 10, "lobby_protocol_id": 43,
+		"room_game_version": "1.21.130.0",
+	}
+	body, _ := json.Marshal(map[string]any{"config": legacy})
+	request := httptest.NewRequest(http.MethodPost, "/api/restore", strings.NewReader(string(body)))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.restore(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		OK       bool     `json:"ok"`
+		Warnings []string `json:"warnings"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.OK || len(response.Warnings) == 0 || !strings.Contains(strings.Join(response.Warnings, " "), "旧版") {
+		t.Fatalf("response = %+v", response)
+	}
+	snapshot := manager.Snapshot()
+	if len(snapshot.Config.Profiles) != 1 ||
+		snapshot.Config.Profiles[0].ID != config.DefaultProfileID ||
+		snapshot.Config.Profiles[0].RoomName != "旧备份" {
+		t.Fatalf("restored config = %+v", snapshot.Config)
+	}
+}
+
+func TestAssignProfileEndpoint(t *testing.T) {
+	manager := newDiagnosticsTestManager(t)
+	cfg := manager.Snapshot().Config
+	second := config.DefaultProfile()
+	second.ID = "second"
+	second.Name = "第二方案"
+	second.Upstream = "127.0.0.1:19134"
+	cfg.Profiles = append(cfg.Profiles, second)
+	if err := manager.Configure(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddAccount("token-assign", core.AccountMeta{Email: "assign@example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	handler := &consoleHandler{manager: manager}
+	body, _ := json.Marshal(map[string]any{"index": 0, "profile_id": "second"})
+	request := httptest.NewRequest(http.MethodPost, "/api/account/assign-profile", strings.NewReader(string(body)))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.assignProfile(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	accounts := manager.Accounts()
+	if len(accounts) != 1 || accounts[0].ProfileID != "second" || accounts[0].ProfileName != "第二方案" {
+		t.Fatalf("account after assign = %+v", accounts)
 	}
 }
 
@@ -126,9 +198,9 @@ func TestRestoreEndpointAppliesConfigAndKeepsPort(t *testing.T) {
 	currentPort := manager.Snapshot().Config.WebPort
 
 	restored := config.Defaults()
-	restored.Upstream = "127.0.0.1:19133"
+	restored.Profiles[0].Upstream = "127.0.0.1:19133"
 	restored.WebPort = 19999
-	restored.RoomName = "恢复后的房间"
+	restored.Profiles[0].RoomName = "恢复后的房间"
 	body, err := json.Marshal(map[string]any{"config": restored})
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +223,8 @@ func TestRestoreEndpointAppliesConfigAndKeepsPort(t *testing.T) {
 		t.Fatalf("response = %+v", response)
 	}
 	snapshot := manager.Snapshot()
-	if snapshot.Config.Upstream != restored.Upstream || snapshot.Config.RoomName != restored.RoomName {
+	if snapshot.Config.Profiles[0].Upstream != restored.Profiles[0].Upstream ||
+		snapshot.Config.Profiles[0].RoomName != restored.Profiles[0].RoomName {
 		t.Fatalf("config after restore = %+v", snapshot.Config)
 	}
 	if snapshot.Config.WebPort != currentPort {
@@ -163,7 +236,7 @@ func TestRestoreRejectsInvalidConfig(t *testing.T) {
 	manager := newDiagnosticsTestManager(t)
 	handler := &consoleHandler{manager: manager}
 	invalid := config.Defaults()
-	invalid.ConnectionMode = "bogus"
+	invalid.Profiles[0].ConnectionMode = "bogus"
 	body, err := json.Marshal(map[string]any{"config": invalid})
 	if err != nil {
 		t.Fatal(err)
@@ -175,6 +248,31 @@ func TestRestoreRejectsInvalidConfig(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
+}
+
+func TestAdminDiagnosticHintMatchesRecoveryPath(t *testing.T) {
+	manager := newDiagnosticsTestManager(t)
+	admin, err := LoadAdmin(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := &consoleHandler{manager: manager, admin: admin}
+	for _, check := range handler.consoleChecks() {
+		if check.ID != "admin" {
+			continue
+		}
+		if check.Status != core.DiagnosticFail {
+			t.Fatalf("admin check status = %q, want fail", check.Status)
+		}
+		if strings.Contains(check.Hint, "reset-admin-password") {
+			t.Fatalf("hint still references the removed CLI flag: %q", check.Hint)
+		}
+		if !strings.Contains(check.Hint, "admin.json") {
+			t.Fatalf("hint does not describe the supported recovery path: %q", check.Hint)
+		}
+		return
+	}
+	t.Fatal("admin diagnostic check is missing")
 }
 
 func TestDiagnosticsRequiresAdminSession(t *testing.T) {

@@ -54,7 +54,7 @@ func (h *consoleHandler) diagnostics(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	checks := h.manager.Diagnose(ctx)
+	checks := h.manager.Diagnose(ctx, r.URL.Query().Get("profile_id"))
 	checks = append(checks, h.consoleChecks()...)
 	summary := map[string]int{}
 	for _, check := range checks {
@@ -93,7 +93,7 @@ func (h *consoleHandler) consoleChecks() []core.DiagnosticCheck {
 		if info, err := os.Stat(h.admin.filePath); err != nil || info.Size() == 0 {
 			check.Status = core.DiagnosticFail
 			check.Detail = "管理员密码文件缺失或为空"
-			check.Hint = "使用 -reset-admin-password 重置"
+			check.Hint = "本机停止程序后备份并删除 admin.json，重启后在控制台重新初始化；没有远程或命令行重置"
 		} else {
 			check.Status = core.DiagnosticOK
 			check.Detail = "管理员密码文件可用"
@@ -127,13 +127,13 @@ func (h *consoleHandler) backup(w http.ResponseWriter, r *http.Request) {
 	snapshot := h.manager.Snapshot()
 	cfg := snapshot.Config
 	if r.URL.Query().Get("include_password") != "true" {
-		cfg.RoomPassword = ""
+		cfg = cfg.WithoutRoomPasswords()
 	}
 	payload := backupFile{
-		Format: 1, App: "CubeDock", Version: h.runtime.withDefaults().Version,
+		Format: 2, App: "CubeDock", Version: h.runtime.withDefaults().Version,
 		ExportedAt: time.Now().Format(time.RFC3339),
 		Config:     cfg, Accounts: snapshot.Accounts,
-		Note: "备份包含配置和账号信息，不包含网易登录凭证；恢复后需要重新登录或导入账号。",
+		Note: "备份包含配置方案、全局设置和账号信息，不包含网易登录凭证或账号的方案分配；恢复后需要重新登录或导入账号。",
 	}
 	w.Header().Set("Content-Disposition",
 		fmt.Sprintf(`attachment; filename="cubedock-backup-%s.json"`, time.Now().Format("20060102-150405")))
@@ -142,11 +142,11 @@ func (h *consoleHandler) backup(w http.ResponseWriter, r *http.Request) {
 
 func (h *consoleHandler) restore(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Config config.Config `json:"config"`
+		Config json.RawMessage `json:"config"`
 	}
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024))
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256*1024))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&body) != nil {
+	if decoder.Decode(&body) != nil || len(body.Config) == 0 {
 		http.Error(w, "备份 JSON 无效", http.StatusBadRequest)
 		return
 	}
@@ -155,8 +155,15 @@ func (h *consoleHandler) restore(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "请先停止房间，再恢复配置", http.StatusBadRequest)
 		return
 	}
-	next := body.Config
+	next, legacy, err := config.Decode(body.Config)
+	if err != nil {
+		http.Error(w, "备份配置格式无效", http.StatusBadRequest)
+		return
+	}
 	var warnings []string
+	if legacy {
+		warnings = append(warnings, "这是旧版单配置备份，已迁移为「默认配置」")
+	}
 	switch {
 	case next.WebPort == 0:
 		warnings = append(warnings, "备份未包含控制台端口，已保留当前端口")
@@ -167,10 +174,12 @@ func (h *consoleHandler) restore(w http.ResponseWriter, r *http.Request) {
 			snapshot.Config.WebPort))
 		next.WebPort = snapshot.Config.WebPort
 	}
-	if err := h.manager.Configure(next); err != nil {
+	restoreWarnings, err := h.manager.ConfigureForRestore(next)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	warnings = append(warnings, restoreWarnings...)
 	h.manager.Record("设置", "已从备份恢复配置")
 	respond(w, map[string]any{"ok": true, "warnings": warnings})
 }

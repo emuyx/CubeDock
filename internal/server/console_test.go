@@ -35,7 +35,7 @@ func TestResourcePacksEndpoint(t *testing.T) {
 	handler := newConsoleTestHandler(t)
 	dir := t.TempDir()
 	cfg := config.Defaults()
-	cfg.LimboPacksDir = dir
+	cfg.Profiles[0].LimboPacksDir = dir
 	if err := handler.manager.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}

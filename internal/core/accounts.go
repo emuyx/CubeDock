@@ -2,25 +2,30 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/fileutil"
 )
 
 // AccountStatus is the non-secret account metadata exposed to the console.
 // The session token itself lives in the protected room-token file.
 type AccountStatus struct {
-	Index        int    `json:"index"`
-	Email        string `json:"email"`
-	Label        string `json:"label,omitempty"`
-	Name         string `json:"name,omitempty"`
-	UID          string `json:"uid,omitempty"`
-	Level        int    `json:"level,omitempty"`
-	Platform     string `json:"platform,omitempty"`   // interop = 基岩互通版会话
-	ExpiresAt    string `json:"expires_at,omitempty"` // access_token 到期时间
-	ProfileError string `json:"profile_error,omitempty"`
-	VerifiedAt   string `json:"verified_at,omitempty"`
+	Index          int    `json:"index"`
+	Email          string `json:"email"`
+	Label          string `json:"label,omitempty"`
+	Name           string `json:"name,omitempty"`
+	UID            string `json:"uid,omitempty"`
+	Level          int    `json:"level,omitempty"`
+	Platform       string `json:"platform,omitempty"`   // interop = 基岩互通版会话
+	ExpiresAt      string `json:"expires_at,omitempty"` // access_token 到期时间
+	ProfileError   string `json:"profile_error,omitempty"`
+	VerifiedAt     string `json:"verified_at,omitempty"`
+	ProfileID      string `json:"profile_id,omitempty"`
+	ProfileName    string `json:"profile_name,omitempty"`
+	ConnectionMode string `json:"connection_mode,omitempty"`
 }
 
 type accountRecord struct {
@@ -33,6 +38,7 @@ type accountRecord struct {
 	ExpiresAt    string `json:"expires_at,omitempty"`
 	ProfileError string `json:"profile_error,omitempty"`
 	VerifiedAt   string `json:"verified_at,omitempty"`
+	ProfileID    string `json:"profile_id,omitempty"`
 }
 
 // AccountMeta is supplied when a session is added or replaced.
@@ -46,9 +52,10 @@ type AccountMeta struct {
 	ExpiresAt    string
 	ProfileError string
 	Verified     string
+	ProfileID    string
 }
 
-func loadAccounts(path string, tokenCount int) ([]accountRecord, error) {
+func loadAccounts(path string, tokenCount int, defaultProfileID string) ([]accountRecord, error) {
 	var records []accountRecord
 	changed := false
 	raw, err := os.ReadFile(path)
@@ -63,8 +70,14 @@ func loadAccounts(path string, tokenCount int) ([]accountRecord, error) {
 	default:
 		return nil, err
 	}
+	for index := range records {
+		if records[index].ProfileID == "" {
+			records[index].ProfileID = defaultProfileID
+			changed = true
+		}
+	}
 	for len(records) < tokenCount {
-		records = append(records, accountRecord{Label: "未命名"})
+		records = append(records, accountRecord{Label: "未命名", ProfileID: defaultProfileID})
 		changed = true
 	}
 	if len(records) > tokenCount {
@@ -92,14 +105,45 @@ func saveAccounts(path string, records []accountRecord) error {
 func (m *Manager) accountStatusesLocked() []AccountStatus {
 	out := make([]AccountStatus, len(m.accounts))
 	for index, record := range m.accounts {
-		out[index] = AccountStatus{
+		status := AccountStatus{
 			Index: index, Email: record.Email, Label: record.Label,
 			Name: record.Name, UID: record.UID, Level: record.Level,
 			Platform: record.Platform, ExpiresAt: record.ExpiresAt,
 			ProfileError: record.ProfileError, VerifiedAt: record.VerifiedAt,
+			ProfileID: record.ProfileID,
 		}
+		if status.ProfileID == "" {
+			status.ProfileID = m.cfg.DefaultProfileID()
+		}
+		if profile, ok := m.cfg.Profile(status.ProfileID); ok {
+			status.ProfileName = profile.Name
+			status.ConnectionMode = profile.ConnectionMode
+		}
+		out[index] = status
 	}
 	return out
+}
+
+// AccountProfiles resolves the profile selected by every account. It is used
+// by the one-shot `-check` command, which runs before the Manager exists.
+func AccountProfiles(dir string, cfg config.Config, tokenCount int) ([]config.Profile, error) {
+	records, err := loadAccounts(filepath.Join(dir, accountFile), tokenCount, cfg.DefaultProfileID())
+	if err != nil {
+		return nil, err
+	}
+	profiles := make([]config.Profile, len(records))
+	for index, record := range records {
+		id := record.ProfileID
+		if id == "" {
+			id = cfg.DefaultProfileID()
+		}
+		profile, ok := cfg.Profile(id)
+		if !ok {
+			return nil, fmt.Errorf("房间 %d 选择的配置方案 %q 不存在", index+1, id)
+		}
+		profiles[index] = profile
+	}
+	return profiles, nil
 }
 
 // Accounts returns a copy of the console-visible account list.

@@ -38,38 +38,75 @@ func diagnostic(id, category, label, status, detail, hint string) DiagnosticChec
 	}
 }
 
-// Diagnose runs the console's read-only preflight checks. It never
-// authenticates against NetEase and never returns session tokens.
-func (m *Manager) Diagnose(ctx context.Context) []DiagnosticCheck {
+// HasProfile reports whether a profile ID exists.
+func (m *Manager) HasProfile(profileID string) bool {
 	m.mu.Lock()
-	cfg := m.cfg
+	defer m.mu.Unlock()
+	_, ok := m.cfg.Profile(profileID)
+	return ok
+}
+
+// Diagnose runs the console's read-only preflight checks. It never
+// authenticates against NetEase and never returns session tokens. An empty
+// profileID checks every profile; otherwise only that profile's checks are
+// included, while account, lock and environment checks stay global.
+func (m *Manager) Diagnose(ctx context.Context, profileID string) []DiagnosticCheck {
+	m.mu.Lock()
+	cfg := m.cfg.Clone()
 	tokens := append([]string(nil), m.tokens...)
-	running := m.cancel != nil
+	running := len(m.runtimes) > 0
 	accounts := m.accountStatusesLocked()
+	activeProfiles := make(map[string]bool, len(m.runtimes))
+	for _, runtime := range m.runtimes {
+		activeProfiles[runtime.profile.ID] = true
+	}
 	m.mu.Unlock()
 
+	profiles := cfg.Profiles
+	if strings.TrimSpace(profileID) != "" {
+		profile, ok := cfg.Profile(profileID)
+		if !ok {
+			return []DiagnosticCheck{diagnostic("config", "配置", "配置方案",
+				DiagnosticFail, "配置方案不存在："+profileID, "在「配置方案」页重新选择")}
+		}
+		profiles = []config.Profile{profile}
+	}
+
 	return []DiagnosticCheck{
-		diagnosticConfig(cfg),
+		diagnosticConfig(cfg, profiles, profileID),
 		diagnosticDataDir(m.dir),
-		m.diagnosticUpstream(ctx, cfg, running),
-		diagnosticLimbo(cfg),
-		diagnosticPacks(cfg),
+		m.diagnosticUpstream(ctx, profiles, activeProfiles),
+		diagnosticLimbo(cfg, profiles),
+		diagnosticPacks(m.dir, profiles),
 		diagnosticAccounts(accounts),
-		diagnosticMode(cfg),
+		diagnosticMode(profiles),
 		m.diagnosticLocks(running, tokens),
 	}
 }
 
-func diagnosticConfig(cfg config.Config) DiagnosticCheck {
+func diagnosticConfig(cfg config.Config, profiles []config.Profile, profileID string) DiagnosticCheck {
 	if err := cfg.Validate(); err != nil {
 		return diagnostic("config", "配置", "配置有效", DiagnosticFail, err.Error(),
-			"检查设置页")
+			"检查「配置方案」页")
 	}
-	detail := fmt.Sprintf("代理模式，服务器 %s", cfg.Upstream)
-	if cfg.ConnectionMode == config.ConnectionTransfer {
-		detail = fmt.Sprintf("转服模式，中转房间 %s → 服务器 %s", cfg.LimboUpstream, cfg.Upstream)
+	if profileID != "" && len(profiles) == 1 {
+		return diagnostic("config", "配置", "配置方案", DiagnosticOK,
+			profileDetail(profiles[0]), "")
 	}
-	return diagnostic("config", "配置", "配置有效", DiagnosticOK, detail, "")
+	names := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		names = append(names, profile.Name)
+	}
+	return diagnostic("config", "配置", "配置有效", DiagnosticOK,
+		fmt.Sprintf("%d 个配置方案：%s", len(profiles), strings.Join(names, "、")), "")
+}
+
+func profileDetail(profile config.Profile) string {
+	if profile.ConnectionMode == config.ConnectionTransfer {
+		return fmt.Sprintf("「%s」转服模式，中转房间 %s → 服务器 %s",
+			profile.Name, profile.LimboUpstream, profile.Upstream)
+	}
+	return fmt.Sprintf("「%s」代理模式，服务器 %s", profile.Name, profile.Upstream)
 }
 
 func diagnosticDataDir(dir string) DiagnosticCheck {
@@ -92,61 +129,118 @@ func diagnosticDataDir(dir string) DiagnosticCheck {
 	return diagnostic("data_dir", "环境", "数据目录可读写", DiagnosticOK, dir, "")
 }
 
-func (m *Manager) diagnosticUpstream(ctx context.Context, cfg config.Config, running bool) DiagnosticCheck {
-	label := "服务器可达"
-	if cfg.ConnectionMode == config.ConnectionTransfer {
-		if !running {
-			// limbo only listens while a room is running; pinging it from a
-			// stopped self-check would always fail and look like an error.
-			return diagnostic("upstream", "网络", "中转房间", DiagnosticSkip,
-				"房间未运行；中转房间只在开房时启动",
-				"停止状态不检测中转房间连通性，开房后会自动启动")
+func (m *Manager) diagnosticUpstream(ctx context.Context, profiles []config.Profile, activeProfiles map[string]bool) DiagnosticCheck {
+	originals := append([]config.Profile(nil), profiles...)
+	var checked []config.Profile
+	for _, profile := range profiles {
+		if profile.ConnectionMode == config.ConnectionTransfer && !activeProfiles[profile.ID] {
+			continue
 		}
+		checked = append(checked, profile)
+	}
+	label := "服务器可达"
+	if len(originals) == 1 && originals[0].ConnectionMode == config.ConnectionTransfer {
 		label = "中转房间可达"
+	}
+	if len(checked) == 0 {
+		return diagnostic("upstream", "网络", label, DiagnosticSkip,
+			"所有转服配置方案均未运行；中转房间只在开房时启动",
+			"停止状态不检测中转房间连通性，开房后会自动启动")
 	}
 	if m.pingFn == nil {
 		return diagnostic("upstream", "网络", label, DiagnosticSkip, "检查函数未初始化", "")
 	}
-	pingCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-	defer cancel()
-	version, err := m.pingFn(pingCtx, cfg)
-	if err != nil {
-		return diagnostic("upstream", "网络", label, DiagnosticFail, err.Error(),
-			"确认地址正确且服务已启动")
+
+	status := DiagnosticOK
+	details := make([]string, 0, len(checked))
+	for _, profile := range checked {
+		pingCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		version, err := m.pingFn(pingCtx, profile)
+		cancel()
+		if err != nil {
+			if status == DiagnosticOK {
+				status = DiagnosticFail
+			}
+			details = append(details, fmt.Sprintf("「%s」%s：%s", profile.Name, upstreamAddress(profile), err.Error()))
+			continue
+		}
+		detail := fmt.Sprintf("「%s」%s", profile.Name, upstreamAddress(profile))
+		if strings.TrimSpace(version) != "" {
+			detail += " · " + version
+		}
+		details = append(details, detail)
 	}
-	detail := upstreamAddress(cfg)
-	if strings.TrimSpace(version) != "" {
-		detail += " · " + version
+	hint := ""
+	if status == DiagnosticFail {
+		hint = "确认地址正确且服务已启动"
 	}
-	return diagnostic("upstream", "网络", label, DiagnosticOK, detail, "")
+	if len(checked) > 1 {
+		label = fmt.Sprintf("服务器可达（%d 个方案）", len(checked))
+	}
+	return diagnostic("upstream", "网络", label, status, strings.Join(details, "；"), hint)
 }
 
-func diagnosticLimbo(cfg config.Config) DiagnosticCheck {
-	if cfg.ConnectionMode != config.ConnectionTransfer {
-		return diagnostic("limbo", "资源", "中转程序", DiagnosticSkip,
-			"代理模式不需要中转程序", "")
+func diagnosticLimbo(cfg config.Config, profiles []config.Profile) DiagnosticCheck {
+	transfer := make([]config.Profile, 0, len(profiles))
+	for _, profile := range profiles {
+		if profile.ConnectionMode == config.ConnectionTransfer {
+			transfer = append(transfer, profile)
+		}
 	}
-	path, err := limboExecutable(cfg)
+	if len(transfer) == 0 {
+		return diagnostic("limbo", "资源", "中转程序", DiagnosticSkip,
+			"所选配置方案均为代理模式，不需要中转程序", "")
+	}
+	path, err := limboExecutable(cfg.LimboPath)
 	if err != nil {
 		return diagnostic("limbo", "资源", "中转程序", DiagnosticFail, err.Error(),
-			"安装中转程序，或在连接设置中指定 limbo_path")
+			"安装中转程序，或在设置中指定 limbo_path")
 	}
-	return diagnostic("limbo", "资源", "中转程序", DiagnosticOK, path, "")
+	addresses := make([]string, 0, len(transfer))
+	for _, profile := range transfer {
+		addresses = append(addresses, fmt.Sprintf("「%s」%s", profile.Name, profile.LimboUpstream))
+	}
+	return diagnostic("limbo", "资源", "中转程序", DiagnosticOK,
+		path+"；"+strings.Join(addresses, "、"), "")
 }
 
-func diagnosticPacks(cfg config.Config) DiagnosticCheck {
-	dir := DefaultLimboPacksDir(cfg)
-	list, err := scanResourcePacks(dir)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return diagnostic("packs", "资源", "资源包目录", DiagnosticWarn, dir,
-				"目录尚未创建；开房时会自动创建，可在此放入 .mcpack")
+func diagnosticPacks(dataDir string, profiles []config.Profile) DiagnosticCheck {
+	transfer := make([]config.Profile, 0, len(profiles))
+	for _, profile := range profiles {
+		if profile.ConnectionMode == config.ConnectionTransfer {
+			transfer = append(transfer, profile)
 		}
-		return diagnostic("packs", "资源", "资源包目录", DiagnosticFail, err.Error(),
-			"检查资源包目录权限")
 	}
-	return diagnostic("packs", "资源", "资源包目录", DiagnosticOK,
-		fmt.Sprintf("%s（%d 个包）", dir, len(list.Packs)), "")
+	if len(transfer) == 0 {
+		return diagnostic("packs", "资源", "资源包目录", DiagnosticSkip,
+			"所选配置方案均为代理模式，不使用本地资源包", "")
+	}
+	status := DiagnosticOK
+	details := make([]string, 0, len(transfer))
+	for _, profile := range transfer {
+		dir := ProfilePacksDir(dataDir, profile)
+		list, err := scanResourcePacks(dir)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				if status == DiagnosticOK {
+					status = DiagnosticWarn
+				}
+				details = append(details, fmt.Sprintf("「%s」%s（目录尚未创建）", profile.Name, dir))
+				continue
+			}
+			status = DiagnosticFail
+			details = append(details, fmt.Sprintf("「%s」%s：%s", profile.Name, dir, err.Error()))
+			continue
+		}
+		details = append(details, fmt.Sprintf("「%s」%s（%d 个包）", profile.Name, dir, len(list.Packs)))
+	}
+	hint := ""
+	if status == DiagnosticFail {
+		hint = "检查资源包目录权限"
+	} else if status == DiagnosticWarn {
+		hint = "目录尚未创建；开房时会自动创建，可在此放入 .mcpack"
+	}
+	return diagnostic("packs", "资源", "资源包目录", status, strings.Join(details, "；"), hint)
 }
 
 func diagnosticAccounts(accounts []AccountStatus) DiagnosticCheck {
@@ -154,7 +248,7 @@ func diagnosticAccounts(accounts []AccountStatus) DiagnosticCheck {
 		return diagnostic("accounts", "账号", "网易账号", DiagnosticWarn, "尚未添加账号",
 			"在「账号与房间」登录或导入账号")
 	}
-	expired, profileErrors := 0, 0
+	expired, profileErrors, missingProfiles := 0, 0, 0
 	for _, account := range accounts {
 		if account.ExpiresAt != "" {
 			if expiry, err := time.Parse(time.RFC3339, account.ExpiresAt); err == nil &&
@@ -165,6 +259,9 @@ func diagnosticAccounts(accounts []AccountStatus) DiagnosticCheck {
 		if account.ProfileError != "" {
 			profileErrors++
 		}
+		if account.ProfileName == "" {
+			missingProfiles++
+		}
 	}
 	detail := fmt.Sprintf("%d 个账号", len(accounts))
 	if expired > 0 {
@@ -173,20 +270,25 @@ func diagnosticAccounts(accounts []AccountStatus) DiagnosticCheck {
 	if profileErrors > 0 {
 		detail += fmt.Sprintf("，%d 个游戏名读取失败", profileErrors)
 	}
+	if missingProfiles > 0 {
+		detail += fmt.Sprintf("，%d 个账号引用了不存在的配置方案", missingProfiles)
+	}
 	status := DiagnosticOK
 	hint := ""
-	if expired > 0 || profileErrors > 0 {
+	if expired > 0 || profileErrors > 0 || missingProfiles > 0 {
 		status = DiagnosticWarn
-		hint = "重新登录过期账号，或点验证按钮刷新信息"
+		hint = "重新登录过期账号，或为账号重新选择配置方案"
 	}
 	return diagnostic("accounts", "账号", "网易账号", status, detail, hint)
 }
 
-func diagnosticMode(cfg config.Config) DiagnosticCheck {
+func diagnosticMode(profiles []config.Profile) DiagnosticCheck {
 	var notes []string
-	if cfg.FriendsOnly && cfg.AutoAcceptFriends {
-		notes = append(notes,
-			"仅好友可见与自动同意好友申请同时开启；为避免陌生人进入，自动同意会被跳过")
+	for _, profile := range profiles {
+		if profile.FriendsOnly && profile.AutoAcceptFriends {
+			notes = append(notes, fmt.Sprintf("「%s」仅好友可见与自动同意好友申请同时开启；为避免陌生人进入，自动同意会被跳过",
+				profile.Name))
+		}
 	}
 	if len(notes) == 0 {
 		return diagnostic("mode", "配置", "房间策略", DiagnosticOK, "未发现冲突", "")
@@ -198,7 +300,7 @@ func diagnosticMode(cfg config.Config) DiagnosticCheck {
 func (m *Manager) diagnosticLocks(running bool, tokens []string) DiagnosticCheck {
 	if running {
 		return diagnostic("locks", "账号", "账号占用", DiagnosticSkip,
-			"房间运行中，跳过账号占用检查", "")
+			"有房间运行中，跳过账号占用检查", "")
 	}
 	if len(tokens) == 0 {
 		return diagnostic("locks", "账号", "账号占用", DiagnosticSkip, "没有账号需要检查", "")

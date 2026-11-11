@@ -47,7 +47,7 @@ function formatUptime(seconds) {
   return `${Math.floor(total)} 秒`;
 }
 
-export default function PlayersDialog({ open, onClose, status, roomIndex = null }) {
+export default function PlayersDialog({ open, onClose, status, roomIndex = null, proxy: proxyOverride }) {
   const notify = useToast();
   const confirm = useConfirm();
   const [players, setPlayers] = useState([]);
@@ -58,7 +58,14 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null 
   const [address, setAddress] = useState('');
   // Player management is only meaningful in proxy mode. In transfer mode the
   // guest is handed to limbo/the target server and is no longer ours to manage.
-  const proxy = status?.config?.connection_mode === 'proxy';
+  const resolvedMode =
+    status?.rooms?.[roomIndex]?.connection_mode || status?.accounts?.[roomIndex]?.connection_mode;
+  const proxy =
+    proxyOverride !== undefined
+      ? proxyOverride
+      : resolvedMode
+        ? resolvedMode === 'proxy'
+        : true;
 
   const load = useCallback(async () => {
     setLoading(true);

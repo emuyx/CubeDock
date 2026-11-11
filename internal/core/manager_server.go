@@ -21,22 +21,22 @@ import (
 // shouldAutoAcceptFriends reports whether pending friend requests may be
 // accepted. Accepting them while the room is friends-only would let any
 // stranger join the supposedly private room, so that combination is skipped.
-func shouldAutoAcceptFriends(cfg config.Config) bool {
-	return cfg.AutoAcceptFriends && !cfg.FriendsOnly
+func shouldAutoAcceptFriends(profile config.Profile) bool {
+	return profile.AutoAcceptFriends && !profile.FriendsOnly
 }
 
-func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, host roomHost, info auth.RoomInfo, rl roomLog) error {
+func (m *Manager) serveRoom(ctx context.Context, index int, profile config.Profile, host roomHost, info auth.RoomInfo, rl roomLog) error {
 	sessionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	friendsDone := make(chan struct{})
 	go func() {
 		defer close(friendsDone)
-		if shouldAutoAcceptFriends(cfg) {
+		if shouldAutoAcceptFriends(profile) {
 			friends.Watch(sessionCtx, info.UserID, info.EncryptKey, rl.event, rl.debug)
 			return
 		}
-		if cfg.AutoAcceptFriends && cfg.FriendsOnly {
+		if profile.AutoAcceptFriends && profile.FriendsOnly {
 			rl.event("已跳过好友申请自动同意：房间设置为仅好友可进")
 		}
 	}()
@@ -67,14 +67,14 @@ func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, h
 			// NetEase counts the host bot, so a room admits MaxPlayers-1 guests.
 			full := true
 			m.updateRoom(index, func(status *RoomStatus) {
-				full = status.Players >= cfg.MaxPlayers-1
+				full = status.Players >= profile.MaxPlayers-1
 				if !full {
 					status.Players++
 				}
 			})
 			if full {
 				conn.Close()
-				rl.event(fmt.Sprintf("房间已满（最多 %d 位玩家），拒绝了一个新连接", cfg.MaxPlayers-1))
+				rl.event(fmt.Sprintf("房间已满（最多 %d 位玩家），拒绝了一个新连接", profile.MaxPlayers-1))
 				continue
 			}
 			client, ok := conn.(*nethernet.Conn)
@@ -104,7 +104,7 @@ func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, h
 				defer m.players.unregister(guest)
 				rl.debug("玩家连接已建立，正在转发到本地服务器")
 				dialCtx, stop := context.WithTimeout(playerCtx, 8*time.Second)
-				server, err := dialUpstream(dialCtx, cfg)
+				server, err := dialUpstream(dialCtx, profile)
 				stop()
 				if err != nil {
 					if playerCtx.Err() == nil {
@@ -129,7 +129,7 @@ func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, h
 						m.players.notePlayStatus(guest, status)
 						if status == 0 {
 							rl.event(fmt.Sprintf("玩家 %s 已加入服务器%s",
-								playerLabel(info.Name), m.roomOccupancy(index, cfg.MaxPlayers)))
+								playerLabel(info.Name), m.roomOccupancy(index, profile.MaxPlayers)))
 							return
 						}
 						rl.event(fmt.Sprintf("玩家 %s 登录失败：%s",
@@ -182,7 +182,7 @@ func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, h
 			cancel()
 			return fmt.Errorf("WebRTC 信令断开: %w", err)
 		case <-ticker.C:
-			version, pingErr := pingUpstream(sessionCtx, cfg)
+			version, pingErr := pingUpstream(sessionCtx, profile)
 			online := pingErr == nil
 			if online != upstreamOnline {
 				if online {
@@ -192,16 +192,13 @@ func (m *Manager) serveRoom(ctx context.Context, index int, cfg config.Config, h
 				}
 				upstreamOnline = online
 			}
-			m.updateStatus(func(status *Status) {
+			m.updateRoom(index, func(status *RoomStatus) {
 				status.UpstreamOnline = online
 				if online {
 					status.UpstreamVersion = version
-				}
-			})
-			m.updateRoom(index, func(status *RoomStatus) {
-				if online {
 					status.Phase = "online"
 				} else {
+					status.UpstreamVersion = ""
 					status.Phase = "upstream_offline"
 				}
 			})

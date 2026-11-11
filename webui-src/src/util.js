@@ -1,15 +1,25 @@
 export const phaseLabels = {
   stopped: '已停止',
+  starting: '正在启动',
   checking_upstream: '检查服务器',
   authenticating: '正在鉴权',
   creating: '正在创建房间',
   online: '房间在线',
+  stopping: '正在停止',
   retrying: '等待重连',
   upstream_offline: '后端离线',
 };
 
 export function phaseLabel(phase) {
   return phaseLabels[phase] || phase || '未知';
+}
+
+// isProxyRoom resolves the connection mode for one account's room instead of
+// assuming a single global mode.
+export function isProxyRoom(status, index) {
+  const room = status?.rooms?.[index];
+  const account = status?.accounts?.[index];
+  return (room?.connection_mode || account?.connection_mode || 'proxy') === 'proxy';
 }
 
 export function phaseColor(phase) {
@@ -19,6 +29,8 @@ export function phaseColor(phase) {
     case 'retrying':
     case 'upstream_offline':
       return 'warning';
+    case 'starting':
+    case 'stopping':
     case 'checking_upstream':
     case 'authenticating':
     case 'creating':

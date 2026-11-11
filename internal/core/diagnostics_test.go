@@ -22,12 +22,12 @@ func diagnosticsByID(checks []DiagnosticCheck) map[string]DiagnosticCheck {
 func TestDiagnoseHealthyStoppedManager(t *testing.T) {
 	manager := newTestManager(t)
 	cfg := config.Defaults()
-	cfg.LimboPacksDir = t.TempDir()
+	cfg.Profiles[0].LimboPacksDir = t.TempDir()
 	if err := manager.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}
 	addTestAccounts(t, manager, 2)
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
 	lockDir := t.TempDir()
@@ -35,10 +35,10 @@ func TestDiagnoseHealthyStoppedManager(t *testing.T) {
 		return session.ClaimIn(lockDir, token)
 	}
 
-	checks := diagnosticsByID(manager.Diagnose(context.Background()))
+	checks := diagnosticsByID(manager.Diagnose(context.Background(), ""))
 	want := map[string]string{
 		"config": DiagnosticOK, "data_dir": DiagnosticOK, "upstream": DiagnosticOK,
-		"limbo": DiagnosticSkip, "packs": DiagnosticOK, "accounts": DiagnosticOK,
+		"limbo": DiagnosticSkip, "packs": DiagnosticSkip, "accounts": DiagnosticOK,
 		"mode": DiagnosticOK, "locks": DiagnosticOK,
 	}
 	for id, status := range want {
@@ -55,17 +55,24 @@ func TestDiagnoseHealthyStoppedManager(t *testing.T) {
 
 func TestDiagnoseReportsFailuresWithoutSideEffects(t *testing.T) {
 	manager := newTestManager(t)
+	limbo := filepath.Join(t.TempDir(), "limbo")
+	if err := os.WriteFile(limbo, []byte("demo"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	packs := filepath.Join(t.TempDir(), "missing-packs")
 	cfg := config.Defaults()
-	cfg.LimboPacksDir = filepath.Join(t.TempDir(), "missing-packs")
+	cfg.LimboPath = limbo
+	cfg.Profiles[0].ConnectionMode = config.ConnectionTransfer
+	cfg.Profiles[0].LimboPacksDir = packs
 	if err := manager.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "", errors.New("connection refused")
 	}
 
-	checks := diagnosticsByID(manager.Diagnose(context.Background()))
-	if checks["upstream"].Status != DiagnosticFail {
+	checks := diagnosticsByID(manager.Diagnose(context.Background(), ""))
+	if checks["upstream"].Status != DiagnosticSkip {
 		t.Fatalf("upstream = %+v", checks["upstream"])
 	}
 	if checks["packs"].Status != DiagnosticWarn {
@@ -77,7 +84,7 @@ func TestDiagnoseReportsFailuresWithoutSideEffects(t *testing.T) {
 	if checks["locks"].Status != DiagnosticSkip {
 		t.Fatalf("locks = %+v", checks["locks"])
 	}
-	if _, err := os.Stat(cfg.LimboPacksDir); !os.IsNotExist(err) {
+	if _, err := os.Stat(packs); !os.IsNotExist(err) {
 		t.Fatal("diagnostics created the resource pack directory")
 	}
 }
@@ -89,18 +96,18 @@ func TestDiagnoseTransferStoppedSkipsLimboPing(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := config.Defaults()
-	cfg.ConnectionMode = config.ConnectionTransfer
+	cfg.Profiles[0].ConnectionMode = config.ConnectionTransfer
 	cfg.LimboPath = limbo
-	cfg.LimboPacksDir = t.TempDir()
+	cfg.Profiles[0].LimboPacksDir = t.TempDir()
 	if err := manager.Configure(cfg); err != nil {
 		t.Fatal(err)
 	}
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		t.Fatal("transfer diagnostics pinged the stopped intermediary")
 		return "", nil
 	}
 
-	checks := diagnosticsByID(manager.Diagnose(context.Background()))
+	checks := diagnosticsByID(manager.Diagnose(context.Background(), ""))
 	if checks["upstream"].Status != DiagnosticSkip {
 		t.Fatalf("upstream = %+v", checks["upstream"])
 	}
@@ -112,15 +119,15 @@ func TestDiagnoseTransferStoppedSkipsLimboPing(t *testing.T) {
 func TestDiagnoseSkipsLocksWhileRunning(t *testing.T) {
 	manager := newTestManager(t)
 	addTestAccounts(t, manager, 1)
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
 	manager.mu.Lock()
-	manager.cancel = func() {}
+	manager.runtimes[0] = &roomRuntime{index: 0, profile: config.DefaultProfile(), done: make(chan struct{})}
 	manager.mu.Unlock()
 	defer func() {
 		manager.mu.Lock()
-		manager.cancel = nil
+		delete(manager.runtimes, 0)
 		manager.mu.Unlock()
 	}()
 	manager.claimSession = func(string) (*session.Lease, error) {
@@ -128,7 +135,7 @@ func TestDiagnoseSkipsLocksWhileRunning(t *testing.T) {
 		return nil, nil
 	}
 
-	checks := diagnosticsByID(manager.Diagnose(context.Background()))
+	checks := diagnosticsByID(manager.Diagnose(context.Background(), ""))
 	if checks["locks"].Status != DiagnosticSkip {
 		t.Fatalf("locks = %+v", checks["locks"])
 	}
@@ -137,7 +144,7 @@ func TestDiagnoseSkipsLocksWhileRunning(t *testing.T) {
 func TestDiagnoseReportsBusyAndBrokenLocks(t *testing.T) {
 	manager := newTestManager(t)
 	addTestAccounts(t, manager, 2)
-	manager.pingFn = func(context.Context, config.Config) (string, error) {
+	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
 	manager.claimSession = func(token string) (*session.Lease, error) {
@@ -147,7 +154,7 @@ func TestDiagnoseReportsBusyAndBrokenLocks(t *testing.T) {
 		return nil, errors.New("lock directory unavailable")
 	}
 
-	checks := diagnosticsByID(manager.Diagnose(context.Background()))
+	checks := diagnosticsByID(manager.Diagnose(context.Background(), ""))
 	if checks["locks"].Status != DiagnosticFail {
 		t.Fatalf("locks = %+v", checks["locks"])
 	}

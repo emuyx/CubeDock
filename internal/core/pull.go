@@ -5,36 +5,35 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/emuyx/cubedock/internal/config"
 )
 
 // pullResourcePacks runs the bundled limbo in one-shot pull mode. limbo logs
 // into the backend server as a bot, downloads unencrypted resource packs, and
 // exits. It is shared by automatic pulls and the console refresh action.
-func (m *Manager) pullResourcePacks(ctx context.Context) (string, error) {
+func (m *Manager) pullResourcePacks(ctx context.Context, profile config.Profile, name, uid string) (string, error) {
 	m.mu.Lock()
-	cfg := m.cfg
-	name, uid := "CubeDockPackBot", "1000000000"
-	if len(m.accounts) > 0 {
-		if strings.TrimSpace(m.accounts[0].Name) != "" {
-			name = m.accounts[0].Name
-		}
-		if strings.TrimSpace(m.accounts[0].UID) != "" {
-			uid = m.accounts[0].UID
-		}
-	}
+	limboPath := m.cfg.LimboPath
 	m.mu.Unlock()
 
-	path, err := limboExecutable(cfg)
+	path, err := limboExecutable(limboPath)
 	if err != nil {
 		return "", err
 	}
-	packsDir, err := EnsureLimboPacksDir(cfg)
+	packsDir, err := EnsureLimboPacksDir(m.dir, profile)
 	if err != nil {
 		return "", err
+	}
+	if strings.TrimSpace(name) == "" {
+		name = "CubeDockPackBot"
+	}
+	if strings.TrimSpace(uid) == "" {
+		uid = "1000000000"
 	}
 	args := []string{
 		"-pull",
-		"-target", cfg.Upstream,
+		"-target", profile.Upstream,
 		"-packs", packsDir,
 		"-identity-name", name,
 		"-identity-uid", uid,

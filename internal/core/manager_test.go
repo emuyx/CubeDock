@@ -146,7 +146,7 @@ func TestSetDebugControlsTraceEvents(t *testing.T) {
 func TestStartTransferRequiresLimboHelper(t *testing.T) {
 	manager := newTestManager(t)
 	next := config.Defaults()
-	next.ConnectionMode = config.ConnectionTransfer
+	next.Profiles[0].ConnectionMode = config.ConnectionTransfer
 	next.LimboPath = filepath.Join(t.TempDir(), "missing-limbo")
 	if err := manager.Configure(next); err != nil {
 		t.Fatal(err)
@@ -170,15 +170,15 @@ func TestManagerConfigure(t *testing.T) {
 		t.Fatal("web port change accepted at runtime")
 	}
 	next = config.Defaults()
-	next.RoomName = "新房间"
+	next.Profiles[0].RoomName = "新房间"
 	if err := manager.Configure(next); err != nil {
 		t.Fatal(err)
 	}
-	if got := manager.Snapshot().Config.RoomName; got != "新房间" {
+	if got := manager.Snapshot().Config.Profiles[0].RoomName; got != "新房间" {
 		t.Fatalf("room name = %q", got)
 	}
 	bad := config.Defaults()
-	bad.Upstream = "bad"
+	bad.Profiles[0].Upstream = "bad"
 	if err := manager.Configure(bad); err == nil {
 		t.Fatal("invalid configuration accepted")
 	}

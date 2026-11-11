@@ -59,6 +59,9 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 	mux.HandleFunc("POST /api/packs/refresh", h.refreshResourcePacks)
 	mux.HandleFunc("POST /api/start", h.start)
 	mux.HandleFunc("POST /api/stop", h.stop)
+	mux.HandleFunc("POST /api/room/start", h.startRoom)
+	mux.HandleFunc("POST /api/room/stop", h.stopRoom)
+	mux.HandleFunc("POST /api/room/restart", h.restartRoom)
 	mux.HandleFunc("POST /api/debug", h.setDebug)
 	mux.HandleFunc("POST /api/console", h.runConsole)
 	mux.HandleFunc("POST /api/exit", h.exit)
@@ -67,6 +70,7 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 	mux.HandleFunc("POST /api/session/interop-login", h.interopLogin)
 	mux.HandleFunc("POST /api/account/remove", h.removeAccount)
 	mux.HandleFunc("POST /api/account/profile", h.refreshProfile)
+	mux.HandleFunc("POST /api/account/assign-profile", h.assignProfile)
 	mux.Handle("GET /", http.FileServer(http.FS(webui.Root())))
 
 	port := manager.Snapshot().Config.WebPort
@@ -139,21 +143,30 @@ func (h *consoleHandler) status(w http.ResponseWriter, _ *http.Request) {
 	respond(w, h.manager.Snapshot())
 }
 
-func (h *consoleHandler) resourcePacks(w http.ResponseWriter, _ *http.Request) {
-	list, err := h.manager.ResourcePacks()
+func (h *consoleHandler) resourcePacks(w http.ResponseWriter, r *http.Request) {
+	list, err := h.manager.ResourcePacks(r.URL.Query().Get("profile_id"))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	respond(w, list)
 }
 
 func (h *consoleHandler) refreshResourcePacks(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProfileID string `json:"profile_id"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil {
+		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
-	result, err := h.manager.RefreshResourcePacks(ctx)
+	result, err := h.manager.RefreshResourcePacks(ctx, body.ProfileID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	respond(w, result)
@@ -170,6 +183,54 @@ func (h *consoleHandler) start(w http.ResponseWriter, _ *http.Request) {
 func (h *consoleHandler) stop(w http.ResponseWriter, _ *http.Request) {
 	h.manager.Stop()
 	respond(w, map[string]bool{"ok": true})
+}
+
+func (h *consoleHandler) startRoom(w http.ResponseWriter, r *http.Request) {
+	h.roomAction(w, r, h.manager.StartAccount)
+}
+
+func (h *consoleHandler) stopRoom(w http.ResponseWriter, r *http.Request) {
+	h.roomAction(w, r, h.manager.StopAccount)
+}
+
+func (h *consoleHandler) restartRoom(w http.ResponseWriter, r *http.Request) {
+	h.roomAction(w, r, h.manager.RestartAccount)
+}
+
+func (h *consoleHandler) roomAction(w http.ResponseWriter, r *http.Request, action func(int) error) {
+	var body struct {
+		Index int `json:"index"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil {
+		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	if err := action(body.Index); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	respond(w, map[string]bool{"ok": true})
+}
+
+func (h *consoleHandler) assignProfile(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Index     int    `json:"index"`
+		ProfileID string `json:"profile_id"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil {
+		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	if err := h.manager.AssignAccountProfile(body.Index, body.ProfileID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	h.manager.Record("账号", fmt.Sprintf("房间 %d 已切换配置方案：%s", body.Index+1, body.ProfileID))
+	respond(w, map[string]any{"ok": true, "index": body.Index, "profile_id": body.ProfileID})
 }
 
 func (h *consoleHandler) setDebug(w http.ResponseWriter, r *http.Request) {
@@ -216,7 +277,7 @@ func (h *consoleHandler) saveConfig(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Config config.Config `json:"config"`
 	}
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384))
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256*1024))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&body); err != nil {
 		http.Error(w, "配置 JSON 无效", http.StatusBadRequest)
@@ -231,11 +292,11 @@ func (h *consoleHandler) saveConfig(w http.ResponseWriter, r *http.Request) {
 
 // saveSession stores one verified session and its account metadata. index
 // selects an existing room to replace; nil adds a new account.
-func (h *consoleHandler) saveSession(token, platform, expiresAt, email, label string, profile auth.Profile, index *int) (int, error) {
+func (h *consoleHandler) saveSession(token, platform, expiresAt, email, label, profileID string, profile auth.Profile, index *int) (int, error) {
 	meta := core.AccountMeta{
 		Email: strings.TrimSpace(email), Label: strings.TrimSpace(label),
 		Name: profile.Name, UID: profile.UID, Level: profile.Level,
-		Platform: platform, ExpiresAt: expiresAt,
+		Platform: platform, ExpiresAt: expiresAt, ProfileID: strings.TrimSpace(profileID),
 	}
 	if index != nil {
 		existing := h.manager.Accounts()
@@ -289,10 +350,11 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Sauth string `json:"sauth"`
-		Email string `json:"email"`
-		Label string `json:"label"`
-		Index *int   `json:"index"`
+		Sauth     string `json:"sauth"`
+		Email     string `json:"email"`
+		Label     string `json:"label"`
+		Index     *int   `json:"index"`
+		ProfileID string `json:"profile_id"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024))
 	decoder.DisallowUnknownFields()
@@ -314,7 +376,7 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
-	index, err := h.saveSession(token, platform, expiresAt, body.Email, body.Label, profile, body.Index)
+	index, err := h.saveSession(token, platform, expiresAt, body.Email, body.Label, body.ProfileID, profile, body.Index)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -322,6 +384,7 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{
 		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
 		"level": profile.Level, "platform": platform, "expires_at": expiresAt,
+		"profile_id": h.accountProfileID(index),
 	}
 	if expiresAt == "" {
 		delete(result, "expires_at")
@@ -339,10 +402,11 @@ func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		Label    string `json:"label"`
-		Index    *int   `json:"index"`
+		Email     string `json:"email"`
+		Password  string `json:"password"`
+		Label     string `json:"label"`
+		Index     *int   `json:"index"`
+		ProfileID string `json:"profile_id"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024))
 	decoder.DisallowUnknownFields()
@@ -389,7 +453,7 @@ func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
-	index, err := h.saveSession(token, platform, expiresAt, email, body.Label, profile, body.Index)
+	index, err := h.saveSession(token, platform, expiresAt, email, body.Label, body.ProfileID, profile, body.Index)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -397,6 +461,7 @@ func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{
 		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
 		"level": profile.Level, "platform": platform, "expires_at": expiresAt,
+		"profile_id": h.accountProfileID(index),
 	}
 	if expiresAt == "" {
 		delete(result, "expires_at")
@@ -457,6 +522,14 @@ func (h *consoleHandler) refreshProfile(w http.ResponseWriter, r *http.Request) 
 	}
 	h.manager.Record("账号", fmt.Sprintf("房间 %d 游戏名解析成功：%s（UID %s）", body.Index+1, profile.Name, profile.UID))
 	respond(w, map[string]any{"ok": true, "name": profile.Name, "uid": profile.UID, "level": profile.Level})
+}
+
+func (h *consoleHandler) accountProfileID(index int) string {
+	accounts := h.manager.Accounts()
+	if index < 0 || index >= len(accounts) {
+		return ""
+	}
+	return accounts[index].ProfileID
 }
 
 func loopbackRequest(r *http.Request) bool {

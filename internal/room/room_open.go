@@ -21,7 +21,7 @@ import (
 
 // Open authenticates against the transfer node, creates the room and starts
 // the signaling session. trace may be nil.
-func Open(ctx context.Context, cfg config.Config, info auth.RoomInfo, trace func(string)) (host *Host, err error) {
+func Open(ctx context.Context, profile config.Profile, info auth.RoomInfo, trace func(string)) (host *Host, err error) {
 	created, err := newHost(trace)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func Open(ctx context.Context, cfg config.Config, info auth.RoomInfo, trace func
 	if err = host.authenticateControl(info); err != nil {
 		return nil, err
 	}
-	if err = host.createRoom(cfg, info); err != nil {
+	if err = host.createRoom(profile, info); err != nil {
 		return nil, err
 	}
 	if err = host.openSignaling(ctx, info); err != nil {
@@ -120,18 +120,18 @@ func (h *Host) authenticateControl(info auth.RoomInfo) error {
 	return h.decoder.EnableEncryption(info.EncryptKey, info.DecryptKey)
 }
 
-func (h *Host) createRoom(cfg config.Config, info auth.RoomInfo) error {
+func (h *Host) createRoom(profile config.Profile, info auth.RoomInfo) error {
 	privacy := uint8(0)
-	if cfg.FriendsOnly {
+	if profile.FriendsOnly {
 		privacy = 1
 	}
 	if err := h.send(&packet.TanCreateRoomRequest{
-		Capacity: uint8(cfg.MaxPlayers), Privacy: privacy, Slogan: cfg.RoomName, Password: cfg.RoomPassword,
+		Capacity: uint8(profile.MaxPlayers), Privacy: privacy, Slogan: profile.RoomName, Password: profile.RoomPassword,
 		Tips: encoding.RoomTips{
 			LevelID: levelID, ConstantTestString: "test",
-			ProtocolID: info.ProtocolID, GameVersion: cfg.RoomGameVersion,
+			ProtocolID: info.ProtocolID, GameVersion: profile.RoomGameVersion,
 		},
-		PvP: cfg.AllowPvP, PlayerAuth: 1, EnableWebRTC: true, OwnerPing: 3, PerfLv: 1,
+		PvP: profile.AllowPvP, PlayerAuth: 1, EnableWebRTC: true, OwnerPing: 3, PerfLv: 1,
 	}); err != nil {
 		return err
 	}

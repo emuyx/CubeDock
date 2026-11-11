@@ -29,8 +29,14 @@ func (m *Manager) AddAccount(token string, meta AccountMeta) (int, error) {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.cancel != nil {
+	if m.anyRunningLocked() {
 		return -1, fmt.Errorf("请先停止房间，再添加账号")
+	}
+	if meta.ProfileID == "" {
+		meta.ProfileID = m.cfg.DefaultProfileID()
+	}
+	if _, ok := m.cfg.Profile(meta.ProfileID); !ok {
+		return -1, fmt.Errorf("选择的配置方案不存在")
 	}
 	for _, existing := range m.tokens {
 		if existing == token {
@@ -55,11 +61,20 @@ func (m *Manager) ReplaceAccount(index int, token string, meta AccountMeta) erro
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.cancel != nil {
+	if m.anyRunningLocked() {
 		return fmt.Errorf("请先停止房间，再更新账号")
 	}
 	if index < 0 || index >= len(m.tokens) {
 		return fmt.Errorf("账号序号无效")
+	}
+	if meta.ProfileID == "" {
+		meta.ProfileID = m.accounts[index].ProfileID
+	}
+	if meta.ProfileID == "" {
+		meta.ProfileID = m.cfg.DefaultProfileID()
+	}
+	if _, ok := m.cfg.Profile(meta.ProfileID); !ok {
+		return fmt.Errorf("选择的配置方案不存在")
 	}
 	for i, existing := range m.tokens {
 		if i != index && existing == token {
@@ -81,7 +96,7 @@ func (m *Manager) ReplaceAccount(index int, token string, meta AccountMeta) erro
 func (m *Manager) RemoveAccount(index int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.cancel != nil {
+	if m.anyRunningLocked() {
 		return fmt.Errorf("请先停止房间，再移除账号")
 	}
 	if index < 0 || index >= len(m.tokens) {
@@ -120,11 +135,36 @@ func (m *Manager) UpdateAccountProfile(index int, name, uid string, level int, p
 	return nil
 }
 
+// AssignAccountProfile changes which profile an account uses. It is refused
+// while any room is active because accounts are addressed by position and the
+// running room already captured its profile.
+func (m *Manager) AssignAccountProfile(index int, profileID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.anyRunningLocked() {
+		return fmt.Errorf("请先停止所有房间，再修改配置方案")
+	}
+	if index < 0 || index >= len(m.accounts) {
+		return fmt.Errorf("账号序号无效")
+	}
+	if _, ok := m.cfg.Profile(profileID); !ok {
+		return fmt.Errorf("选择的配置方案不存在")
+	}
+	next := append([]accountRecord(nil), m.accounts...)
+	next[index].ProfileID = profileID
+	if err := saveAccounts(filepath.Join(m.dir, accountFile), next); err != nil {
+		return err
+	}
+	m.accounts = next
+	return nil
+}
+
 func recordFromMeta(meta AccountMeta) accountRecord {
 	record := accountRecord{
 		Email: meta.Email, Label: meta.Label, Name: meta.Name, UID: meta.UID,
 		Level: meta.Level, Platform: meta.Platform, ExpiresAt: meta.ExpiresAt,
 		ProfileError: meta.ProfileError, VerifiedAt: meta.Verified,
+		ProfileID: meta.ProfileID,
 	}
 	if record.VerifiedAt == "" && record.Name != "" {
 		record.VerifiedAt = time.Now().Format(time.RFC3339)

@@ -24,20 +24,21 @@ import {
 import {
   Add,
   ContentCopy,
+  Dashboard,
   DeleteOutlined,
   Key,
   PeopleAlt,
   Search,
   UploadFile,
 } from '@mui/icons-material';
-import { api } from './api.js';
+import { api, assignProfile } from './api.js';
 import { copyText, phaseColor, phaseLabel } from './util.js';
 import { useConfirm, useToast } from './App.jsx';
 import AccountLogin from './AccountLogin.jsx';
 import BulkImportDialog from './BulkImportDialog.jsx';
 import PlayersDialog from './PlayersDialog.jsx';
 
-export default function AccountsPanel({ status, onChanged }) {
+export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
   const notify = useToast();
   const confirm = useConfirm();
   const [addOpen, setAddOpen] = useState(false);
@@ -51,9 +52,15 @@ export default function AccountsPanel({ status, onChanged }) {
   const [sort, setSort] = useState('room');
   const accounts = status.accounts || [];
   const rooms = status.rooms || [];
+  const profiles = status.config?.profiles || [];
+  const defaultProfileID = profiles[0]?.id || 'default';
   const running = !!status.running;
-  const proxy = status.config?.connection_mode === 'proxy';
   const canAdd = !running;
+  const profileIDOf = account => account.profile_id || defaultProfileID;
+  const profileOf = account =>
+    profiles.find(profile => profile.id === profileIDOf(account)) || profiles[0];
+  const isProxy = account =>
+    (rooms[account.index]?.connection_mode || account.connection_mode || 'proxy') === 'proxy';
 
   const phaseOf = account => rooms[account.index]?.phase || 'stopped';
   const expired = account => account.expires_at && new Date(account.expires_at) < new Date();
@@ -101,6 +108,19 @@ export default function AccountsPanel({ status, onChanged }) {
       }
       return left.index - right.index;
     });
+
+  const assign = async (index, profileId) => {
+    setBusy(true);
+    try {
+      await assignProfile(index, profileId);
+      notify('配置方案已切换', 'success');
+      onChanged?.();
+    } catch (failure) {
+      notify(failure.message || '切换配置方案失败', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const remove = async index => {
     if (running) {
@@ -223,6 +243,7 @@ export default function AccountsPanel({ status, onChanged }) {
           <TableHead>
             <TableRow>
               <TableCell>房间</TableCell>
+              <TableCell>配置方案</TableCell>
               <TableCell>网易账号</TableCell>
               <TableCell>游戏名</TableCell>
               <TableCell>状态</TableCell>
@@ -234,7 +255,7 @@ export default function AccountsPanel({ status, onChanged }) {
           <TableBody>
             {visible.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={8}>
                   <Box sx={{ py: 5, textAlign: 'center' }}>
                     <Typography color="text.secondary">
                       {accounts.length ? '没有匹配的账号，请调整搜索或筛选条件。' : '还没有网易账号，请先登录一个账号。'}
@@ -251,6 +272,25 @@ export default function AccountsPanel({ status, onChanged }) {
                 <TableRow key={account.index} hover>
                   <TableCell>
                     <Typography fontWeight={750}>房间 {account.index + 1}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      select
+                      size="small"
+                      value={profileIDOf(account)}
+                      onChange={event => assign(account.index, event.target.value)}
+                      disabled={running || busy}
+                      sx={{ minWidth: 130 }}
+                    >
+                      {profiles.map(profile => (
+                        <MenuItem key={profile.id} value={profile.id}>
+                          {profile.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.3 }}>
+                      {profileOf(account)?.connection_mode === 'transfer' ? '转服' : '代理'}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     {account.email ? (
@@ -306,7 +346,7 @@ export default function AccountsPanel({ status, onChanged }) {
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    {proxy ? (
+                    {isProxy(account) ? (
                       <Typography variant="body2">{room?.players ?? 0}</Typography>
                     ) : (
                       <Tooltip title="转服模式下玩家由目标服务器管理">
@@ -315,15 +355,27 @@ export default function AccountsPanel({ status, onChanged }) {
                     )}
                   </TableCell>
                   <TableCell align="right">
+                    <Tooltip title="打开该账号仪表盘">
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="secondary"
+                          aria-label="打开仪表盘"
+                          onClick={() => onOpenDashboard?.(account.index)}
+                        >
+                          <Dashboard fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                     <Tooltip
-                      title={proxy ? '管理这个房间的玩家' : '转服模式下玩家由目标服务器管理'}
+                      title={isProxy(account) ? '管理这个房间的玩家' : '转服模式下玩家由目标服务器管理'}
                     >
                       <span>
                         <IconButton
                           size="small"
                           color="info"
                           aria-label="管理玩家"
-                          disabled={!proxy}
+                          disabled={!isProxy(account)}
                           onClick={() => setPlayersRoom(account.index)}
                         >
                           <PeopleAlt fontSize="small" />
@@ -372,6 +424,8 @@ export default function AccountsPanel({ status, onChanged }) {
         onClose={() => setBulkOpen(false)}
         onChanged={onChanged}
         running={running}
+        profiles={profiles}
+        defaultProfileId={defaultProfileID}
       />
 
       <PlayersDialog
@@ -391,6 +445,9 @@ export default function AccountsPanel({ status, onChanged }) {
               compact
               replaceIndex={reloginIndex}
               initialEmail={reloginEmail}
+              profiles={profiles}
+              defaultProfileId={defaultProfileID}
+              initialProfileId={accounts[reloginIndex]?.profile_id || defaultProfileID}
               onAdded={() => {
                 setReloginIndex(null);
                 onChanged?.();
@@ -406,6 +463,9 @@ export default function AccountsPanel({ status, onChanged }) {
           <Box sx={{ pt: 1 }}>
             <AccountLogin
               compact
+              profiles={profiles}
+              defaultProfileId={defaultProfileID}
+              initialProfileId={defaultProfileID}
               onAdded={() => {
                 setAddOpen(false);
                 onChanged?.();

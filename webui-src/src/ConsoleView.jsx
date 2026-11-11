@@ -30,16 +30,17 @@ import {
 } from '@mui/icons-material';
 import { getStatus, logout } from './api.js';
 import { phaseColor, phaseLabel } from './util.js';
+import AccountDashboard from './AccountDashboard.jsx';
 import AccountsPanel from './AccountsPanel.jsx';
 import ChangePasswordDialog from './ChangePasswordDialog.jsx';
 import DiagnosticsPanel from './DiagnosticsPanel.jsx';
 import FaqPanel from './FaqPanel.jsx';
 import LogsPanel from './LogsPanel.jsx';
 import Overview from './Overview.jsx';
+import ProfilesPanel from './ProfilesPanel.jsx';
 import SettingsForm from './SettingsForm.jsx';
 import SetupWizard from './SetupWizard.jsx';
 import SidebarNav from './SidebarNav.jsx';
-import TransferPanel from './TransferPanel.jsx';
 import { ConfigFormProvider } from './configForm.jsx';
 
 function Brand() {
@@ -77,6 +78,7 @@ export default function ConsoleView({ mode, toggleMode }) {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [page, setPage] = useState('home');
+  const [accountIndex, setAccountIndex] = useState(null);
   const [navOpen, setNavOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -260,7 +262,15 @@ export default function ConsoleView({ mode, toggleMode }) {
               borderColor: 'divider',
             }}
           >
-            <SidebarNav page={page} onSelect={setPage} status={status} />
+            <SidebarNav
+              page={accountIndex !== null ? 'account' : page}
+              onSelect={key => {
+                setAccountIndex(null);
+                setPage(key);
+              }}
+              onOpenAccount={index => setAccountIndex(index)}
+              status={status}
+            />
           </Box>
         )}
 
@@ -278,34 +288,56 @@ export default function ConsoleView({ mode, toggleMode }) {
               </ConfigFormProvider>
             ) : (
               <ConfigFormProvider status={status} onChanged={refresh}>
-                <Stack spacing={2.6}>
-                  <Box hidden={page !== 'home'}>
-                    <Overview status={status} onChanged={refresh} onOpenSetup={openSetup} />
-                  </Box>
-                  <Box hidden={page !== 'accounts'}>
-                    <AccountsPanel status={status} onChanged={refresh} />
-                  </Box>
-                  <Box hidden={page !== 'transfer'}>
-                    <TransferPanel status={status} active={page === 'transfer'} />
-                  </Box>
-                  <Box hidden={page !== 'console'}>
-                    <LogsPanel
-                      events={status.events || []}
-                      debugEnabled={!!status.config?.debug}
-                      onDebugChanged={refresh}
-                      active={page === 'console'}
-                    />
-                  </Box>
-                  <Box hidden={page !== 'diagnostics'}>
-                    <DiagnosticsPanel status={status} active={page === 'diagnostics'} onOpenSetup={openSetup} />
-                  </Box>
-                  <Box hidden={page !== 'faq'}>
-                    <FaqPanel />
-                  </Box>
-                  <Box hidden={page !== 'settings'}>
-                    <SettingsForm status={status} onChanged={refresh} />
-                  </Box>
-                </Stack>
+                {accountIndex !== null && status.accounts?.[accountIndex] ? (
+                  <AccountDashboard
+                    status={status}
+                    accountIndex={accountIndex}
+                    onChanged={refresh}
+                    onBack={() => setAccountIndex(null)}
+                    onOpenProfiles={() => {
+                      setAccountIndex(null);
+                      setPage('profiles');
+                    }}
+                  />
+                ) : (
+                  <Stack spacing={2.6}>
+                    <Box hidden={page !== 'home'}>
+                      <Overview
+                        status={status}
+                        onChanged={refresh}
+                        onOpenSetup={openSetup}
+                        onOpenAccount={index => setAccountIndex(index)}
+                      />
+                    </Box>
+                    <Box hidden={page !== 'accounts'}>
+                      <AccountsPanel
+                        status={status}
+                        onChanged={refresh}
+                        onOpenDashboard={index => setAccountIndex(index)}
+                      />
+                    </Box>
+                    <Box hidden={page !== 'profiles'}>
+                      <ProfilesPanel status={status} active={page === 'profiles'} />
+                    </Box>
+                    <Box hidden={page !== 'console'}>
+                      <LogsPanel
+                        events={status.events || []}
+                        debugEnabled={!!status.config?.debug}
+                        onDebugChanged={refresh}
+                        active={page === 'console'}
+                      />
+                    </Box>
+                    <Box hidden={page !== 'diagnostics'}>
+                      <DiagnosticsPanel status={status} active={page === 'diagnostics'} onOpenSetup={openSetup} />
+                    </Box>
+                    <Box hidden={page !== 'faq'}>
+                      <FaqPanel />
+                    </Box>
+                    <Box hidden={page !== 'settings'}>
+                      <SettingsForm status={status} onChanged={refresh} />
+                    </Box>
+                  </Stack>
+                )}
               </ConfigFormProvider>
             )}
           </Container>
@@ -328,9 +360,14 @@ export default function ConsoleView({ mode, toggleMode }) {
             <Brand />
           </Toolbar>
           <SidebarNav
-            page={page}
+            page={accountIndex !== null ? 'account' : page}
             onSelect={key => {
+              setAccountIndex(null);
               setPage(key);
+              setNavOpen(false);
+            }}
+            onOpenAccount={index => {
+              setAccountIndex(index);
               setNavOpen(false);
             }}
             status={status}
