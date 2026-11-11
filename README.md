@@ -118,16 +118,23 @@ Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/status` | 状态、账号、房间、事件 |
+| GET | `/api/status` | 状态、账号、方案、房间、事件 |
 | POST | `/api/start` / `/api/stop` | 启动/停止全部房间 |
-| POST | `/api/config` | 保存配置 |
-| GET | `/api/packs` | 扫描资源包目录 |
+| POST | `/api/room/start` / `/api/room/stop` / `/api/room/restart` | 单账号开房/停止/重连 |
+| POST | `/api/config` | 保存配置方案与全局设置 |
+| POST | `/api/account/assign-profile` | 为账号切换配置方案 |
+| GET | `/api/packs?profile_id=` | 扫描某方案的资源包目录 |
 | POST | `/api/packs/refresh` | 机器人拉取并去重 |
 | POST | `/api/console` | 执行控制台命令 |
-| GET | `/api/players` | 在线玩家列表（仅代理模式有实际数据） |
-| POST | `/api/player/kick` | 断开玩家 |
+| GET | `/api/players` | 已进入世界的玩家（仅代理模式有实际数据） |
+| GET | `/api/room/members?index=` | 网易房间成员（含未进入世界） |
+| POST | `/api/player/kick` | 断开世界玩家 |
+| POST | `/api/player/room-kick` | 通过房间控制通道踢出世界玩家 |
+| POST | `/api/room/kick-member` | 按房间玩家 ID 踢出（含未进世界） |
+| GET | `/api/friends?index=` | 运行中房间的好友申请列表 |
+| POST | `/api/friend/accept` | 手动同意好友申请 |
 | POST | `/api/player/transfer` | 请求玩家转服（实验） |
-| GET | `/api/diagnostics` | 只读运行诊断 |
+| GET | `/api/diagnostics?profile_id=` | 只读运行诊断 |
 | GET | `/api/backup` | 导出配置备份（不含登录凭证） |
 | POST | `/api/restore` | 恢复配置 |
 
