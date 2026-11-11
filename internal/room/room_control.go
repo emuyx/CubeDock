@@ -65,6 +65,9 @@ func (h *Host) controlLoop() {
 				h.guestMu.Lock()
 				h.guestPlayers[networkID] = event.PlayerID
 				h.guestMu.Unlock()
+				if h.trace != nil {
+					h.trace(fmt.Sprintf("玩家加入映射：TanLobby PlayerID=%d NetherNetID=%d", event.PlayerID, networkID))
+				}
 			}
 			if err = h.notifyReady(); err != nil {
 				h.fail(err)

@@ -201,7 +201,7 @@ func TestRoomKickPlayerUsesTanLobbyID(t *testing.T) {
 	if host.kicked.Load() != 4242 || status.RoomPlayerID != 4242 || status.State != PlayerKicked {
 		t.Fatalf("status = %+v, kicked = %d", status, host.kicked.Load())
 	}
-	if cancelled.Load() != 0 {
-		t.Fatal("room-side kick closed the local client instead of using the room control channel")
+	if cancelled.Load() != 1 {
+		t.Fatal("room-side kick did not close the local client after sending the control request")
 	}
 }

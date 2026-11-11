@@ -258,20 +258,20 @@ func (r *playerRegistry) kick(target string) (PlayerStatus, context.CancelFunc, 
 
 // roomKickTarget resolves a player that has a TanLobby player ID. The caller
 // sends the kick on the room control connection before marking the state.
-func (r *playerRegistry) roomKickTarget(target string) (*livePlayer, PlayerStatus, error) {
+func (r *playerRegistry) roomKickTarget(target string) (*livePlayer, PlayerStatus, context.CancelFunc, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	player, err := r.resolveLocked(target)
 	if err != nil {
-		return nil, PlayerStatus{}, err
+		return nil, PlayerStatus{}, nil, err
 	}
 	if player.state == PlayerKicked {
-		return nil, PlayerStatus{}, fmt.Errorf("玩家 %s 正在断开", player.id)
+		return nil, PlayerStatus{}, nil, fmt.Errorf("玩家 %s 正在断开", player.id)
 	}
 	if player.tanPlayerID == 0 {
-		return nil, PlayerStatus{}, fmt.Errorf("玩家 %s 还没有房间玩家 ID", player.id)
+		return nil, PlayerStatus{}, nil, fmt.Errorf("玩家 %s 还没有房间玩家 ID", player.id)
 	}
-	return player, playerStatus(player, time.Now()), nil
+	return player, playerStatus(player, time.Now()), player.cancel, nil
 }
 
 // markRoomKicked records a successful TanLobby kick request.
@@ -325,7 +325,7 @@ func (m *Manager) ListPlayers() []PlayerStatus {
 // RoomKickPlayer asks the NetEase room control node to remove one guest. It
 // only works while the owning room is online and has assigned a TanLobby ID.
 func (m *Manager) RoomKickPlayer(target string) (PlayerStatus, error) {
-	player, status, err := m.players.roomKickTarget(target)
+	player, status, cancel, err := m.players.roomKickTarget(target)
 	if err != nil {
 		return PlayerStatus{}, err
 	}
@@ -339,12 +339,18 @@ func (m *Manager) RoomKickPlayer(target string) (PlayerStatus, error) {
 	if err := host.KickPlayer(status.RoomPlayerID); err != nil {
 		return PlayerStatus{}, err
 	}
+	// The TanLobby control node may process the removal asynchronously. Close
+	// the local NetherNet path too so the kick takes effect immediately; the
+	// guest is free to rejoin unless the room itself restricts entry.
+	if cancel != nil {
+		cancel()
+	}
 	status, err = m.players.markRoomKicked(player)
 	if err != nil {
 		return PlayerStatus{}, err
 	}
-	m.emit("控制台", fmt.Sprintf("管理员已请求房间踢出玩家 %s（%s，房间 %d）",
-		playerLabel(status.Name), status.ID, status.Room))
+	m.emit("控制台", fmt.Sprintf("管理员已请求房间踢出玩家 %s（%s，房间 %d，房间玩家 ID %d）",
+		playerLabel(status.Name), status.ID, status.Room, status.RoomPlayerID))
 	return status, nil
 }
 
