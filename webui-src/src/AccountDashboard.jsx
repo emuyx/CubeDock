@@ -273,23 +273,40 @@ export default function AccountDashboard({
 
   return (
     <Stack spacing={2.2}>
-      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-        <Button startIcon={<ArrowBack />} onClick={onBack} color="inherit">
-          返回
-        </Button>
-        <Typography variant="h5" fontWeight={850} sx={{ minWidth: 0 }} noWrap>
-          {account?.name || account?.label || `房间 ${accountIndex + 1}`} 的仪表盘
-        </Typography>
-        <Chip size="small" color={phaseColor(phase)} label={phaseLabel(phase)} />
-        {profile && (
-          <Chip
+      <Stack spacing={1}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <IconButton
             size="small"
-            variant="outlined"
-            color={transfer ? 'secondary' : 'primary'}
-            icon={<Tune fontSize="small" />}
-            label={profile.name}
-          />
-        )}
+            aria-label="返回"
+            onClick={onBack}
+            sx={{ display: { xs: 'inline-flex', sm: 'none' }, ml: -0.8 }}
+          >
+            <ArrowBack />
+          </IconButton>
+          <Button
+            startIcon={<ArrowBack />}
+            onClick={onBack}
+            color="inherit"
+            sx={{ display: { xs: 'none', sm: 'inline-flex' }, flexShrink: 0 }}
+          >
+            返回
+          </Button>
+          <Typography variant="h5" fontWeight={850} sx={{ minWidth: 0, flexGrow: 1 }} noWrap>
+            {account?.name || account?.label || `房间 ${accountIndex + 1}`} 的仪表盘
+          </Typography>
+        </Stack>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Chip size="small" color={phaseColor(phase)} label={phaseLabel(phase)} />
+          {profile && (
+            <Chip
+              size="small"
+              variant="outlined"
+              color={transfer ? 'secondary' : 'primary'}
+              icon={<Tune fontSize="small" />}
+              label={profile.name}
+            />
+          )}
+        </Stack>
       </Stack>
 
       <Box

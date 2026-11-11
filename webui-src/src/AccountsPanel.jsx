@@ -3,6 +3,8 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
   Chip,
   Dialog,
   DialogContent,
@@ -20,9 +22,12 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Add,
+  Close,
   ContentCopy,
   Dashboard,
   DeleteOutlined,
@@ -41,6 +46,9 @@ import PlayersDialog from './PlayersDialog.jsx';
 export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
   const notify = useToast();
   const confirm = useConfirm();
+  const theme = useTheme();
+  const mobile = useMediaQuery(theme.breakpoints.down('md'));
+  const phone = useMediaQuery(theme.breakpoints.down('sm'));
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [playersRoom, setPlayersRoom] = useState(null);
@@ -238,6 +246,118 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
 
       {running && <Alert severity="info">房间运行中，停止后才能添加或移除账号。</Alert>}
 
+      {mobile ? (
+        <Stack spacing={1.5}>
+          {visible.length === 0 && (
+            <Card variant="outlined">
+              <CardContent sx={{ py: 5, textAlign: 'center' }}>
+                <Typography color="text.secondary">
+                  {accounts.length ? '没有匹配的账号，请调整搜索或筛选条件。' : '还没有网易账号，请先登录一个账号。'}
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+          {visible.map(account => {
+            const room = rooms[account.index];
+            const phase = room?.phase || 'stopped';
+            const sessionExpired = account.expires_at && new Date(account.expires_at) < new Date();
+            return (
+              <Card key={account.index} variant="outlined">
+                <CardContent sx={{ p: 1.7, '&:last-child': { pb: 1.7 } }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography fontWeight={800}>房间 {account.index + 1}</Typography>
+                      <Typography variant="body2" color="text.secondary" noWrap>
+                        {account.name || account.email || account.label || '未命名'}
+                      </Typography>
+                    </Box>
+                    <Chip size="small" color={phaseColor(phase)} label={phaseLabel(phase)} />
+                  </Stack>
+
+                  <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                    <Chip size="small" variant="outlined" label={profileOf(account)?.name || '默认配置'} />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={profileOf(account)?.connection_mode === 'transfer' ? '转服' : '代理'}
+                    />
+                    {account.platform === 'interop' && (
+                      <Chip size="small" color="secondary" label="互通版会话" />
+                    )}
+                    {sessionExpired && <Chip size="small" color="error" label="登录已过期" />}
+                  </Stack>
+
+                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 1.2 }}>
+                    <Typography variant="body2" fontFamily="ui-monospace, monospace">
+                      {room?.room_id || '—'}
+                    </Typography>
+                    {room?.room_id && (
+                      <IconButton size="small" aria-label="复制房间号" onClick={() => copyRoom(room.room_id)}>
+                        <ContentCopy fontSize="inherit" />
+                      </IconButton>
+                    )}
+                    <Box sx={{ flexGrow: 1 }} />
+                    <Typography variant="caption" color="text.secondary">
+                      {isProxy(account) ? `${room?.players ?? 0} 人` : '转服模式'}
+                    </Typography>
+                  </Stack>
+
+                  <TextField
+                    select
+                    size="small"
+                    fullWidth
+                    label="配置方案"
+                    value={profileIDOf(account)}
+                    onChange={event => assign(account.index, event.target.value)}
+                    disabled={running || busy}
+                    sx={{ mt: 1.2 }}
+                  >
+                    {profiles.map(profile => (
+                      <MenuItem key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                    <Button size="small" startIcon={<Dashboard fontSize="small" />} onClick={() => onOpenDashboard?.(account.index)}>
+                      仪表盘
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<PeopleAlt fontSize="small" />}
+                      disabled={!isProxy(account)}
+                      onClick={() => setPlayersRoom(account.index)}
+                    >
+                      玩家
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<Key fontSize="small" />}
+                      disabled={running || busy}
+                      onClick={() => {
+                        setReloginEmail(account.email || '');
+                        setReloginIndex(account.index);
+                      }}
+                    >
+                      更新登录
+                    </Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      startIcon={<DeleteOutlined fontSize="small" />}
+                      disabled={running || busy}
+                      onClick={() => remove(account.index)}
+                    >
+                      移除
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Stack>
+      ) : (
       <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 3 }}>
         <Table size="small">
           <TableHead>
@@ -418,6 +538,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
           </TableBody>
         </Table>
       </TableContainer>
+      )}
 
       <BulkImportDialog
         open={bulkOpen}
@@ -435,9 +556,12 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
         onClose={() => setPlayersRoom(null)}
       />
 
-      <Dialog open={reloginIndex !== null} onClose={() => setReloginIndex(null)} fullWidth maxWidth="sm">
-        <DialogTitle>
-          更新房间 {reloginIndex !== null ? reloginIndex + 1 : ''} 的登录
+      <Dialog open={reloginIndex !== null} onClose={() => setReloginIndex(null)} fullWidth maxWidth="sm" fullScreen={phone}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <span>更新房间 {reloginIndex !== null ? reloginIndex + 1 : ''} 的登录</span>
+          <IconButton aria-label="关闭" onClick={() => setReloginIndex(null)} size="small">
+            <Close />
+          </IconButton>
         </DialogTitle>
         <DialogContent>
           {reloginIndex !== null && (
@@ -457,8 +581,13 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={addOpen} onClose={() => setAddOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>登录网易账号</DialogTitle>
+      <Dialog open={addOpen} onClose={() => setAddOpen(false)} fullWidth maxWidth="sm" fullScreen={phone}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <span>登录网易账号</span>
+          <IconButton aria-label="关闭" onClick={() => setAddOpen(false)} size="small">
+            <Close />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 1 }}>
             <AccountLogin

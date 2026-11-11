@@ -25,6 +25,41 @@
     syncThemeLabel();
   }
 
+  var navToggle = document.querySelector('.nav-toggle');
+  var siteNav = document.querySelector('.site-nav');
+
+  function setSiteNav(open) {
+    if (!siteNav || !navToggle) return;
+    siteNav.dataset.open = open ? 'true' : 'false';
+    navToggle.classList.toggle('is-open', open);
+    navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    navToggle.setAttribute('aria-label', open ? '关闭导航' : '打开导航');
+  }
+
+  if (navToggle && siteNav) {
+    navToggle.addEventListener('click', function (event) {
+      event.stopPropagation();
+      setSiteNav(siteNav.dataset.open !== 'true');
+    });
+    siteNav.addEventListener('click', function (event) {
+      if (event.target.closest('a')) setSiteNav(false);
+    });
+    document.addEventListener('click', function (event) {
+      if (siteNav.dataset.open !== 'true') return;
+      if (event.target.closest('.site-nav') || event.target.closest('.nav-toggle')) return;
+      setSiteNav(false);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') setSiteNav(false);
+    });
+    var wide = window.matchMedia('(min-width: 1001px)');
+    var closeOnWide = function (event) {
+      if (event.matches) setSiteNav(false);
+    };
+    if (wide.addEventListener) wide.addEventListener('change', closeOnWide);
+    else if (wide.addListener) wide.addListener(closeOnWide);
+  }
+
   document.querySelectorAll('.copy-btn').forEach(function (button) {
     button.addEventListener('click', function () {
       var target = document.getElementById(button.getAttribute('data-copy-target'));

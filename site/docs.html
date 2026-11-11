@@ -49,7 +49,7 @@
           </span>
         </a>
 
-        <nav class="site-nav" aria-label="主导航">
+        <nav class="site-nav" id="site-nav" aria-label="主导航">
           <a href="./index.html#features">功能</a>
           <a href="./index.html#modes">模式</a>
           <a href="./index.html#quickstart">快速开始</a>
@@ -63,6 +63,17 @@
         </nav>
 
         <div class="header-actions">
+          <button
+            class="icon-btn nav-toggle"
+            type="button"
+            aria-label="打开导航"
+            aria-expanded="false"
+            aria-controls="site-nav"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
           <button class="icon-btn theme-toggle" type="button" aria-label="切换主题" title="切换主题">
             <svg class="theme-icon moon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M20.7 14.2A8.4 8.4 0 0 1 9.8 3.3 8.5 8.5 0 1 0 20.7 14.2Z" />
@@ -83,7 +94,7 @@
       <aside class="docs-toc reveal" aria-label="文档目录">
         <span class="eyebrow">DOCUMENTATION</span>
         <h2>使用文档</h2>
-        <p class="docs-version">v0.3.0-dev · 最新稳定版 v0.2.0</p>
+        <p class="docs-version">v0.3.1-dev · 最新稳定版 v0.2.0</p>
         <nav>
           <a href="#overview">概览</a>
           <a href="#requirements">运行要求</a>
@@ -134,8 +145,10 @@
             准入等级、网易房间成员列表、手动好友申请和第一方认证链。
           </p>
           <div class="doc-callout doc-note">
-            <strong>版本提示：</strong>本站对应 <code>main</code> 分支的 v0.3.0 开发版；
+            <strong>版本提示：</strong>本站对应 <code>main</code> 分支的 v0.3.1 开发版；
             Releases 中的最新稳定版仍是 v0.2.0。下载按钮始终指向最新稳定版。
+            <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">GitHub Actions 的测试版构建</a>
+            会保留每次 <code>main</code> 推送的构建产物，适合提前试用，但不保证稳定。
           </div>
         </section>
 
@@ -527,6 +540,7 @@
           <div class="docs-footer-actions">
             <a class="btn btn-primary" href="./demo.html">打开控制台演示 <span class="btn-arrow">→</span></a>
             <a class="btn btn-ghost" href="https://github.com/emuyx/CubeDock/releases/latest" target="_blank" rel="noreferrer">下载最新稳定版</a>
+            <a class="btn btn-text" href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">测试版构建</a>
           </div>
         </div>
       </article>

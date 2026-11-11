@@ -354,7 +354,15 @@ export default function ConsoleView({ mode, toggleMode }) {
         <Drawer
           open={navOpen}
           onClose={() => setNavOpen(false)}
-          slotProps={{ paper: { sx: { width: 268 } } }}
+          slotProps={{
+            paper: {
+              sx: {
+                width: { xs: '86vw', sm: 300 },
+                maxWidth: 320,
+                pb: 'env(safe-area-inset-bottom)',
+              },
+            },
+          }}
         >
           <Toolbar>
             <Brand />

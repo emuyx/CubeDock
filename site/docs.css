@@ -13,6 +13,7 @@
   position: sticky;
   top: 96px;
   align-self: start;
+  min-width: 0;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
   padding: 22px 20px;
@@ -325,15 +326,23 @@
   }
 
   .docs-toc nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    min-width: 0;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+  }
+
+  .docs-toc nav a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    border: 1px solid var(--line);
+    scroll-snap-align: start;
   }
 }
 
 @media (max-width: 720px) {
-  .docs-toc nav {
-    grid-template-columns: 1fr;
-  }
-
   .docs-footer-cta {
     flex-direction: column;
     align-items: flex-start;

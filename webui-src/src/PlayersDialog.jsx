@@ -22,6 +22,8 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { Block, ContentCopy, ExitToApp, PersonOff, Refresh } from '@mui/icons-material';
 import { api, getRoomMembers, kickRoomMember, roomKickPlayer } from './api.js';
@@ -52,6 +54,8 @@ function formatUptime(seconds) {
 export default function PlayersDialog({ open, onClose, status, roomIndex = null, proxy: proxyOverride }) {
   const notify = useToast();
   const confirm = useConfirm();
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -212,7 +216,7 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null,
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
       <DialogTitle>
         {roomIndex === null ? '在线玩家' : `房间 ${roomIndex + 1} 的玩家`}
         {proxy && (

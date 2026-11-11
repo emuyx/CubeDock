@@ -12,6 +12,8 @@ import {
   Stack,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { PlayArrow, Stop } from '@mui/icons-material';
 import { api } from './api.js';
@@ -29,6 +31,8 @@ export default function BulkImportDialog({
   defaultProfileId = '',
 }) {
   const notify = useToast();
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [text, setText] = useState('');
   const [label, setLabel] = useState('');
   const [profileId, setProfileId] = useState(defaultProfileId || profiles[0]?.id || '');
@@ -114,7 +118,7 @@ export default function BulkImportDialog({
   const progress = results.length ? Math.round((done / results.length) * 100) : 0;
 
   return (
-    <Dialog open={open} onClose={close} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={close} fullWidth maxWidth="sm" fullScreen={fullScreen}>
       <DialogTitle>批量导入账号</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>

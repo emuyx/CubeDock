@@ -242,6 +242,25 @@ button {
   background: var(--panel);
 }
 
+.nav-toggle {
+  display: none;
+}
+
+.nav-toggle.is-open {
+  border-color: var(--line-strong);
+  background: var(--panel-2);
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .theme-icon {
   width: 20px;
   height: 20px;
@@ -1119,8 +1138,42 @@ html.js .reveal.visible {
 }
 
 @media (max-width: 1000px) {
+  .nav-toggle {
+    display: inline-flex;
+  }
+
   .site-nav {
     display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-left: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    max-height: calc(100vh - 68px);
+    max-height: calc(100dvh - 68px);
+    overflow-y: auto;
+    padding: 8px 16px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    box-shadow: var(--shadow);
+  }
+
+  .site-nav[data-open="true"] {
+    display: flex;
+  }
+
+  .site-nav a {
+    padding: 12px 10px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .site-nav .nav-github {
+    margin-top: 4px;
+    border-top: 1px solid var(--line);
   }
 
   .header-inner {

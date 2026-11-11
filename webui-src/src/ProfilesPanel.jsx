@@ -211,11 +211,23 @@ export default function ProfilesPanel({ status, active }) {
                 每个网易账号选择一个方案；同一方案可被多个账号共享。方案包含服务器、连接方式、房间设置、资源包和提示页面。
               </Typography>
             </Box>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Button variant="outlined" startIcon={<Add />} onClick={add} disabled={running || profiles.length >= 32}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
+              <Button
+                variant="outlined"
+                startIcon={<Add />}
+                onClick={add}
+                disabled={running || profiles.length >= 32}
+                sx={{ whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
+              >
                 添加方案
               </Button>
-              <Button variant="outlined" startIcon={<ContentCopy />} onClick={duplicate} disabled={!profile || running}>
+              <Button
+                variant="outlined"
+                startIcon={<ContentCopy />}
+                onClick={duplicate}
+                disabled={!profile || running}
+                sx={{ whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
+              >
                 复制方案
               </Button>
               <Button
@@ -224,6 +236,7 @@ export default function ProfilesPanel({ status, active }) {
                 startIcon={<DeleteOutlined />}
                 onClick={remove}
                 disabled={!profile || running || profiles.length <= 1 || selectedAccounts > 0}
+                sx={{ whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
               >
                 删除方案
               </Button>

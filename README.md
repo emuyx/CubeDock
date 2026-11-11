@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/emuyx/CubeDock/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/emuyx/CubeDock?color=f59e0b&label=release"></a>
-  <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/emuyx/CubeDock/release.yml?branch=main&label=build"></a>
+  <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/emuyx/CubeDock/release.yml?branch=main&label=build"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.26%2B-34d399?logo=go&logoColor=white">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-f59e0b">
   <a href="https://emuyx.github.io/CubeDock/"><img alt="Pages" src="https://img.shields.io/badge/docs-GitHub%20Pages-34d399"></a>
@@ -11,7 +11,7 @@
 > 网易「本地联机」房间 → 原生支持网易 RakNet v8 的 Bedrock 服务器。<br>
 > 独立实现：不翻译游戏协议，只做登录链重签、Bedrock 加密握手、limbo/Transfer 和资源包处理。
 
-[项目主页](https://emuyx.github.io/CubeDock/) · [使用文档](https://emuyx.github.io/CubeDock/docs.html) · [真实界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [FAQ](#faq) · [Issues](https://github.com/emuyx/CubeDock/issues)
+[项目主页](https://emuyx.github.io/CubeDock/) · [使用文档](https://emuyx.github.io/CubeDock/docs.html) · [真实界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) · [FAQ](#faq) · [Issues](https://github.com/emuyx/CubeDock/issues)
 
 ## 一眼看懂
 
@@ -25,7 +25,7 @@
 | 平台 | Windows / Linux / macOS |
 | 控制台 | React + MUI；配置方案页 + 每账号仪表盘，默认 `http://127.0.0.1:18321/` |
 
-> `main` 当前对应 **v0.3.0 开发版**；Releases 中的最新稳定版仍是 **v0.2.0**。
+> `main` 当前对应 **v0.3.1 开发版**；Releases 中的最新稳定版仍是 **v0.2.0**。
 
 ## 架构
 
@@ -67,7 +67,7 @@ flowchart LR
 | 账号仪表盘 | 每账号独立启动/停止/重连、房间状态、玩家、好友申请、资源包、诊断、日志 |
 | 房间管理 | 房间侧踢人、房间标签（最多 3 个）、准入等级、网易房间成员列表 |
 | 好友申请 | 运行中房间读取待处理申请，可自动或手动同意 |
-| Web 控制台 | 账号/房间、配置方案、实时控制台、诊断、设置、FAQ、深浅色主题 |
+| Web 控制台 | 账号/房间、配置方案、实时控制台、诊断、设置、FAQ、深浅色主题；移动端使用卡片布局和全屏操作面板 |
 | 多房间 | 多账号、不设固定上限，一账号一房间；代理模式下支持 `list` / `kick` |
 
 ## 下载与安装
@@ -76,6 +76,10 @@ flowchart LR
 
 - **Windows**：双击 `CubeDock.exe`。
 - **Linux / macOS**：在终端运行解压出的程序，必要时先 `chmod +x`。
+
+> **测试版构建**：想提前试用 `main` 的最新代码，可以在
+> [Build and Release](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain)
+> 的最近一次运行中下载 artifacts。测试版未经完整实机验收，不建议直接用于长期生产。
 
 首次启动会在终端显示控制台地址并自动打开浏览器；首次进入时请先创建管理员账号和密码，再按页面上的设置向导完成服务器、账号和预检。
 

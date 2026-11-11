@@ -50,7 +50,7 @@
           </span>
         </a>
 
-        <nav class="site-nav" aria-label="主导航">
+        <nav class="site-nav" id="site-nav" aria-label="主导航">
           <a href="#features">功能</a>
           <a href="#modes">模式</a>
           <a href="#quickstart">快速开始</a>
@@ -64,6 +64,17 @@
         </nav>
 
         <div class="header-actions">
+          <button
+            class="icon-btn nav-toggle"
+            type="button"
+            aria-label="打开导航"
+            aria-expanded="false"
+            aria-controls="site-nav"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
           <button class="icon-btn theme-toggle" type="button" aria-label="切换主题" title="切换主题">
             <svg class="theme-icon moon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M20.7 14.2A8.4 8.4 0 0 1 9.8 3.3 8.5 8.5 0 1 0 20.7 14.2Z" />
@@ -85,7 +96,7 @@
         <div class="hero-copy reveal">
           <div class="pill">
             <span class="pulse"></span>
-            v0.3.0-dev · 网易互通版 3.10 · 实机验收通过
+            v0.3.1-dev · 网易互通版 3.10 · 实机验收通过
           </div>
           <h1>
             把网易<em>本地联机</em><br />
@@ -103,6 +114,9 @@
               <span class="btn-arrow">→</span>
             </a>
             <a class="btn btn-ghost" href="./docs.html">使用文档</a>
+            <a class="btn btn-ghost" href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">
+              测试版构建
+            </a>
             <a class="btn btn-ghost" href="./demo.html">真实控制台演示</a>
             <a class="btn btn-ghost" href="https://github.com/emuyx/CubeDock" target="_blank" rel="noreferrer">
               查看源码
@@ -131,7 +145,7 @@
 <span class="t-amber">┃</span>  <span class="t-strong">CUBEDOCK</span>  <span class="t-amber">▸</span>  <span class="t-emerald">方块码头</span>                    <span class="t-amber">┃</span>
 <span class="t-amber">┃</span>  <span class="t-emerald">网易本地联机 → 网易协议上游 · RakNet v8</span>     <span class="t-amber">┃</span>
 <span class="t-amber">┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛</span>
-  CubeDock 方块码头 <span class="t-muted">v0.3.0-dev · windows/amd64</span>
+  CubeDock 方块码头 <span class="t-muted">v0.3.1-dev · windows/amd64</span>
 
 <span class="t-muted">$</span> 控制台监听 <span class="t-emerald">http://127.0.0.1:18321/</span>
 <span class="t-muted">$</span> 房间已上线 <span class="t-amber">#123456</span> · 协议 <span class="t-amber">43</span>
@@ -632,6 +646,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
               <span class="btn-arrow">→</span>
             </a>
             <a class="btn btn-ghost" href="./docs.html">阅读文档</a>
+            <a class="btn btn-ghost" href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">测试版构建</a>
             <a class="btn btn-ghost" href="https://github.com/emuyx/CubeDock" target="_blank" rel="noreferrer">GitHub</a>
           </div>
         </div>
@@ -646,6 +661,7 @@ rm -f cmd/cubedock-launcher/payload/CubeDockMain cmd/cubedock-launcher/payload/l
         </div>
         <div class="footer-links">
           <a href="./docs.html">使用文档</a>
+          <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">测试版构建</a>
           <a href="https://github.com/emuyx/CubeDock">GitHub</a>
           <a href="https://github.com/emuyx/CubeDock/releases">Releases</a>
           <a href="https://github.com/emuyx/CubeDock/blob/main/README.md">README</a>
