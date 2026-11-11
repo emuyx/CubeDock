@@ -39,25 +39,27 @@ var profileIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 // Profile is one named set of upstream, limbo and room settings.
 type Profile struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	ConnectionMode     string `json:"connection_mode"`
-	Upstream           string `json:"upstream"`
-	LimboUpstream      string `json:"limbo_upstream"`
-	LimboPacksDir      string `json:"limbo_packs_dir,omitempty"`
-	LimboAutoPullPacks bool   `json:"limbo_auto_pull_packs"`
-	LimboFormTitle     string `json:"limbo_form_title,omitempty"`
-	LimboFormContent   string `json:"limbo_form_content,omitempty"`
-	LimboFormButton    string `json:"limbo_form_button,omitempty"`
-	LobbyProtocolID    uint8  `json:"lobby_protocol_id"`
-	RoomName           string `json:"room_name"`
-	RoomGameVersion    string `json:"room_game_version"`
-	RoomPassword       string `json:"room_password"`
-	MaxPlayers         int    `json:"max_players"`
-	FriendsOnly        bool   `json:"friends_only"`
-	AutoAcceptFriends  bool   `json:"auto_accept_friends"`
-	AllowPvP           bool   `json:"allow_pvp"`
-	RetrySeconds       int    `json:"retry_seconds"`
+	ID                 string  `json:"id"`
+	Name               string  `json:"name"`
+	ConnectionMode     string  `json:"connection_mode"`
+	Upstream           string  `json:"upstream"`
+	LimboUpstream      string  `json:"limbo_upstream"`
+	LimboPacksDir      string  `json:"limbo_packs_dir,omitempty"`
+	LimboAutoPullPacks bool    `json:"limbo_auto_pull_packs"`
+	LimboFormTitle     string  `json:"limbo_form_title,omitempty"`
+	LimboFormContent   string  `json:"limbo_form_content,omitempty"`
+	LimboFormButton    string  `json:"limbo_form_button,omitempty"`
+	LobbyProtocolID    uint8   `json:"lobby_protocol_id"`
+	RoomName           string  `json:"room_name"`
+	RoomGameVersion    string  `json:"room_game_version"`
+	RoomPassword       string  `json:"room_password"`
+	RoomTags           []uint8 `json:"room_tags,omitempty"`
+	MinLevel           uint32  `json:"min_level"`
+	MaxPlayers         int     `json:"max_players"`
+	FriendsOnly        bool    `json:"friends_only"`
+	AutoAcceptFriends  bool    `json:"auto_accept_friends"`
+	AllowPvP           bool    `json:"allow_pvp"`
+	RetrySeconds       int     `json:"retry_seconds"`
 }
 
 // Config is the persisted non-secret configuration. Account credentials and
@@ -220,6 +222,22 @@ func (p Profile) Validate() error {
 	}
 	if len(p.RoomPassword) > 64 {
 		return fmt.Errorf("房间密码过长")
+	}
+	if len(p.RoomTags) > 3 {
+		return fmt.Errorf("房间标签最多选择 3 个")
+	}
+	seenTags := make(map[uint8]bool, len(p.RoomTags))
+	for _, tag := range p.RoomTags {
+		if tag > 7 {
+			return fmt.Errorf("房间标签值无效")
+		}
+		if seenTags[tag] {
+			return fmt.Errorf("房间标签不能重复")
+		}
+		seenTags[tag] = true
+	}
+	if p.MinLevel > 1000 {
+		return fmt.Errorf("准入等级必须在 0–1000 之间")
 	}
 	if len([]rune(p.LimboFormTitle)) > 64 {
 		return fmt.Errorf("转服表单标题最多 64 字")

@@ -21,8 +21,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { ContentCopy, ExitToApp, PersonOff, Refresh } from '@mui/icons-material';
-import { api } from './api.js';
+import { Block, ContentCopy, ExitToApp, PersonOff, Refresh } from '@mui/icons-material';
+import { api, roomKickPlayer } from './api.js';
 import { copyText } from './util.js';
 import { useConfirm, useToast } from './App.jsx';
 
@@ -106,6 +106,30 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null,
       load();
     } catch (failure) {
       notify(failure.message || '断开玩家失败', 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const roomKick = async player => {
+    if (!player.room_player_id) {
+      notify('该玩家还没有分配房间玩家 ID，暂时不能从房间踢出', 'warning');
+      return;
+    }
+    const confirmed = await confirm({
+      title: '从房间踢出玩家',
+      message: `通过网易房间控制通道踢出 ${player.name || player.id}？该操作会由房间节点执行。`,
+      confirmLabel: '房间踢出',
+      severity: 'warning',
+    });
+    if (!confirmed) return;
+    setBusy(player.id);
+    try {
+      await roomKickPlayer(player.id);
+      notify(`已请求从房间踢出 ${player.name || player.id}`, 'success');
+      load();
+    } catch (failure) {
+      notify(failure.message || '房间踢出失败', 'error');
     } finally {
       setBusy('');
     }
@@ -259,6 +283,19 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null,
                               </span>
                             </Tooltip>
                           )}
+                          <Tooltip title="从房间踢出（网易房间管理）">
+                            <span>
+                              <IconButton
+                                size="small"
+                                color="warning"
+                                aria-label="从房间踢出"
+                                onClick={() => roomKick(player)}
+                                disabled={busy === player.id || !player.room_player_id}
+                              >
+                                <Block fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                           <Tooltip title="断开玩家">
                             <span>
                               <IconButton

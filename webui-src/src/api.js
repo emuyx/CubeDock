@@ -42,6 +42,11 @@ export const getPacks = profileId =>
   api(`packs${profileId ? `?profile_id=${encodeURIComponent(profileId)}` : ''}`, undefined, 'GET');
 export const refreshPacks = profileId => api('packs/refresh', { profile_id: profileId });
 
+export const roomKickPlayer = target => api('player/room-kick', { target });
+export const getFriendRequests = index =>
+  api(`friends?index=${encodeURIComponent(index)}`, undefined, 'GET');
+export const acceptFriendRequest = (index, uid) => api('friend/accept', { index, uid });
+
 export const runConsole = command => api('console', { command });
 
 export async function login(username, password) {

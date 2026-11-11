@@ -175,3 +175,33 @@ func TestPlayerRegistryConcurrentSnapshots(t *testing.T) {
 		t.Fatalf("counters = %d/%d", got.UpPackets, got.DownPackets)
 	}
 }
+
+func TestRoomKickPlayerUsesTanLobbyID(t *testing.T) {
+	manager := newTestManager(t)
+	host := newFakeRoomHost(1)
+	manager.mu.Lock()
+	manager.hosts[0] = host
+	manager.mu.Unlock()
+	defer func() {
+		manager.mu.Lock()
+		delete(manager.hosts, 0)
+		manager.mu.Unlock()
+	}()
+
+	var cancelled atomic.Int32
+	player := manager.players.register(0, 1, "bot", func() { cancelled.Add(1) }, 4242)
+	manager.players.noteLogin(player, "Alice")
+	manager.players.notePlayStatus(player, 0)
+	defer manager.players.unregister(player)
+
+	status, err := manager.RoomKickPlayer("Alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if host.kicked.Load() != 4242 || status.RoomPlayerID != 4242 || status.State != PlayerKicked {
+		t.Fatalf("status = %+v, kicked = %d", status, host.kicked.Load())
+	}
+	if cancelled.Load() != 0 {
+		t.Fatal("room-side kick closed the local client instead of using the room control channel")
+	}
+}

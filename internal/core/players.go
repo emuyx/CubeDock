@@ -31,6 +31,7 @@ type PlayerStatus struct {
 	Room          int         `json:"room"` // 1-based room number, matching the console
 	RoomID        uint32      `json:"room_id,omitempty"`
 	Account       string      `json:"account,omitempty"`
+	RoomPlayerID  uint32      `json:"room_player_id,omitempty"`
 	State         PlayerState `json:"state"`
 	StartedAt     string      `json:"started_at"`
 	JoinedAt      string      `json:"joined_at,omitempty"`
@@ -40,12 +41,13 @@ type PlayerStatus struct {
 }
 
 type livePlayer struct {
-	id        string
-	roomIndex int
-	roomID    uint32
-	account   string
-	startedAt time.Time
-	cancel    context.CancelFunc
+	id          string
+	roomIndex   int
+	roomID      uint32
+	account     string
+	tanPlayerID uint32
+	startedAt   time.Time
+	cancel      context.CancelFunc
 
 	name     string
 	state    PlayerState
@@ -62,7 +64,7 @@ type playerRegistry struct {
 	players map[string]*livePlayer
 }
 
-func (r *playerRegistry) register(roomIndex int, roomID uint32, account string, cancel context.CancelFunc) *livePlayer {
+func (r *playerRegistry) register(roomIndex int, roomID uint32, account string, cancel context.CancelFunc, tanPlayerIDs ...uint32) *livePlayer {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.players == nil {
@@ -77,6 +79,9 @@ func (r *playerRegistry) register(roomIndex int, roomID uint32, account string, 
 		startedAt: time.Now(),
 		cancel:    cancel,
 		state:     PlayerConnecting,
+	}
+	if len(tanPlayerIDs) > 0 {
+		player.tanPlayerID = tanPlayerIDs[0]
 	}
 	r.players[player.id] = player
 	return player
@@ -172,13 +177,14 @@ func (r *playerRegistry) list() []PlayerStatus {
 
 func playerStatus(player *livePlayer, now time.Time) PlayerStatus {
 	status := PlayerStatus{
-		ID:        player.id,
-		Name:      player.name,
-		Room:      player.roomIndex + 1,
-		RoomID:    player.roomID,
-		Account:   player.account,
-		State:     player.state,
-		StartedAt: player.startedAt.Format(time.RFC3339),
+		ID:           player.id,
+		Name:         player.name,
+		Room:         player.roomIndex + 1,
+		RoomID:       player.roomID,
+		Account:      player.account,
+		RoomPlayerID: player.tanPlayerID,
+		State:        player.state,
+		StartedAt:    player.startedAt.Format(time.RFC3339),
 	}
 	if !player.joinedAt.IsZero() {
 		status.JoinedAt = player.joinedAt.Format(time.RFC3339)
@@ -250,6 +256,35 @@ func (r *playerRegistry) kick(target string) (PlayerStatus, context.CancelFunc, 
 	return playerStatus(player, time.Now()), player.cancel, nil
 }
 
+// roomKickTarget resolves a player that has a TanLobby player ID. The caller
+// sends the kick on the room control connection before marking the state.
+func (r *playerRegistry) roomKickTarget(target string) (*livePlayer, PlayerStatus, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	player, err := r.resolveLocked(target)
+	if err != nil {
+		return nil, PlayerStatus{}, err
+	}
+	if player.state == PlayerKicked {
+		return nil, PlayerStatus{}, fmt.Errorf("玩家 %s 正在断开", player.id)
+	}
+	if player.tanPlayerID == 0 {
+		return nil, PlayerStatus{}, fmt.Errorf("玩家 %s 还没有房间玩家 ID", player.id)
+	}
+	return player, playerStatus(player, time.Now()), nil
+}
+
+// markRoomKicked records a successful TanLobby kick request.
+func (r *playerRegistry) markRoomKicked(player *livePlayer) (PlayerStatus, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.currentLocked(player) {
+		return PlayerStatus{}, fmt.Errorf("玩家连接已结束")
+	}
+	player.state = PlayerKicked
+	return playerStatus(player, time.Now()), nil
+}
+
 // transferTarget resolves a joined player and returns the client stream. The
 // caller writes the Transfer batch after the registry lock is released.
 func (r *playerRegistry) transferTarget(target string) (PlayerStatus, *relay.SyncStream, error) {
@@ -285,6 +320,32 @@ func isPlayerID(target string) bool {
 // ListPlayers returns a snapshot of guests relayed by every room.
 func (m *Manager) ListPlayers() []PlayerStatus {
 	return m.players.list()
+}
+
+// RoomKickPlayer asks the NetEase room control node to remove one guest. It
+// only works while the owning room is online and has assigned a TanLobby ID.
+func (m *Manager) RoomKickPlayer(target string) (PlayerStatus, error) {
+	player, status, err := m.players.roomKickTarget(target)
+	if err != nil {
+		return PlayerStatus{}, err
+	}
+	index := status.Room - 1
+	m.mu.Lock()
+	host := m.hosts[index]
+	m.mu.Unlock()
+	if host == nil {
+		return PlayerStatus{}, fmt.Errorf("房间控制连接不可用，请确认房间在线")
+	}
+	if err := host.KickPlayer(status.RoomPlayerID); err != nil {
+		return PlayerStatus{}, err
+	}
+	status, err = m.players.markRoomKicked(player)
+	if err != nil {
+		return PlayerStatus{}, err
+	}
+	m.emit("控制台", fmt.Sprintf("管理员已请求房间踢出玩家 %s（%s，房间 %d）",
+		playerLabel(status.Name), status.ID, status.Room))
+	return status, nil
 }
 
 // KickPlayer disconnects one guest by ID or exact name. The actual teardown is

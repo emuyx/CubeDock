@@ -25,9 +25,34 @@ func shouldAutoAcceptFriends(profile config.Profile) bool {
 	return profile.AutoAcceptFriends && !profile.FriendsOnly
 }
 
+// friendCredentials let the console list and accept pending friend requests
+// while the room is online.
+type friendCredentials struct {
+	uid uint32
+	key []byte
+}
+
 func (m *Manager) serveRoom(ctx context.Context, index int, profile config.Profile, host roomHost, info auth.RoomInfo, rl roomLog) error {
 	sessionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	m.mu.Lock()
+	m.hosts[index] = host
+	if info.UserID != 0 && len(info.EncryptKey) >= 16 {
+		m.friendSessions[index] = friendCredentials{
+			uid: info.UserID,
+			key: append([]byte(nil), info.EncryptKey[:16]...),
+		}
+	}
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		if current, ok := m.hosts[index]; ok && current == host {
+			delete(m.hosts, index)
+		}
+		delete(m.friendSessions, index)
+		m.mu.Unlock()
+	}()
 
 	friendsDone := make(chan struct{})
 	go func() {
@@ -92,7 +117,7 @@ func (m *Manager) serveRoom(ctx context.Context, index int, profile config.Profi
 			go func(client *nethernet.Conn) {
 				startedAt := time.Now()
 				playerCtx, playerCancel := context.WithCancel(sessionCtx)
-				guest := m.players.register(index, host.RoomID(), info.PlayerName, playerCancel)
+				guest := m.players.register(index, host.RoomID(), info.PlayerName, playerCancel, host.PlayerIDFor(client))
 				defer playerCancel()
 				defer bridges.Done()
 				defer client.Close()

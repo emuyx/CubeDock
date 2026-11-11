@@ -24,6 +24,7 @@ type fakeRoomHost struct {
 	done   chan struct{}
 	once   sync.Once
 	closed atomic.Int32
+	kicked atomic.Uint32
 }
 
 func newFakeRoomHost(id uint32) *fakeRoomHost {
@@ -35,6 +36,13 @@ func (h *fakeRoomHost) Done() <-chan struct{}     { return h.done }
 func (h *fakeRoomHost) Err() error                { return nil }
 func (h *fakeRoomHost) Close()                    { h.once.Do(func() { close(h.done); h.closed.Store(1) }) }
 func (h *fakeRoomHost) Accept() (net.Conn, error) { <-h.done; return nil, net.ErrClosed }
+func (h *fakeRoomHost) PlayerIDFor(net.Conn) uint32 {
+	return 0
+}
+func (h *fakeRoomHost) KickPlayer(playerID uint32) error {
+	h.kicked.Store(playerID)
+	return nil
+}
 
 func addTestAccounts(t *testing.T, manager *Manager, count int) {
 	t.Helper()

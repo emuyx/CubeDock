@@ -15,6 +15,8 @@
       "room_name": "来和我一起玩吧！",
       "room_game_version": "1.21.130.0",
       "room_password": "",
+      "room_tags": [],
+      "min_level": 0,
       "max_players": 10,
       "friends_only": false,
       "auto_accept_friends": true,

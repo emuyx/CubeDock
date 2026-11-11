@@ -9,6 +9,8 @@ const profileDefaults = {
   lobby_protocol_id: 43,
   room_game_version: '1.21.130.0',
   room_password: '',
+  room_tags: [],
+  min_level: 0,
   max_players: 10,
   friends_only: false,
   auto_accept_friends: true,
@@ -61,6 +63,10 @@ const state = {
   startedAt: {},
   players: [],
   playerSeq: 0,
+  friendRequests: [
+    { uid: '9007199254740993', name: '想一起玩的小林', apply_time: '1710000000' },
+    { uid: '9002', name: '建筑爱好者', apply_time: '1710000500' },
+  ],
   events: [
     { time: '09:12:01', source: '系统', level: 'info', message: '演示数据已载入；所有操作只在当前页面生效。' },
     { time: '09:12:03', source: '系统', level: 'info', message: '两个账号使用「默认配置」（代理），一个账号使用「创造服」（转服）。' },
@@ -116,6 +122,7 @@ function makePlayer(name, roomIndex, packets) {
     name,
     room: roomIndex + 1,
     room_id: 600000 + roomIndex,
+    room_player_id: 1000 + state.playerSeq,
     account: state.accounts[roomIndex]?.name || '演示账号',
     state: 'joined',
     started_at: nowISO(),
@@ -486,6 +493,27 @@ export function installDemoApi() {
           const account = state.accounts[Number(body.index)];
           if (!account) return failure('账号序号无效');
           return json({ ok: true, name: account.name, uid: account.uid, level: account.level });
+        }
+        case 'GET friends': {
+          const index = Number(parsed.searchParams.get('index'));
+          if (!Number.isInteger(index)) return failure('账号序号无效');
+          return json({ index, requests: state.friendRequests });
+        }
+        case 'POST friend/accept': {
+          const uid = String(body.uid || '');
+          const request = state.friendRequests.find(item => String(item.uid) === uid);
+          if (!request) return failure('未找到好友申请');
+          state.friendRequests = state.friendRequests.filter(item => String(item.uid) !== uid);
+          append('账号', `演示：已同意 ${request.name} 的好友申请`);
+          return json({ ok: true, index: Number(body.index), uid });
+        }
+        case 'POST player/room-kick': {
+          const player = state.players.find(item => item.id === body.target || item.name === body.target);
+          if (!player) return failure('未找到玩家');
+          if (!player.room_player_id) return failure('玩家还没有房间玩家 ID');
+          state.players = state.players.filter(item => item.id !== player.id);
+          append('控制台', `演示：已请求从房间踢出玩家 ${player.name || player.id}`, 'info', player.room);
+          return json(player);
         }
         case 'POST player/kick': {
           const player = state.players.find(item => item.id === body.target || item.name === body.target);

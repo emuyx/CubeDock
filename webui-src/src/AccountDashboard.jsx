@@ -18,11 +18,13 @@ import {
 } from '@mui/material';
 import {
   ArrowBack,
+  Check,
   CloudDownload,
   ContentCopy,
   Download,
   MonitorHeart,
   PeopleAlt,
+  PersonAdd,
   PlayArrow,
   Refresh,
   RestartAlt,
@@ -31,8 +33,10 @@ import {
   Tune,
 } from '@mui/icons-material';
 import {
+  acceptFriendRequest,
   assignProfile,
   getDiagnostics,
+  getFriendRequests,
   getPacks,
   refreshPacks,
   restartRoom,
@@ -109,6 +113,10 @@ export default function AccountDashboard({
   const [packsBusy, setPacksBusy] = useState(false);
   const [packsError, setPacksError] = useState('');
   const [packsNotice, setPacksNotice] = useState('');
+  const [friendRequests, setFriendRequests] = useState([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsError, setFriendsError] = useState('');
+  const [friendBusy, setFriendBusy] = useState('');
   const [query, setQuery] = useState('');
 
   const loadPacks = async () => {
@@ -167,6 +175,46 @@ export default function AccountDashboard({
       notify(failure.message || '操作失败', 'error');
     } finally {
       setBusy('');
+    }
+  };
+
+  const loadFriends = async () => {
+    if (phase === 'stopped' || phase === 'starting' || phase === 'authenticating' || phase === 'creating') {
+      setFriendRequests([]);
+      return;
+    }
+    setFriendsLoading(true);
+    setFriendsError('');
+    try {
+      const result = await getFriendRequests(accountIndex);
+      setFriendRequests(result.requests || []);
+    } catch (failure) {
+      setFriendsError(failure.message || '读取好友申请失败');
+    } finally {
+      setFriendsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (phase === 'online' || phase === 'upstream_offline') {
+      loadFriends();
+    } else {
+      setFriendRequests([]);
+      setFriendsError('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountIndex, phase]);
+
+  const acceptFriend = async request => {
+    setFriendBusy(request.uid);
+    try {
+      await acceptFriendRequest(accountIndex, request.uid);
+      notify(`已同意 ${request.name || request.uid} 的好友申请`, 'success');
+      loadFriends();
+    } catch (failure) {
+      notify(failure.message || '同意好友申请失败', 'error');
+    } finally {
+      setFriendBusy('');
     }
   };
 
@@ -421,6 +469,73 @@ export default function AccountDashboard({
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
                   代理模式不使用本地资源包；资源包由服务器直接下发给玩家。
                 </Typography>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h6">好友申请</Typography>
+                <Button
+                  size="small"
+                  startIcon={friendsLoading ? <CircularProgress size={14} /> : <Refresh />}
+                  onClick={loadFriends}
+                  disabled={friendsLoading || phase === 'stopped'}
+                >
+                  刷新
+                </Button>
+              </Stack>
+              {phase === 'stopped' || phase === 'starting' || phase === 'authenticating' || phase === 'creating' ? (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
+                  房间运行后可以在这里读取并手动同意好友申请。
+                </Typography>
+              ) : (
+                <>
+                  {friendsError && <Alert severity="error" sx={{ mt: 1 }}>{friendsError}</Alert>}
+                  {friendRequests.length === 0 && !friendsError && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
+                      {friendsLoading ? '读取中…' : '没有待处理的好友申请。'}
+                    </Typography>
+                  )}
+                  {friendRequests.length > 0 && (
+                    <Stack spacing={0.8} sx={{ mt: 1 }}>
+                      {friendRequests.map(request => (
+                        <Stack
+                          key={request.uid}
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          justifyContent="space-between"
+                          sx={{ p: 0.9, borderRadius: 1.5, bgcolor: 'action.hover' }}
+                        >
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                            <PersonAdd fontSize="small" color="primary" />
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="body2" fontWeight={700} noWrap>
+                                {request.name || '未知玩家'}
+                              </Typography>
+                              {request.apply_time && (
+                                <Typography variant="caption" color="text.secondary" noWrap display="block">
+                                  申请时间 {String(request.apply_time)}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Stack>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<Check />}
+                            onClick={() => acceptFriend(request)}
+                            disabled={friendBusy === request.uid}
+                          >
+                            同意
+                          </Button>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

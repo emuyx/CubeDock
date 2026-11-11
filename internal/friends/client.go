@@ -40,14 +40,7 @@ func Watch(ctx context.Context, uid uint32, encryptionKey []byte, event, debug f
 		event("无法开启自动同意好友申请：鉴权材料不完整")
 		return
 	}
-	client := &gatewayClient{
-		http: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		}},
-		manifest: releaseManifest,
-		uid:      strconv.FormatUint(uint64(uid), 10),
-		key:      bytes.Clone(encryptionKey[:16]),
-	}
+	client := newGatewayClient(uid, encryptionKey)
 	if debug == nil {
 		debug = func(string) {}
 	}
@@ -59,6 +52,17 @@ func Watch(ctx context.Context, uid uint32, encryptionKey []byte, event, debug f
 		debug:    debug,
 	}
 	watch(ctx, watcher.poll, event, debug)
+}
+
+func newGatewayClient(uid uint32, encryptionKey []byte) *gatewayClient {
+	return &gatewayClient{
+		http: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}},
+		manifest: releaseManifest,
+		uid:      strconv.FormatUint(uint64(uid), 10),
+		key:      bytes.Clone(encryptionKey[:16]),
+	}
 }
 
 func watch(ctx context.Context, poll func(context.Context) error, event, debug func(string)) {
@@ -249,14 +253,18 @@ type watcher struct {
 }
 
 func (w *watcher) ensureGateway(ctx context.Context) error {
-	if w.client.gateway == "" {
-		return w.client.discover(ctx)
+	return w.client.ensureGateway(ctx, w.debug)
+}
+
+func (c *gatewayClient) ensureGateway(ctx context.Context, debug func(string)) error {
+	if c.gateway == "" {
+		return c.discover(ctx)
 	}
-	if !w.client.gatewayAt.IsZero() && time.Since(w.client.gatewayAt) > gatewayRefresh {
+	if !c.gatewayAt.IsZero() && time.Since(c.gatewayAt) > gatewayRefresh {
 		// A failed refresh is not fatal: the old address may still work. If it
-		// does not, the pending call clears it and the next poll rediscovers.
-		if err := w.client.discover(ctx); err != nil && w.debug != nil {
-			w.debug("好友网关重新发现失败：" + err.Error())
+		// does not, the pending call clears it and the next call rediscovers.
+		if err := c.discover(ctx); err != nil && debug != nil {
+			debug("好友网关重新发现失败：" + err.Error())
 		}
 	}
 	return nil

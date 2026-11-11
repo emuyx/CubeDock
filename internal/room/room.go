@@ -35,4 +35,7 @@ type Host struct {
 	writeMu   sync.Mutex
 	errMu     sync.Mutex
 	err       error
+
+	guestMu      sync.Mutex
+	guestPlayers map[uint64]uint32 // NetherNet ID -> TanLobby player ID
 }

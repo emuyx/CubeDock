@@ -27,14 +27,14 @@ const (
 
 // roomRuntime is one account's independently managed room.
 type roomRuntime struct {
-	index     int
-	token     string
-	profile   config.Profile
-	cancel    context.CancelFunc
-	done      chan struct{}
-	lease     *session.Lease
-	limbo     *limboLease
-	state     roomState
+	index      int
+	token      string
+	profile    config.Profile
+	cancel     context.CancelFunc
+	done       chan struct{}
+	lease      *session.Lease
+	limbo      *limboLease
+	state      roomState
 	finishOnce sync.Once
 }
 

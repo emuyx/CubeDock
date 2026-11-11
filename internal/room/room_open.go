@@ -63,7 +63,10 @@ func Open(ctx context.Context, profile config.Profile, info auth.RoomInfo, trace
 }
 
 func newHost(trace func(string)) (*Host, error) {
-	host := &Host{trace: trace, done: make(chan struct{})}
+	host := &Host{
+		trace: trace, done: make(chan struct{}),
+		guestPlayers: make(map[uint64]uint32),
+	}
 	var raw [8]byte
 	if _, err := rand.Read(raw[:]); err != nil {
 		return nil, err
@@ -131,7 +134,8 @@ func (h *Host) createRoom(profile config.Profile, info auth.RoomInfo) error {
 			LevelID: levelID, ConstantTestString: "test",
 			ProtocolID: info.ProtocolID, GameVersion: profile.RoomGameVersion,
 		},
-		PvP: profile.AllowPvP, PlayerAuth: 1, EnableWebRTC: true, OwnerPing: 3, PerfLv: 1,
+		MinLevel: profile.MinLevel,
+		PvP:      profile.AllowPvP, PlayerAuth: 1, EnableWebRTC: true, OwnerPing: 3, PerfLv: 1,
 	}); err != nil {
 		return err
 	}
@@ -148,6 +152,14 @@ func (h *Host) createRoom(profile config.Profile, info auth.RoomInfo) error {
 	}
 	if h.ID = created.RoomID; h.ID == 0 {
 		return fmt.Errorf("房间节点返回了空房间号")
+	}
+	if len(profile.RoomTags) > 0 {
+		if err := h.send(&packet.TanSetTagListRequest{TagList: profile.RoomTags}); err != nil {
+			return fmt.Errorf("设置房间标签失败: %w", err)
+		}
+		if h.trace != nil {
+			h.trace(fmt.Sprintf("已请求设置房间标签：%v", profile.RoomTags))
+		}
 	}
 	return nil
 }

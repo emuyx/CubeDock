@@ -61,13 +61,27 @@ func (h *Host) controlLoop() {
 			if h.trace != nil {
 				h.trace("收到玩家加入请求，发送服务器就绪信息")
 			}
+			if networkID, parseErr := strconv.ParseUint(event.NetherNetID, 10, 64); parseErr == nil {
+				h.guestMu.Lock()
+				h.guestPlayers[networkID] = event.PlayerID
+				h.guestMu.Unlock()
+			}
 			if err = h.notifyReady(); err != nil {
 				h.fail(err)
 				return
 			}
 			h.ready.start(event.PlayerID, event.NetherNetID)
 		case *packet.TanLeaveRoomResponse:
+			h.removeGuest(event.PlayerID)
 			h.ready.stopPlayer(event.PlayerID)
+		case *packet.TanSetTagListResponse:
+			if event.ErrorCode != packet.TanSetTagListSuccess && h.trace != nil {
+				h.trace(fmt.Sprintf("设置房间标签失败，错误码 %d", event.ErrorCode))
+			}
+		case *packet.TanKickOutResponse:
+			if h.trace != nil {
+				h.trace("房间控制节点已确认踢出请求")
+			}
 		case nil:
 		default:
 			if h.trace != nil {

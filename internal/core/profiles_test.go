@@ -269,4 +269,3 @@ func TestLoadAccountsBackfillsDefaultProfile(t *testing.T) {
 		t.Fatalf("accounts = %+v", accounts)
 	}
 }
-

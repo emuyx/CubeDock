@@ -86,15 +86,17 @@ type Manager struct {
 	dir    string
 	logger *log.Logger
 
-	mu            sync.Mutex
-	cfg           config.Config
-	tokens        []string
-	accounts      []accountRecord
-	status        Status
-	runtimes      map[int]*roomRuntime
-	limbos        map[string]*limboGroup
-	idle          chan struct{}
-	preparedPacks map[string]bool
+	mu             sync.Mutex
+	cfg            config.Config
+	tokens         []string
+	accounts       []accountRecord
+	status         Status
+	runtimes       map[int]*roomRuntime
+	hosts          map[int]roomHost
+	friendSessions map[int]friendCredentials
+	limbos         map[string]*limboGroup
+	idle           chan struct{}
+	preparedPacks  map[string]bool
 
 	players playerRegistry
 
@@ -129,18 +131,20 @@ func New(dir string, cfg config.Config, tokens []string, logger *log.Logger) (*M
 		return nil, fmt.Errorf("读取账号列表失败: %w", err)
 	}
 	m := &Manager{
-		dir:           dir,
-		logger:        logger,
-		cfg:           cfg.Clone(),
-		tokens:        append([]string(nil), tokens...),
-		accounts:      accounts,
-		status:        Status{Phase: "stopped", Events: []Event{}},
-		runtimes:      make(map[int]*roomRuntime),
-		limbos:        make(map[string]*limboGroup),
-		preparedPacks: make(map[string]bool),
-		actions:       make(map[int]*sync.Mutex),
-		prepLocks:     make(map[string]*sync.Mutex),
-		exit:          make(chan struct{}),
+		dir:            dir,
+		logger:         logger,
+		cfg:            cfg.Clone(),
+		tokens:         append([]string(nil), tokens...),
+		accounts:       accounts,
+		status:         Status{Phase: "stopped", Events: []Event{}},
+		runtimes:       make(map[int]*roomRuntime),
+		hosts:          make(map[int]roomHost),
+		friendSessions: make(map[int]friendCredentials),
+		limbos:         make(map[string]*limboGroup),
+		preparedPacks:  make(map[string]bool),
+		actions:        make(map[int]*sync.Mutex),
+		prepLocks:      make(map[string]*sync.Mutex),
+		exit:           make(chan struct{}),
 
 		prepareRoom: auth.PrepareRoom,
 		openRoom: func(ctx context.Context, profile config.Profile, info auth.RoomInfo, trace func(string)) (roomHost, error) {

@@ -21,6 +21,8 @@ type roomHost interface {
 	Done() <-chan struct{}
 	Err() error
 	Close()
+	PlayerIDFor(net.Conn) uint32
+	KickPlayer(uint32) error
 }
 
 func (m *Manager) run(ctx context.Context, index int, profile config.Profile, token string) {

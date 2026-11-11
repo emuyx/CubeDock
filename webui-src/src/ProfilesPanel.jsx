@@ -51,6 +51,7 @@ function splitLimbo(value) {
 }
 
 const grid = { display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } };
+const ROOM_TAGS = ['生存', '创造', '冒险', '模拟', '动作', '建筑', '竞技', '休闲'];
 
 export default function ProfilesPanel({ status, active }) {
   const notify = useToast();
@@ -176,6 +177,19 @@ export default function ProfilesPanel({ status, active }) {
   const [limboHost, limboPort] = splitLimbo(profile?.limbo_upstream);
   const updateLimbo = (host, port) =>
     profile && updateProfile(profile.id, 'limbo_upstream', `${host}:${port}`);
+  const roomTags = profile?.room_tags || [];
+  const toggleTag = tag => {
+    if (!profile) return;
+    if (roomTags.includes(tag)) {
+      updateProfile(profile.id, 'room_tags', roomTags.filter(value => value !== tag));
+      return;
+    }
+    if (roomTags.length >= 3) {
+      notify('房间标签最多选择 3 个', 'warning');
+      return;
+    }
+    updateProfile(profile.id, 'room_tags', [...roomTags, tag]);
+  };
 
   return (
     <Stack spacing={2.2}>
@@ -391,16 +405,49 @@ export default function ProfilesPanel({ status, active }) {
                         helperText={<FieldHint help="一般保持 1.21.130.0。只有网易更新客户端、确认版本变化后才需要改。">当前为 1.21.130.0</FieldHint>}
                       />
                     </Box>
-                    <TextField
-                      label="掉线重试间隔（秒）"
-                      type="number"
-                      value={profile.retry_seconds ?? 10}
-                      onChange={event => updateProfile(profile.id, 'retry_seconds', Number(event.target.value))}
-                      disabled={running}
-                      sx={{ maxWidth: 260 }}
-                      inputProps={{ min: 5, max: 300 }}
-                      helperText={<FieldHint help="房间掉线后等待多久重连，默认 10 秒。">5–300 秒</FieldHint>}
-                    />
+                    <Box sx={grid}>
+                      <TextField
+                        label="掉线重试间隔（秒）"
+                        type="number"
+                        value={profile.retry_seconds ?? 10}
+                        onChange={event => updateProfile(profile.id, 'retry_seconds', Number(event.target.value))}
+                        disabled={running}
+                        fullWidth
+                        inputProps={{ min: 5, max: 300 }}
+                        helperText={<FieldHint help="房间掉线后等待多久重连，默认 10 秒。">5–300 秒</FieldHint>}
+                      />
+                      <TextField
+                        label="准入等级"
+                        type="number"
+                        value={profile.min_level ?? 0}
+                        onChange={event => updateProfile(profile.id, 'min_level', Number(event.target.value))}
+                        disabled={running}
+                        fullWidth
+                        inputProps={{ min: 0, max: 1000 }}
+                        helperText={<FieldHint help="进入房间所需的最低网易等级；0 表示不限制。">0 表示不限制</FieldHint>}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.8 }}>
+                        房间标签（最多 3 个）
+                      </Typography>
+                      <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
+                        {ROOM_TAGS.map((label, tag) => {
+                          const selected = roomTags.includes(tag);
+                          return (
+                            <Chip
+                              key={label}
+                              label={label}
+                              clickable
+                              color={selected ? 'primary' : 'default'}
+                              variant={selected ? 'filled' : 'outlined'}
+                              onClick={() => toggleTag(tag)}
+                              disabled={running || (!selected && roomTags.length >= 3)}
+                            />
+                          );
+                        })}
+                      </Stack>
+                    </Box>
                     <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
                       <Stack direction="row" spacing={0.2} alignItems="center">
                         <FormControlLabel
