@@ -25,7 +25,7 @@
 | 平台 | Windows / Linux / macOS |
 | 控制台 | React + MUI；配置方案页 + 每账号仪表盘，默认 `http://127.0.0.1:18321/` |
 
-> `main` 当前对应 **v0.3.2 开发版**；Releases 中的最新稳定版仍是 **v0.2.0**。
+> 当前版本 **v0.3.2**；可从 [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的发布包。
 
 ## 架构
 
