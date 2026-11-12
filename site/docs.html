@@ -485,10 +485,21 @@
               </div>
             </details>
             <details class="faq-item">
+              <summary>8 个账号是上限吗？为什么文档里还写着 8？</summary>
+              <div class="faq-body">
+                <p>不是。8 是旧 NEMCBridge 的遗留限制：它使用的网易验证中转最多免费获取
+                8 个密钥，早期版本因此有过固定 8 账号/房间的限制。该硬限制已在 v0.1.1 前移除，
+                当前认证链由 <code>internal/netease</code> 第一方实现，账号数量不设硬上限。</p>
+                <p>文档里的“8”只是当时真实客户端验收覆盖到的数量；本地已有 16 房间监督测试，
+                但 &gt;8 个真实网易账号同时登录/开房/重连仍未实测。实际数量取决于机器资源、
+                端口/文件描述符和网易侧限制。</p>
+              </div>
+            </details>
+            <details class="faq-item">
               <summary>多账号并发、Linux/macOS 和资源包的限制</summary>
               <div class="faq-body">
                 <p>&gt;8 账号真实并发、Linux/macOS 实机、<code>go test -race</code>、
-                真实移动设备/跨浏览器和非 Windows 管理员登录仍未覆盖；加密/动态资源包当前不支持。
+                真实移动设备/跨浏览器和非 Windows 管理员登录仍未实测；加密/动态资源包当前不支持。
                 公开分发前仍建议对 vendored solver 做许可复核。</p>
               </div>
             </details>
@@ -505,7 +516,7 @@
               <tr><td>代理模式真实进服</td><td>✅ 实机验证</td></tr>
               <tr><td>转服 / limbo / 资源包</td><td>✅ 实机验证</td></tr>
               <tr><td>资源包拉取、跳过、去重</td><td>✅ 实机验证</td></tr>
-              <tr><td>真实 1351 / 多账号 / 多房间（≤8）</td><td>✅ 实机验证</td></tr>
+              <tr><td>真实 1351 / 多账号 / 多房间（实机测试到 8 个）</td><td>✅ 实机验证</td></tr>
               <tr><td>多配置方案 + 每账号仪表盘</td><td>✅ 实机验证</td></tr>
               <tr><td>第一方认证链（PE/资料/开房）</td><td>✅ 本地测试 + 真实账号探针 + 实机</td></tr>
               <tr><td>房间侧踢人 / 标签 / 准入等级</td><td>✅ 实机验证（踢人依赖 dockerB）</td></tr>
@@ -515,10 +526,15 @@
               <tr><td><code>npm audit</code></td><td>✅ 0 vulnerabilities</td></tr>
               <tr><td>重复测试 / 跨平台构建</td><td>✅ 3× 全量测试 / 6 平台构建</td></tr>
               <tr><td>加密 / 动态资源包</td><td>🚧 未支持</td></tr>
-              <tr><td>&gt;8 账号真实并发</td><td>⏳ 未覆盖</td></tr>
               <tr><td>Linux / macOS 实机、<code>go test -race</code></td><td>⏳ 部分覆盖</td></tr>
             </tbody>
           </table>
+          <div class="doc-callout doc-note">
+            <strong>验证范围：</strong>真实多账号/多房间验收覆盖到 8 个账号；本地 16 房间监督测试
+            通过。账号数量不设硬上限，>8 不是一个代码阈值，也没有已知的 8 账号相关缺陷；
+            实际可用数量受内存、文件描述符、UDP 端口、limbo 进程和网易侧限制影响，>8 的真实
+            压力测试尚未执行。
+          </div>
           <p>
             默认协议为 <code>43</code>，默认房间版本为 <code>1.21.130.0</code>；PE 认证常量仍为
             <code>3.10.5.301486</code>。互通版客户端 manifest 更新后必须重新抓包并验证，
