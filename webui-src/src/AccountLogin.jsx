@@ -31,6 +31,9 @@ export default function AccountLogin({
   const [profileId, setProfileId] = useState(
     initialProfileId || defaultProfileId || profiles[0]?.id || '',
   );
+  const [loginMethod, setLoginMethod] = useState(
+    initialAuthMethod === 'mobile_netease' ? 'mobile_netease' : 'interop',
+  );
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [label, setLabel] = useState('');
@@ -45,6 +48,7 @@ export default function AccountLogin({
   const [sauthError, setSauthError] = useState('');
   const [sauthProfile, setSauthProfile] = useState(null);
   const sauthMethodLabel = sauthMethod === 'mobile_netease' ? '网易手游' : '基岩互通版';
+  const loginMethodLabel = loginMethod === 'mobile_netease' ? '网易手游' : '基岩互通版';
   const requestRef = useRef(false);
 
   useEffect(() => {
@@ -52,7 +56,10 @@ export default function AccountLogin({
   }, [initialEmail, replaceIndex]);
 
   useEffect(() => {
-    if (initialAuthMethod) setSauthMethod(initialAuthMethod);
+    if (initialAuthMethod) {
+      setSauthMethod(initialAuthMethod);
+      setLoginMethod(initialAuthMethod === 'mobile_netease' ? 'mobile_netease' : 'interop');
+    }
   }, [initialAuthMethod, replaceIndex]);
 
   useEffect(() => {
@@ -74,7 +81,10 @@ export default function AccountLogin({
     setMessage('');
     setVerifyURL('');
     try {
-      const result = await api('session/interop-login', credentials);
+      const endpoint = loginMethod === 'mobile_netease'
+        ? 'session/mobile-login'
+        : 'session/interop-login';
+      const result = await api(endpoint, credentials);
       if (result.status === 'need_verify') {
         setVerifyURL(current => result.verify_url || current || '');
         setMessage(result.message || '需要完成网易安全验证');
@@ -85,13 +95,13 @@ export default function AccountLogin({
       notify(
         replaceIndex !== null
           ? `已更新房间 ${(result.index ?? replaceIndex) + 1} 的登录：${result.name}`
-          : `已添加互通版账号：${result.name} → 房间 ${(result.index ?? 0) + 1}`,
+          : `已添加${loginMethodLabel}账号：${result.name} → 房间 ${(result.index ?? 0) + 1}`,
         'success',
       );
       setPassword('');
       if (onAdded) onAdded(result);
     } catch (failure) {
-      setError(failure.message || '互通版直登失败');
+      setError(failure.message || `${loginMethodLabel}直登失败`);
     } finally {
       requestRef.current = false;
       setBusy(false);
@@ -106,6 +116,35 @@ export default function AccountLogin({
       notify(failure.message || '复制失败', 'error');
     }
   };
+
+  const copyError = async text => {
+    if (!text) return;
+    try {
+      await copyText(text);
+      notify('完整错误已复制', 'success');
+    } catch (failure) {
+      notify(failure.message || '复制失败', 'error');
+    }
+  };
+
+  const errorAlert = text => (
+    <Alert severity="error">
+      <Stack direction="row" spacing={1} alignItems="flex-start" justifyContent="space-between">
+        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', flex: 1 }}>
+          {text}
+        </Typography>
+        <Button
+          size="small"
+          color="inherit"
+          startIcon={<ContentCopy />}
+          onClick={() => copyError(text)}
+          sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+        >
+          复制完整错误
+        </Button>
+      </Stack>
+    </Alert>
+  );
 
   const importSauth = async () => {
     const value = sauth.trim();
@@ -168,6 +207,27 @@ export default function AccountLogin({
               ))}
             </TextField>
           )}
+          <TextField
+            select
+            size="small"
+            label="登录方式"
+            value={loginMethod}
+            onChange={event => {
+              setLoginMethod(event.target.value);
+              setError('');
+              setMessage('');
+              setVerifyURL('');
+            }}
+            fullWidth
+            helperText={
+              loginMethod === 'mobile_netease'
+                ? '网易手游邮箱/密码直登；登录后会按手游 provider 做 PE 认证'
+                : '基岩互通版邮箱/密码直登；无需抓包'
+            }
+          >
+            <MenuItem value="interop">基岩互通版邮箱/密码</MenuItem>
+            <MenuItem value="mobile_netease">网易手游邮箱/密码</MenuItem>
+          </TextField>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2}>
             <TextField
               label="网易邮箱"
@@ -253,12 +313,20 @@ export default function AccountLogin({
                   >
                     复制链接
                   </Button>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<ContentCopy />}
+                    onClick={() => copyError([message, verifyURL].filter(Boolean).join('\n'))}
+                  >
+                    复制完整信息
+                  </Button>
                 </Stack>
               </Stack>
             </Alert>
           )}
           {!verifyURL && message && <Alert severity="warning">{message}</Alert>}
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && errorAlert(error)}
         </Stack>
       </Box>
 
@@ -320,7 +388,7 @@ export default function AccountLogin({
               {sauthProfile.expires_at ? ` ｜ 会话到期 ${new Date(sauthProfile.expires_at).toLocaleString('zh-CN')}` : ''}
             </Alert>
           )}
-          {sauthError && <Alert severity="error">{sauthError}</Alert>}
+          {sauthError && errorAlert(sauthError)}
         </Stack>
       </Box>
 

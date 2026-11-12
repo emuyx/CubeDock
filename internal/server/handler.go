@@ -22,10 +22,15 @@ import (
 	"github.com/emuyx/cubedock/internal/webui"
 )
 
+type mobileLoginService interface {
+	Login(ctx context.Context, email, password string) (map[string]any, error)
+}
+
 type consoleHandler struct {
 	manager *core.Manager
 	admin   *Admin
 	interop *interoplogin.Service
+	mobile  mobileLoginService
 	runtime RuntimeInfo
 }
 
@@ -39,6 +44,7 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 		manager: manager,
 		admin:   admin,
 		interop: interoplogin.New(manager.Dir()),
+		mobile:  netease.NewMobileLoginService(manager.Dir()),
 		runtime: runtime.withDefaults(),
 	}
 	mux := http.NewServeMux()
@@ -74,6 +80,7 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 	mux.HandleFunc("POST /api/config", h.saveConfig)
 	mux.HandleFunc("POST /api/session/import", h.importSession)
 	mux.HandleFunc("POST /api/session/interop-login", h.interopLogin)
+	mux.HandleFunc("POST /api/session/mobile-login", h.mobileLogin)
 	mux.HandleFunc("POST /api/account/remove", h.removeAccount)
 	mux.HandleFunc("POST /api/account/profile", h.refreshProfile)
 	mux.HandleFunc("POST /api/account/assign-profile", h.assignProfile)
@@ -460,6 +467,88 @@ func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		message := redact.Sanitize(err.Error(), token)
 		h.manager.Record("账号", "互通版会话验证失败："+message)
+		http.Error(w, message, http.StatusBadRequest)
+		return
+	}
+	index, err := h.saveSession(token, method, method, expiresAt, email, body.Label, body.ProfileID, profile, body.Index)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	result := map[string]any{
+		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
+		"level": profile.Level, "platform": method, "auth_method": method,
+		"expires_at": expiresAt, "profile_id": h.accountProfileID(index),
+	}
+	if expiresAt == "" {
+		delete(result, "expires_at")
+	}
+	respond(w, result)
+}
+
+func (h *consoleHandler) mobileLogin(w http.ResponseWriter, r *http.Request) {
+	if !loopbackRequest(r) {
+		http.Error(w, "为避免密码经网络明文传输，网易账号登录仅允许本机访问控制台", http.StatusForbidden)
+		return
+	}
+	if h.manager.Snapshot().Running {
+		http.Error(w, "请先停止房间，再添加或更新账号", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Email     string `json:"email"`
+		Password  string `json:"password"`
+		Label     string `json:"label"`
+		Index     *int   `json:"index"`
+		ProfileID string `json:"profile_id"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil {
+		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	email := strings.TrimSpace(body.Email)
+	if email == "" || body.Password == "" {
+		http.Error(w, "请填写网易邮箱和密码", http.StatusBadRequest)
+		return
+	}
+	if h.mobile == nil {
+		http.Error(w, "手游登录服务不可用", http.StatusInternalServerError)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	sauth, err := h.mobile.Login(ctx, email, body.Password)
+	if err != nil {
+		var verify *netease.MobileVerifyRequired
+		if errors.As(err, &verify) {
+			h.manager.Record("账号", "手游直登需要安全验证："+verify.Message)
+			respond(w, map[string]any{
+				"status": "need_verify", "message": verify.Message, "verify_url": verify.URL,
+			})
+			return
+		}
+		message := redact.Sanitize(err.Error(), body.Password)
+		message = redact.Sanitize(message, email)
+		h.manager.Record("账号", "手游直登失败："+message)
+		http.Error(w, message, http.StatusBadRequest)
+		return
+	}
+	inner, err := json.Marshal(sauth)
+	if err != nil {
+		http.Error(w, "序列化会话失败", http.StatusInternalServerError)
+		return
+	}
+	token, method, expiresAt, err := core.NormalizeSession(string(inner), string(netease.AuthMobileNetEase))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	profile, err := auth.LookupProfileFor(ctx, netease.AuthMobileNetEase, token)
+	if err != nil {
+		message := redact.Sanitize(err.Error(), token)
+		h.manager.Record("账号", "手游会话验证失败："+message)
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}

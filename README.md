@@ -25,7 +25,9 @@
 | 平台 | Windows / Linux / macOS |
 | 控制台 | React + MUI；配置方案页 + 每账号仪表盘，默认 `http://127.0.0.1:18321/` |
 
-> 当前版本 **v0.3.2**；可从 [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的发布包。
+> 当前开发版本 **v0.4.0-dev**；最新正式发布仍为 **v0.3.2**，可从
+> [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的发布包。
+> `main` 分支包含多登录方式和网易手游邮箱/密码直登改动，尚未正式发布。
 
 ## 架构
 
@@ -58,7 +60,7 @@ flowchart LR
 
 | 能力 | 说明 |
 | --- | --- |
-| 多登录方式 | 基岩互通版邮箱/sauth；网易手游会话导入（工程验证中）；4399/PC 后续 |
+| 多登录方式 | 基岩互通版邮箱/sauth；网易手游会话导入 + 邮箱/密码直登（真机验证：登录/开房/进服）；4399/PC 后续 |
 | 互通版直登 | 邮箱密码走 a50 / x19 / uni_sauth，无需抓包 |
 | 第一方认证链 | `internal/netease` 实现 PE 认证、资料、transfer 节点和开房凭据；不再依赖 AGPL 组件 |
 | 加密中继 | P-384 单段链重签、ECDH / AES-CTR、游戏包直通 |
@@ -106,9 +108,11 @@ flowchart LR
    - 「提示页面」：转服模式 limbo 表单标题、内容和按钮文字。
 
 4. **添加网易账号**
-   进入「账号与房间」→「添加网易账号」，选择配置方案，使用互通版邮箱直登，或导入已有的
-   互通版 `sauth`。也可以在「会话类型」中选择「网易手游会话」，粘贴包含
-   `platform=ad`、`app_channel`、`sessionid`、`access_token` 的手游 `sauth_json`。
+   进入「账号与房间」→「添加网易账号」，选择配置方案和登录方式：
+   - 「基岩互通版邮箱/密码」：使用网易邮箱和密码直登，或导入已有的互通版 `sauth`；
+   - 「网易手游邮箱/密码」：使用手游账号的邮箱和密码直登（本地实现，真实账号/开房待实测），
+     也可以在「会话类型」中选择「网易手游会话」，粘贴包含 `platform=ad`、`app_channel`、
+     `sessionid`、`access_token` 的手游 `sauth_json`。
    每个账号对应一个房间；同一账号不能重复添加。两种登录方式可以同时存在。
 
 5. **启动房间**
@@ -149,7 +153,8 @@ flowchart LR
 
 配置字段见 [`config.example.json`](config.example.json)。数据文件：`config.json`
 （全局设置 + 配置方案）、`room-tokens.dat`、`accounts.json`（含 `profile_id` / `auth_method`）、
-`interop-device.dat`、`admin.json`、`logs/`。Windows 使用 DPAPI，其他平台使用 `0600` 权限。
+`interop-device.dat`、`mobile-device.dat`、`admin.json`、`logs/`。Windows 使用 DPAPI，
+其他平台使用 `0600` 权限。
 
 <details>
 <summary><strong>HTTP API</strong> · 除登录/初始化外需要管理员会话</summary>
@@ -183,6 +188,7 @@ flowchart LR
 | POST | `/api/restore` | 恢复配置 |
 | POST | `/api/session/import` | 导入 sauth；请求体用 `auth_method` 选择 `interop` / `mobile_netease`（仅本机） |
 | POST | `/api/session/interop-login` | 基岩互通版邮箱登录（仅本机） |
+| POST | `/api/session/mobile-login` | 网易手游邮箱/密码登录（仅本机；main 分支本地实现） |
 
 `/api/session/*` 只允许本机访问；控制台只允许白名单 Host/Origin。
 </details>
@@ -228,8 +234,9 @@ limbo 预加载的一致。
 <summary><strong>支持哪些登录方式？</strong></summary>
 
 - **基岩互通版**：邮箱密码直登，或导入互通版 `sauth`（platform=pc / app_channel=a50_sdk_cn）；
-- **网易手游**：导入手游 `sauth_json`（platform=ad / app_channel=netease...），需要包含
-  `sessionid` 和 `access_token`；
+- **网易手游**：邮箱密码直登会注册新设备，使用 `/devices` 返回的 device key
+  加密登录参数；已真机验证通过登录、开房、进服。也支持导入手游 `sauth_json`
+  （platform=ad / app_channel=netease...），需要包含 `sessionid` 和 `access_token`；
 - 两种方式可以同时存在，账号通过 `accounts.json` 的 `auth_method` 区分；
 - 4399 手游、Java 经典版网易/4399 渠道仍在后续计划中。
 </details>
@@ -307,7 +314,8 @@ Windows 一键构建：`.\scripts\build.ps1`。前端缺少依赖时会自动 `n
 | 真实玩家 `list` / `kick`（代理模式） | ✅ 实机验证 |
 | 多配置方案 + 每账号仪表盘 | ✅ 实机验证 |
 | 第一方认证链（PE/资料/开房） | ✅ 本地测试 + 真实账号探针 + 实机 |
-| 网易手游会话导入（PE/资料） | ✅ 真实抓包 + 本地端到端探针；手游开房待实测 |
+| 网易手游会话导入（PE/资料） | ✅ 真实抓包 + 本地端到端探针；同一 sauth 链路已真机开房/进服 |
+| 网易手游邮箱/密码直登 | ✅ 真机验证：登录 / 开房 / 进服 |
 | 房间侧踢人 / 标签 / 准入等级 | ✅ 实机验证（踢人依赖 dockerB） |
 | 网易房间成员列表（含未进世界） | ✅ 实机验证 |
 | 手动同意好友申请 | ✅ 实机验证 |

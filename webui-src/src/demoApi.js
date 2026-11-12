@@ -510,6 +510,33 @@ export function installDemoApi() {
             profile_id: saved.account.profile_id,
           });
         }
+        case 'POST session/mobile-login': {
+          if (state.running.size) return failure('请先停止房间，再添加账号');
+          if (String(body.email || '').includes('verify') || body.password === '1351') {
+            return json({
+              status: 'need_verify',
+              message: '演示：网易手游要求完成一次安全验证。',
+              verify_url: 'https://example.com/verify',
+            });
+          }
+          const saved = upsertDemoAccount(body.index, {
+            email: body.email,
+            name: String(body.email || '').split('@')[0],
+            label: body.label,
+            profile_id: body.profile_id,
+          });
+          return json({
+            ok: true,
+            index: saved.index,
+            name: saved.account.name,
+            uid: saved.account.uid,
+            level: saved.account.level,
+            platform: 'mobile_netease',
+            auth_method: 'mobile_netease',
+            expires_at: future,
+            profile_id: saved.account.profile_id,
+          });
+        }
         case 'POST account/remove':
           if (state.running.size) return failure('请先停止房间，再移除账号');
           state.accounts.splice(Number(body.index), 1);
