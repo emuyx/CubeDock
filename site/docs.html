@@ -203,7 +203,7 @@
           </ol>
           <div class="doc-callout doc-note">
             <strong>数据文件：</strong><code>config.json</code>（全局设置 + 配置方案）、
-            <code>room-tokens.dat</code>、<code>accounts.json</code>（含 <code>profile_id</code>）、
+            <code>room-tokens.dat</code>、<code>accounts.json</code>（含 <code>profile_id</code> / <code>auth_method</code>）、
             <code>interop-device.dat</code>、<code>admin.json</code>、<code>logs/</code>。
             Windows 使用 DPAPI，其他平台使用 0600 权限；不要提交或分享这些文件。
           </div>
@@ -286,12 +286,31 @@
             进入「账号与房间」→「添加网易账号」。添加前需要先停止全部房间，因为重新登录可能
             使正在使用的会话失效。
           </p>
+          <table class="doc-table">
+            <thead>
+              <tr><th>登录方式</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>基岩互通版邮箱</td><td>使用网易邮箱和密码，走 a50 / x19 / uni_sauth 链路</td></tr>
+              <tr><td>基岩互通版 sauth</td><td>粘贴已有的互通版会话凭据（platform=pc / app_channel=a50_sdk_cn）</td></tr>
+              <tr><td>网易手游会话</td><td>粘贴手游 <code>sauth_json</code>，需包含 <code>platform=ad</code>、<code>app_channel</code>、<code>sessionid</code>、<code>access_token</code></td></tr>
+            </tbody>
+          </table>
+          <p>
+            两种客户端可以同时存在：账号通过 <code>accounts.json</code> 的
+            <code>auth_method</code> 区分（<code>interop</code> / <code>mobile_netease</code>）。
+            更新登录时会沿用账号当前的登录方式。
+          </p>
           <ul>
-            <li><strong>邮箱直登</strong>：使用互通版邮箱和密码，走 a50 / x19 / uni_sauth 链路；</li>
-            <li><strong>导入 sauth</strong>：粘贴已有的互通版会话凭据，适合高级用法；</li>
             <li><strong>配置方案</strong>：每个账号在添加时选择一套方案；</li>
-            <li><strong>更新登录</strong>：凭据过期后，在账号页点「更新登录」，用邮箱密码或新的 sauth 重新登录。</li>
+            <li><strong>更新登录</strong>：凭据过期后，在账号页点「更新登录」，用对应方式的邮箱密码或新的 sauth 重新登录。</li>
           </ul>
+          <div class="doc-callout doc-note">
+            <strong>网易手游：</strong>当前提供会话导入，不提供手游账号密码直登。抓取到的
+            <code>sauth_json</code> 应来自真实手游认证请求；不要使用
+            <code>unisdk_login_json</code> 单独导入，因为它缺少 <code>sessionid</code> 等字段。
+            4399 手游和 Java 经典版渠道仍在后续计划中。
+          </div>
           <div class="doc-callout doc-warn">
             <strong>1351 安全验证：</strong>登录时若提示需要安全验证，点击页面上的「打开网易验证页面」
             完成验证，再回到 CubeDock 点一次「登录并添加」。CubeDock 不会自动重试。
@@ -511,6 +530,7 @@
               <tr><td>房间侧踢人 / 标签 / 准入等级</td><td>✅ 实机验证（踢人依赖 dockerB）</td></tr>
               <tr><td>网易房间成员列表</td><td>✅ 实机验证</td></tr>
               <tr><td>手动同意好友申请</td><td>✅ 实机验证</td></tr>
+              <tr><td>网易手游会话导入（PE/资料）</td><td>✅ 真实抓包 + 本地端到端探针；手游开房待实测</td></tr>
               <tr><td><code>govulncheck</code>（root / limbo）</td><td>✅ 0 个可达漏洞（Go 1.27.4）</td></tr>
               <tr><td><code>npm audit</code></td><td>✅ 0 vulnerabilities</td></tr>
               <tr><td>重复测试 / 跨平台构建</td><td>✅ 3× 全量测试 / 6 平台构建</td></tr>
@@ -525,8 +545,9 @@
             压力测试尚未执行。
           </div>
           <p>
-            默认协议为 <code>43</code>，默认房间版本为 <code>1.21.130.0</code>；PE 认证常量仍为
-            <code>3.10.5.301486</code>。互通版客户端 manifest 更新后必须重新抓包并验证，
+            默认协议为 <code>43</code>，默认房间版本为 <code>1.21.130.0</code>。基岩互通版 PE
+            常量为 <code>3.10.5.301486</code>；网易手游抓包版本为 <code>3.10.16.302017</code>
+            （engine <code>3.10.5.301327</code>）。客户端 manifest 更新后必须重新抓包并验证，
             不能只改常量。
           </p>
           <div class="doc-callout doc-note">

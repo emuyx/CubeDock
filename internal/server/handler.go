@@ -17,6 +17,7 @@ import (
 	"github.com/emuyx/cubedock/internal/console"
 	"github.com/emuyx/cubedock/internal/core"
 	"github.com/emuyx/cubedock/internal/interoplogin"
+	"github.com/emuyx/cubedock/internal/netease"
 	"github.com/emuyx/cubedock/internal/redact"
 	"github.com/emuyx/cubedock/internal/webui"
 )
@@ -297,12 +298,14 @@ func (h *consoleHandler) saveConfig(w http.ResponseWriter, r *http.Request) {
 
 // saveSession stores one verified session and its account metadata. index
 // selects an existing room to replace; nil adds a new account.
-func (h *consoleHandler) saveSession(token, platform, expiresAt, email, label, profileID string, profile auth.Profile, index *int) (int, error) {
+func (h *consoleHandler) saveSession(token, platform, authMethod, expiresAt, email, label, profileID string, profile auth.Profile, index *int) (int, error) {
 	meta := core.AccountMeta{
 		Email: strings.TrimSpace(email), Label: strings.TrimSpace(label),
 		Name: profile.Name, UID: profile.UID, Level: profile.Level,
-		Platform: platform, ExpiresAt: expiresAt, ProfileID: strings.TrimSpace(profileID),
+		Platform: platform, AuthMethod: authMethod, ExpiresAt: expiresAt,
+		ProfileID: strings.TrimSpace(profileID),
 	}
+	methodLabel := netease.AuthMethodLabel(netease.AuthMethod(authMethod))
 	if index != nil {
 		existing := h.manager.Accounts()
 		if *index < 0 || *index >= len(existing) {
@@ -322,24 +325,24 @@ func (h *consoleHandler) saveSession(token, platform, expiresAt, email, label, p
 		meta.Email = profile.Name
 	}
 	if meta.Label == "" {
-		meta.Label = "互通版会话"
+		meta.Label = methodLabel + "会话"
 	}
 	if meta.Email == "" {
-		meta.Email = "互通版会话"
+		meta.Email = methodLabel + "会话"
 	}
 
 	if index != nil {
 		if err := h.manager.ReplaceAccount(*index, token, meta); err != nil {
 			return -1, err
 		}
-		h.manager.Record("账号", fmt.Sprintf("已更新房间 %d 的互通版会话：%s", *index+1, profile.Name))
+		h.manager.Record("账号", fmt.Sprintf("已更新房间 %d 的%s会话：%s", *index+1, methodLabel, profile.Name))
 		return *index, nil
 	}
 	created, err := h.manager.AddAccount(token, meta)
 	if err != nil {
 		return -1, err
 	}
-	h.manager.Record("账号", fmt.Sprintf("已导入互通版会话：%s（UID %s）→ 房间 %d", profile.Name, profile.UID, created+1))
+	h.manager.Record("账号", fmt.Sprintf("已导入%s会话：%s（UID %s）→ 房间 %d", methodLabel, profile.Name, profile.UID, created+1))
 	return created, nil
 }
 
@@ -355,11 +358,12 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Sauth     string `json:"sauth"`
-		Email     string `json:"email"`
-		Label     string `json:"label"`
-		Index     *int   `json:"index"`
-		ProfileID string `json:"profile_id"`
+		Sauth      string `json:"sauth"`
+		AuthMethod string `json:"auth_method"`
+		Email      string `json:"email"`
+		Label      string `json:"label"`
+		Index      *int   `json:"index"`
+		ProfileID  string `json:"profile_id"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024))
 	decoder.DisallowUnknownFields()
@@ -367,29 +371,30 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "请求数据无效", http.StatusBadRequest)
 		return
 	}
-	token, platform, expiresAt, err := core.NormalizeInteropSession(body.Sauth)
+	token, method, expiresAt, err := core.NormalizeSession(body.Sauth, body.AuthMethod)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	authMethod := netease.AuthMethod(method)
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	profile, err := auth.LookupProfile(ctx, token)
+	profile, err := auth.LookupProfileFor(ctx, authMethod, token)
 	if err != nil {
 		message := redact.Sanitize(err.Error(), token)
-		h.manager.Record("账号", "互通版会话验证失败："+message)
+		h.manager.Record("账号", netease.AuthMethodLabel(authMethod)+"会话验证失败："+message)
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
-	index, err := h.saveSession(token, platform, expiresAt, body.Email, body.Label, body.ProfileID, profile, body.Index)
+	index, err := h.saveSession(token, method, method, expiresAt, body.Email, body.Label, body.ProfileID, profile, body.Index)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	result := map[string]any{
 		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
-		"level": profile.Level, "platform": platform, "expires_at": expiresAt,
-		"profile_id": h.accountProfileID(index),
+		"level": profile.Level, "platform": method, "auth_method": method,
+		"expires_at": expiresAt, "profile_id": h.accountProfileID(index),
 	}
 	if expiresAt == "" {
 		delete(result, "expires_at")
@@ -446,27 +451,27 @@ func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "序列化会话失败", http.StatusInternalServerError)
 		return
 	}
-	token, platform, expiresAt, err := core.NormalizeInteropSession(string(inner))
+	token, method, expiresAt, err := core.NormalizeSession(string(inner), string(netease.AuthInterop))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	profile, err := auth.LookupProfile(ctx, token)
+	profile, err := auth.LookupProfileFor(ctx, netease.AuthInterop, token)
 	if err != nil {
 		message := redact.Sanitize(err.Error(), token)
 		h.manager.Record("账号", "互通版会话验证失败："+message)
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
-	index, err := h.saveSession(token, platform, expiresAt, email, body.Label, body.ProfileID, profile, body.Index)
+	index, err := h.saveSession(token, method, method, expiresAt, email, body.Label, body.ProfileID, profile, body.Index)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	result := map[string]any{
 		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
-		"level": profile.Level, "platform": platform, "expires_at": expiresAt,
-		"profile_id": h.accountProfileID(index),
+		"level": profile.Level, "platform": method, "auth_method": method,
+		"expires_at": expiresAt, "profile_id": h.accountProfileID(index),
 	}
 	if expiresAt == "" {
 		delete(result, "expires_at")
@@ -511,9 +516,19 @@ func (h *consoleHandler) refreshProfile(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	accounts := h.manager.Accounts()
+	if body.Index < 0 || body.Index >= len(accounts) {
+		http.Error(w, "账号序号无效", http.StatusBadRequest)
+		return
+	}
+	method, err := netease.ParseAuthMethod(accounts[body.Index].AuthMethod)
+	if err != nil {
+		http.Error(w, "账号登录方式无效", http.StatusBadRequest)
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
-	profile, fetchErr := auth.LookupProfile(ctx, token)
+	profile, fetchErr := auth.LookupProfileFor(ctx, method, token)
 	if fetchErr != nil {
 		message := redact.Sanitize(fetchErr.Error(), token)
 		_ = h.manager.UpdateAccountProfile(body.Index, "", "", 0, message)

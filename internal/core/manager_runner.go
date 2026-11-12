@@ -10,6 +10,7 @@ import (
 
 	"github.com/emuyx/cubedock/internal/auth"
 	"github.com/emuyx/cubedock/internal/config"
+	"github.com/emuyx/cubedock/internal/netease"
 	"github.com/emuyx/cubedock/internal/redact"
 	"github.com/emuyx/cubedock/internal/room"
 )
@@ -27,7 +28,7 @@ type roomHost interface {
 	RoomMembers() []room.RoomMember
 }
 
-func (m *Manager) run(ctx context.Context, index int, profile config.Profile, token string) {
+func (m *Manager) run(ctx context.Context, index int, profile config.Profile, token string, authMethod netease.AuthMethod) {
 	rl := roomLog{manager: m, index: index, profile: profile.Name}
 	rl.event("启动本地联机房主机器人")
 	rl.event(fmt.Sprintf("直通模式 + 网易 RakNet v8（配置方案「%s」）：原始游戏批次直接转发，代客户端完成登录重签与加密握手",
@@ -81,7 +82,7 @@ func (m *Manager) run(ctx context.Context, index int, profile config.Profile, to
 
 			var info auth.RoomInfo
 			authCtx, cancel := context.WithTimeout(ctx, 75*time.Second)
-			info, err = m.prepareRoom(authCtx, profile.LobbyProtocolID, token)
+			info, err = m.prepareRoom(authCtx, authMethod, profile.LobbyProtocolID, token)
 			cancel()
 			if err == nil {
 				m.updateRoom(index, func(status *RoomStatus) {

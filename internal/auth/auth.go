@@ -35,9 +35,14 @@ type Profile struct {
 }
 
 // PrepareRoom performs PE authentication and obtains a fresh room transfer
-// ticket. NetEase does not accept unmodified phone (platform=ad) sessions, so
-// only 互通版 sessions are useful here.
+// ticket. The method is inferred from the stored session.
 func PrepareRoom(ctx context.Context, lobbyProtocolID uint8, token string) (RoomInfo, error) {
+	return PrepareRoomFor(ctx, "", lobbyProtocolID, token)
+}
+
+// PrepareRoomFor performs PE authentication with an explicit provider. An
+// empty method keeps the legacy inference path.
+func PrepareRoomFor(ctx context.Context, method netease.AuthMethod, lobbyProtocolID uint8, token string) (RoomInfo, error) {
 	var info RoomInfo
 	session, err := unwrapToken(token)
 	if err != nil {
@@ -47,7 +52,7 @@ func PrepareRoom(ctx context.Context, lobbyProtocolID uint8, token string) (Room
 	if err != nil {
 		return info, fmt.Errorf("初始化网易认证客户端失败: %w", err)
 	}
-	if err = client.Authenticate(ctx, session); err != nil {
+	if err = client.AuthenticateFor(ctx, method, session); err != nil {
 		return info, fmt.Errorf("网易账号验证失败: %w", err)
 	}
 	result, err := client.CreateRoom(ctx)
@@ -107,9 +112,15 @@ func validateRoomInfo(info RoomInfo) error {
 	return nil
 }
 
-// LookupProfile verifies a stored session and returns its game name. It is used
-// before starting a room so the console can show who the account belongs to.
+// LookupProfile verifies a stored session and returns its game name. The
+// method is inferred from the stored session.
 func LookupProfile(ctx context.Context, token string) (Profile, error) {
+	return LookupProfileFor(ctx, "", token)
+}
+
+// LookupProfileFor verifies a stored session with an explicit provider. It is
+// used before starting a room so the console can show who the account belongs to.
+func LookupProfileFor(ctx context.Context, method netease.AuthMethod, token string) (Profile, error) {
 	var profile Profile
 	session, err := unwrapToken(token)
 	if err != nil {
@@ -119,7 +130,7 @@ func LookupProfile(ctx context.Context, token string) (Profile, error) {
 	if err != nil {
 		return profile, fmt.Errorf("初始化网易认证客户端失败: %w", err)
 	}
-	if err = client.Authenticate(ctx, session); err != nil {
+	if err = client.AuthenticateFor(ctx, method, session); err != nil {
 		return profile, fmt.Errorf("网易账号验证失败: %w", err)
 	}
 	identity, err := client.Profile(ctx)

@@ -24,6 +24,7 @@ export default function AccountLogin({
   profiles = [],
   defaultProfileId = '',
   initialProfileId = '',
+  initialAuthMethod = '',
 }) {
   const notify = useToast();
   const [email, setEmail] = useState(initialEmail);
@@ -38,15 +39,21 @@ export default function AccountLogin({
   const [message, setMessage] = useState('');
   const [verifyURL, setVerifyURL] = useState('');
   const [sauth, setSauth] = useState('');
+  const [sauthMethod, setSauthMethod] = useState(initialAuthMethod || 'interop');
   const [sauthLabel, setSauthLabel] = useState('');
   const [sauthBusy, setSauthBusy] = useState(false);
   const [sauthError, setSauthError] = useState('');
   const [sauthProfile, setSauthProfile] = useState(null);
+  const sauthMethodLabel = sauthMethod === 'mobile_netease' ? '网易手游' : '基岩互通版';
   const requestRef = useRef(false);
 
   useEffect(() => {
     if (initialEmail) setEmail(initialEmail);
   }, [initialEmail, replaceIndex]);
+
+  useEffect(() => {
+    if (initialAuthMethod) setSauthMethod(initialAuthMethod);
+  }, [initialAuthMethod, replaceIndex]);
 
   useEffect(() => {
     const next = initialProfileId || defaultProfileId || profiles[0]?.id || '';
@@ -110,13 +117,18 @@ export default function AccountLogin({
     setSauthError('');
     setSauthProfile(null);
     try {
-      const payload = { sauth: value, label: sauthLabel.trim(), profile_id: profileId };
+      const payload = {
+        sauth: value,
+        auth_method: sauthMethod,
+        label: sauthLabel.trim(),
+        profile_id: profileId,
+      };
       if (replaceIndex !== null) payload.index = replaceIndex;
       const result = await api('session/import', payload);
       notify(
         replaceIndex !== null
           ? `已更新房间 ${(result.index ?? replaceIndex) + 1} 的登录：${result.name}`
-          : `已导入互通版会话：${result.name} → 房间 ${(result.index ?? 0) + 1}`,
+          : `已导入${sauthMethodLabel}会话：${result.name} → 房间 ${(result.index ?? 0) + 1}`,
         'success',
       );
       setSauthProfile(result);
@@ -124,7 +136,7 @@ export default function AccountLogin({
       setSauthLabel('');
       if (onAdded) onAdded(result);
     } catch (failure) {
-      setSauthError(failure.message || '互通版会话验证失败');
+      setSauthError(failure.message || `${sauthMethodLabel}会话验证失败`);
     } finally {
       setSauthBusy(false);
     }
@@ -254,15 +266,31 @@ export default function AccountLogin({
 
       <Box>
         <Alert severity="info" sx={{ mb: 1.5 }}>
-          已经有登录凭证？可以粘贴 sauth 会话导入（高级用法）。
+          已经有登录凭证？可以选择登录方式并粘贴 sauth 会话导入（高级用法）。
         </Alert>
         <Stack spacing={1.4}>
+          <TextField
+            select
+            size="small"
+            label="会话类型"
+            value={sauthMethod}
+            onChange={event => setSauthMethod(event.target.value)}
+            fullWidth
+            helperText="互通版与手游会话格式不同，请选择对应来源"
+          >
+            <MenuItem value="interop">基岩互通版 sauth</MenuItem>
+            <MenuItem value="mobile_netease">网易手游会话</MenuItem>
+          </TextField>
           <TextField
             multiline
             minRows={3}
             maxRows={8}
-            label="登录凭证（sauth 会话）"
-            placeholder="每行一个会话，或粘贴完整 JSON"
+            label={sauthMethod === 'mobile_netease' ? '手游 sauth/session JSON' : '登录凭证（互通版 sauth 会话）'}
+            placeholder={
+              sauthMethod === 'mobile_netease'
+                ? '粘贴包含 platform=ad、app_channel、sessionid、access_token 的 JSON'
+                : '每行一个会话，或粘贴完整 JSON'
+            }
             value={sauth}
             onChange={event => setSauth(event.target.value)}
             fullWidth
@@ -284,6 +312,11 @@ export default function AccountLogin({
             <Alert severity="success">
               游戏名：<b>{sauthProfile.name}</b>
               {sauthProfile.uid ? ` ｜ UID ${sauthProfile.uid}` : ''}
+              {sauthProfile.auth_method === 'mobile_netease'
+                ? ' ｜ 网易手游'
+                : sauthProfile.auth_method === 'mobile_4399'
+                  ? ' ｜ 4399 手游'
+                  : ' ｜ 基岩互通版'}
               {sauthProfile.expires_at ? ` ｜ 会话到期 ${new Date(sauthProfile.expires_at).toLocaleString('zh-CN')}` : ''}
             </Alert>
           )}

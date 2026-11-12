@@ -39,10 +39,17 @@ type peAuthResponse struct {
 }
 
 func (c *Client) performPEAuth(ctx context.Context, session Session) (Credentials, error) {
-	seed := uuid.NewString()
-	loginSN, err := randomUpperHex(32)
+	profile, err := profileFor(session.Method)
 	if err != nil {
 		return Credentials{}, err
+	}
+	seed := uuid.NewString()
+	loginSN := strings.TrimSpace(session.ClientLoginSN)
+	if loginSN == "" {
+		loginSN, err = randomUpperHex(32)
+		if err != nil {
+			return Credentials{}, err
+		}
 	}
 	aimInfo := textField(session.Raw, "aim_info")
 	if aimInfo == "" {
@@ -52,70 +59,23 @@ func (c *Client) performPEAuth(ctx context.Context, session Session) (Credential
 	if ip == "" {
 		ip = "127.0.0.1"
 	}
-	gameID := textField(session.Raw, "gameid")
-	if gameID == "" {
-		gameID = "x19"
-	}
-	sauth := map[string]any{
-		"access_token":     session.AccessToken,
-		"aim_info":         aimInfo,
-		"app_channel":      "a50_sdk_cn",
-		"client_login_sn":  loginSN,
-		"deviceid":         session.DeviceID,
-		"gameid":           gameID,
-		"gas_token":        textField(session.Raw, "gas_token"),
-		"get_access_token": "1",
-		"ip":               ip,
-		"login_channel":    "netease",
-		"platform":         "pc",
-		"sdk_version":      "4.16.0",
-		"sdkuid":           session.SDKUID,
-		"sessionid":        session.SessionID,
-		"source_platform":  "pc",
-		"tdid":             textField(session.Raw, "tdid"),
-		"udid":             session.UDID,
-	}
-	saData, err := json.Marshal(map[string]any{
-		"app_channel":   "a50_sdk_cn",
-		"app_ver":       interopPatchVersion,
-		"core_num":      "8",
-		"cpu_digit":     "0",
-		"cpu_hz":        "",
-		"cpu_name":      "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
-		"device_height": "1080",
-		"device_model":  "Win32",
-		"device_width":  "1920",
-		"disk":          `Data_disk_name: SCSI\Disk&Ven_NVMe&Prod_Generic`,
-		"emulator":      "0",
-		"first_udid":    session.UDID,
-		"is_guest":      "0",
-		"launcher_type": "PE_C++",
-		"mac_addr":      "02:00:00:00:00:01",
-		"network":       "",
-		"os_name":       "windows",
-		"os_ver":        systemVersion(),
-		"ram":           "8589934592",
-		"rom":           "",
-		"root":          false,
-		"sdk_ver":       "4.16.0",
-		"start_type":    "default",
-		"tdid":          "",
-		"udid":          session.UDID,
-	})
+	gameID := firstNonEmpty(session.GameID, textField(session.Raw, "gameid"), "x19")
+	sauth := buildSauth(session, profile, loginSN, aimInfo, ip, gameID)
+	saData, err := json.Marshal(buildSaData(session, profile))
 	if err != nil {
 		return Credentials{}, fmt.Errorf("序列化设备信息失败: %w", err)
 	}
-	message := interopEngineVersion + interopLibraryHash + interopPatchVersion + interopPatchHash + interopSignHash + seed
-	sign, err := peAuthSign(message, interopSignSP, interopSignTR)
+	message := profile.EngineVersion + profile.LibraryHash + profile.PatchVersion + profile.PatchHash + profile.SignHash + seed
+	sign, err := peAuthSign(message, profile.SignSP, profile.SignTR)
 	if err != nil {
 		return Credentials{}, err
 	}
 	payload, err := json.Marshal(peAuthRequest{
-		EngineVersion: interopEngineVersion,
+		EngineVersion: profile.EngineVersion,
 		ExtraParam:    "extra",
 		Message:       message,
-		PatchVersion:  interopPatchVersion,
-		PayChannel:    "netease",
+		PatchVersion:  profile.PatchVersion,
+		PayChannel:    profile.PayChannel,
 		SaData:        string(saData),
 		SauthJSON:     sauth,
 		Seed:          seed,
@@ -173,6 +133,124 @@ func (c *Client) performPEAuth(ctx context.Context, session Session) (Credential
 		Seed:    authSeed,
 		Session: session,
 	}, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func buildSauth(session Session, profile PEAuthProfile, loginSN, aimInfo, ip, gameID string) map[string]any {
+	if profile.Method == AuthInterop {
+		// Keep the verified interop shape byte-for-byte; adding mobile-only
+		// fields here would change the wire payload for existing accounts.
+		return map[string]any{
+			"access_token":     session.AccessToken,
+			"aim_info":         aimInfo,
+			"app_channel":      profile.AppChannel,
+			"client_login_sn":  loginSN,
+			"deviceid":         session.DeviceID,
+			"gameid":           gameID,
+			"gas_token":        textField(session.Raw, "gas_token"),
+			"get_access_token": "1",
+			"ip":               ip,
+			"login_channel":    profile.LoginChannel,
+			"platform":         profile.Platform,
+			"sdk_version":      profile.SDKVersion,
+			"sdkuid":           session.SDKUID,
+			"sessionid":        session.SessionID,
+			"source_platform":  profile.SourcePlatform,
+			"tdid":             textField(session.Raw, "tdid"),
+			"udid":             session.UDID,
+		}
+	}
+	return map[string]any{
+		"access_token":       session.AccessToken,
+		"aim_info":           aimInfo,
+		"app_channel":        firstNonEmpty(session.AppChannel, profile.AppChannel),
+		"client_login_sn":    loginSN,
+		"deviceid":           session.DeviceID,
+		"gameid":             firstNonEmpty(session.GameID, gameID),
+		"gas_token":          textField(session.Raw, "gas_token"),
+		"get_access_token":   "1",
+		"ip":                 ip,
+		"is_unisdk_guest":    0,
+		"login_channel":      firstNonEmpty(session.LoginChannel, profile.LoginChannel),
+		"platform":           firstNonEmpty(session.Platform, profile.Platform),
+		"sdk_version":        firstNonEmpty(session.SDKVersion, profile.SDKVersion),
+		"sdkuid":             session.SDKUID,
+		"sessionid":          session.SessionID,
+		"source_app_channel": firstNonEmpty(session.SourceAppChannel, profile.SourceAppChannel),
+		"source_platform":    firstNonEmpty(session.SourcePlatform, profile.SourcePlatform),
+		"step":               "0",
+		"step2":              "0",
+		"tdid":               textField(session.Raw, "tdid"),
+		"udid":               session.UDID,
+	}
+}
+
+func buildSaData(session Session, profile PEAuthProfile) map[string]any {
+	d := profile.Device
+	if profile.Method == AuthInterop {
+		return map[string]any{
+			"app_channel":   profile.AppChannel,
+			"app_ver":       profile.PatchVersion,
+			"core_num":      d.CoreNum,
+			"cpu_digit":     d.CPUDigit,
+			"cpu_hz":        d.CPUHz,
+			"cpu_name":      d.CPUName,
+			"device_height": d.DeviceHeight,
+			"device_model":  d.DeviceModel,
+			"device_width":  d.DeviceWidth,
+			"disk":          d.Disk,
+			"emulator":      d.Emulator,
+			"first_udid":    session.UDID,
+			"is_guest":      d.IsGuest,
+			"launcher_type": d.LauncherType,
+			"mac_addr":      d.MACAddr,
+			"network":       d.Network,
+			"os_name":       d.OSName,
+			"os_ver":        systemVersion(),
+			"ram":           d.RAM,
+			"rom":           d.ROM,
+			"root":          d.Root,
+			"sdk_ver":       profile.SDKVersion,
+			"start_type":    d.StartType,
+			"tdid":          "",
+			"udid":          session.UDID,
+		}
+	}
+	return map[string]any{
+		"app_channel":   firstNonEmpty(session.AppChannel, profile.AppChannel),
+		"app_ver":       d.AppVer,
+		"core_num":      d.CoreNum,
+		"cpu_digit":     d.CPUDigit,
+		"cpu_hz":        d.CPUHz,
+		"cpu_name":      d.CPUName,
+		"device_height": d.DeviceHeight,
+		"device_model":  d.DeviceModel,
+		"device_width":  d.DeviceWidth,
+		"disk":          d.Disk,
+		"emulator":      0,
+		"first_udid":    session.UDID,
+		"is_guest":      0,
+		"launcher_type": d.LauncherType,
+		"mac_addr":      d.MACAddr,
+		"network":       d.Network,
+		"os_name":       d.OSName,
+		"os_ver":        d.OSVer,
+		"ram":           d.RAM,
+		"rom":           d.ROM,
+		"root":          d.Root,
+		"sdk_ver":       firstNonEmpty(session.SDKVersion, profile.SDKVersion),
+		"start_type":    d.StartType,
+		"tdid":          textField(session.Raw, "tdid"),
+		"udid":          session.UDID,
+	}
 }
 
 func readHTTPBody(response *http.Response) ([]byte, error) {

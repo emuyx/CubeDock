@@ -12,6 +12,7 @@ import (
 
 	"github.com/emuyx/cubedock/internal/auth"
 	"github.com/emuyx/cubedock/internal/config"
+	"github.com/emuyx/cubedock/internal/netease"
 	"github.com/emuyx/cubedock/internal/session"
 )
 
@@ -89,7 +90,7 @@ func installFakeRoomSeams(t *testing.T, manager *Manager, lockDir string) *fakeO
 	manager.pingFn = func(_ context.Context, profile config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
-	manager.prepareRoom = func(_ context.Context, _ uint8, token string) (auth.RoomInfo, error) {
+	manager.prepareRoom = func(_ context.Context, _ netease.AuthMethod, _ uint8, token string) (auth.RoomInfo, error) {
 		return auth.RoomInfo{UserID: 1, PlayerName: "bot-" + token, ProtocolID: 43}, nil
 	}
 	opener := &fakeOpener{}
@@ -267,5 +268,41 @@ func TestLoadAccountsBackfillsDefaultProfile(t *testing.T) {
 	accounts := manager.Accounts()
 	if len(accounts) != 1 || accounts[0].ProfileID != config.DefaultProfileID {
 		t.Fatalf("accounts = %+v", accounts)
+	}
+	if accounts[0].AuthMethod != string(netease.AuthInterop) {
+		t.Fatalf("legacy auth method = %q", accounts[0].AuthMethod)
+	}
+}
+
+func TestAccountAuthMethodsCoexist(t *testing.T) {
+	dir := t.TempDir()
+	manager, err := New(dir, config.Defaults(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddAccount("token-interop", AccountMeta{
+		Email: "interop@example.com", Name: "Interop", AuthMethod: string(netease.AuthInterop),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddAccount("token-mobile", AccountMeta{
+		Email: "mobile@example.com", Name: "Mobile", AuthMethod: string(netease.AuthMobileNetEase),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	accounts := manager.Accounts()
+	if len(accounts) != 2 ||
+		accounts[0].AuthMethod != string(netease.AuthInterop) ||
+		accounts[1].AuthMethod != string(netease.AuthMobileNetEase) {
+		t.Fatalf("accounts = %+v", accounts)
+	}
+	reloaded, err := New(dir, config.Defaults(), []string{"token-interop", "token-mobile"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accounts = reloaded.Accounts()
+	if accounts[0].AuthMethod != string(netease.AuthInterop) ||
+		accounts[1].AuthMethod != string(netease.AuthMobileNetEase) {
+		t.Fatalf("reloaded accounts = %+v", accounts)
 	}
 }

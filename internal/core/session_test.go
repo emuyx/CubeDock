@@ -45,6 +45,25 @@ func TestNormalizeInteropSessionShapes(t *testing.T) {
 	}
 }
 
+func TestNormalizeSessionMobileAndInference(t *testing.T) {
+	mobile := fakeSession("ad", "netease")
+	mobile["client_login_sn"] = "SN"
+	mobile["source_platform"] = "ad"
+	raw, _ := json.Marshal(mobile)
+
+	token, method, _, err := NormalizeSession(string(raw), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if method != "mobile_netease" || !strings.HasPrefix(token, `{"sauth_json":`) {
+		t.Fatalf("inferred method=%q token=%q", method, token)
+	}
+	token, method, _, err = NormalizeSession(string(raw), "mobile")
+	if err != nil || method != "mobile_netease" {
+		t.Fatalf("explicit method=%q err=%v", method, err)
+	}
+}
+
 func TestNormalizeInteropSessionRejectsMobileAndMissingFields(t *testing.T) {
 	mobile, _ := json.Marshal(fakeSession("ad", "netease"))
 	if _, _, _, err := NormalizeInteropSession(string(mobile)); err == nil {

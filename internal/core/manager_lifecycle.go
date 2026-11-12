@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/emuyx/cubedock/internal/config"
+	"github.com/emuyx/cubedock/internal/netease"
 	"github.com/emuyx/cubedock/internal/session"
 )
 
@@ -29,6 +30,7 @@ const (
 type roomRuntime struct {
 	index      int
 	token      string
+	authMethod netease.AuthMethod
 	profile    config.Profile
 	cancel     context.CancelFunc
 	done       chan struct{}
@@ -60,10 +62,10 @@ func (m *Manager) prepLock(profileID string) *sync.Mutex {
 	return lock
 }
 
-// resolveAccountLocked returns the profile and token for one account.
-func (m *Manager) resolveAccountLocked(index int) (config.Profile, string, error) {
+// resolveAccountLocked returns the profile, token and auth method for one account.
+func (m *Manager) resolveAccountLocked(index int) (config.Profile, string, netease.AuthMethod, error) {
 	if index < 0 || index >= len(m.tokens) {
-		return config.Profile{}, "", fmt.Errorf("账号序号无效")
+		return config.Profile{}, "", netease.AuthInterop, fmt.Errorf("账号序号无效")
 	}
 	record := m.accounts[index]
 	profileID := record.ProfileID
@@ -72,9 +74,17 @@ func (m *Manager) resolveAccountLocked(index int) (config.Profile, string, error
 	}
 	profile, ok := m.cfg.Profile(profileID)
 	if !ok {
-		return config.Profile{}, "", fmt.Errorf("房间 %d 选择的配置方案 %q 不存在", index+1, profileID)
+		return config.Profile{}, "", netease.AuthInterop, fmt.Errorf("房间 %d 选择的配置方案 %q 不存在", index+1, profileID)
 	}
-	return profile, m.tokens[index], nil
+	method := netease.AuthInterop
+	if record.AuthMethod != "" {
+		parsed, err := netease.ParseAuthMethod(record.AuthMethod)
+		if err != nil {
+			return config.Profile{}, "", netease.AuthInterop, fmt.Errorf("房间 %d 的登录方式无效：%w", index+1, err)
+		}
+		method = parsed
+	}
+	return profile, m.tokens[index], method, nil
 }
 
 // StartAccount starts one account's room without touching any other room.
@@ -87,7 +97,7 @@ func (m *Manager) StartAccount(index int) error {
 
 func (m *Manager) startAccount(index int) error {
 	m.mu.Lock()
-	profile, token, err := m.resolveAccountLocked(index)
+	profile, token, method, err := m.resolveAccountLocked(index)
 	m.mu.Unlock()
 	if err != nil {
 		return err
@@ -99,7 +109,7 @@ func (m *Manager) startAccount(index int) error {
 		}
 		return err
 	}
-	return m.startWithLease(index, profile, token, lease)
+	return m.startWithLease(index, profile, token, method, lease)
 }
 
 // Start starts every account that is not already running. The call is
@@ -123,10 +133,11 @@ func (m *Manager) Start() error {
 	}
 
 	type pending struct {
-		index   int
-		profile config.Profile
-		token   string
-		lease   *session.Lease
+		index      int
+		profile    config.Profile
+		token      string
+		authMethod netease.AuthMethod
+		lease      *session.Lease
 	}
 	claims := make([]pending, 0, len(indexes))
 	m.lifecycleMu.Lock()
@@ -137,7 +148,7 @@ func (m *Manager) Start() error {
 	}
 	for _, index := range indexes {
 		m.mu.Lock()
-		profile, token, err := m.resolveAccountLocked(index)
+		profile, token, method, err := m.resolveAccountLocked(index)
 		m.mu.Unlock()
 		if err != nil {
 			releaseClaims()
@@ -153,7 +164,7 @@ func (m *Manager) Start() error {
 			}
 			return err
 		}
-		claims = append(claims, pending{index: index, profile: profile, token: token, lease: lease})
+		claims = append(claims, pending{index: index, profile: profile, token: token, authMethod: method, lease: lease})
 	}
 	m.lifecycleMu.Unlock()
 
@@ -161,7 +172,7 @@ func (m *Manager) Start() error {
 	consumed := make([]bool, len(claims))
 	var firstErr error
 	for position, claim := range claims {
-		err := m.startWithLease(claim.index, claim.profile, claim.token, claim.lease)
+		err := m.startWithLease(claim.index, claim.profile, claim.token, claim.authMethod, claim.lease)
 		consumed[position] = true
 		if err != nil {
 			firstErr = err
@@ -188,7 +199,7 @@ func (m *Manager) Start() error {
 
 // startWithLease registers a runtime and launches it. It takes ownership of
 // lease and releases it in every outcome.
-func (m *Manager) startWithLease(index int, profile config.Profile, token string, lease *session.Lease) error {
+func (m *Manager) startWithLease(index int, profile config.Profile, token string, authMethod netease.AuthMethod, lease *session.Lease) error {
 	m.mu.Lock()
 	if _, exists := m.runtimes[index]; exists {
 		m.mu.Unlock()
@@ -200,7 +211,7 @@ func (m *Manager) startWithLease(index int, profile config.Profile, token string
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	runtime := &roomRuntime{
-		index: index, token: token, profile: profile,
+		index: index, token: token, authMethod: authMethod, profile: profile,
 		cancel: cancel, done: make(chan struct{}), lease: lease,
 		state: roomStarting,
 	}
@@ -243,7 +254,7 @@ func (m *Manager) startWithLease(index int, profile config.Profile, token string
 	}
 	go func() {
 		defer m.finishRuntime(runtime)
-		m.run(ctx, index, profile, token)
+		m.run(ctx, index, profile, token, runtime.authMethod)
 	}()
 	return nil
 }

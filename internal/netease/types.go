@@ -24,16 +24,34 @@ type X19Release struct {
 	APIGatewayGrayURL string `json:"ApiGatewayGrayUrl"`
 }
 
-// Session is the parsed inner sauth object.
+// AuthMethod identifies the client/channel whose session was imported.
+// Several methods coexist in one installation; old accounts default to interop.
+type AuthMethod string
+
+const (
+	AuthInterop       AuthMethod = "interop"        // 基岩互通版 / FeverGames PC
+	AuthMobileNetEase AuthMethod = "mobile_netease" // 网易手游
+	AuthMobile4399    AuthMethod = "mobile_4399"    // 4399 手游
+)
+
+// Session is the parsed inner sauth object. Method is inferred from the
+// platform/channel fields unless the caller explicitly selects a provider.
 type Session struct {
-	SDKUID      string
-	SessionID   string
-	UDID        string
-	DeviceID    string
-	Platform    string
-	AppChannel  string
-	AccessToken string
-	Raw         map[string]any
+	Method           AuthMethod
+	SDKUID           string
+	SessionID        string
+	UDID             string
+	DeviceID         string
+	Platform         string
+	AppChannel       string
+	LoginChannel     string
+	SourcePlatform   string
+	SourceAppChannel string
+	GameID           string
+	SDKVersion       string
+	ClientLoginSN    string
+	AccessToken      string
+	Raw              map[string]any
 }
 
 // Credentials are the account identity returned by PE authentication.

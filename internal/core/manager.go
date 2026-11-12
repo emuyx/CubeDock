@@ -14,6 +14,7 @@ import (
 	"github.com/emuyx/cubedock/internal/auth"
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/fileutil"
+	"github.com/emuyx/cubedock/internal/netease"
 	"github.com/emuyx/cubedock/internal/redact"
 	"github.com/emuyx/cubedock/internal/room"
 	"github.com/emuyx/cubedock/internal/session"
@@ -113,7 +114,7 @@ type Manager struct {
 
 	// Room operations are indirections so tests can exercise many rooms at
 	// once without NetEase. New sets the production implementations.
-	prepareRoom  func(context.Context, uint8, string) (auth.RoomInfo, error)
+	prepareRoom  func(context.Context, netease.AuthMethod, uint8, string) (auth.RoomInfo, error)
 	openRoom     func(context.Context, config.Profile, auth.RoomInfo, func(string)) (roomHost, error)
 	pingFn       func(context.Context, config.Profile) (string, error)
 	claimSession func(string) (*session.Lease, error)
@@ -146,7 +147,7 @@ func New(dir string, cfg config.Config, tokens []string, logger *log.Logger) (*M
 		prepLocks:      make(map[string]*sync.Mutex),
 		exit:           make(chan struct{}),
 
-		prepareRoom: auth.PrepareRoom,
+		prepareRoom: auth.PrepareRoomFor,
 		openRoom: func(ctx context.Context, profile config.Profile, info auth.RoomInfo, trace func(string)) (roomHost, error) {
 			return room.Open(ctx, profile, info, trace)
 		},

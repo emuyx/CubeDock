@@ -58,6 +58,7 @@ flowchart LR
 
 | 能力 | 说明 |
 | --- | --- |
+| 多登录方式 | 基岩互通版邮箱/sauth；网易手游会话导入（工程验证中）；4399/PC 后续 |
 | 互通版直登 | 邮箱密码走 a50 / x19 / uni_sauth，无需抓包 |
 | 第一方认证链 | `internal/netease` 实现 PE 认证、资料、transfer 节点和开房凭据；不再依赖 AGPL 组件 |
 | 加密中继 | P-384 单段链重签、ECDH / AES-CTR、游戏包直通 |
@@ -106,7 +107,9 @@ flowchart LR
 
 4. **添加网易账号**
    进入「账号与房间」→「添加网易账号」，选择配置方案，使用互通版邮箱直登，或导入已有的
-   `sauth`。每个账号对应一个房间；同一账号不能重复添加。
+   互通版 `sauth`。也可以在「会话类型」中选择「网易手游会话」，粘贴包含
+   `platform=ad`、`app_channel`、`sessionid`、`access_token` 的手游 `sauth_json`。
+   每个账号对应一个房间；同一账号不能重复添加。两种登录方式可以同时存在。
 
 5. **启动房间**
    在「账号与房间」或侧边栏账号入口打开该账号的仪表盘，单独「启动 / 停止 / 重连」。
@@ -145,7 +148,7 @@ flowchart LR
 - **等待中的成员**：`TanNewGuestResponse` 不带游戏名，未进入世界时显示为 `房间玩家 <ID>`。
 
 配置字段见 [`config.example.json`](config.example.json)。数据文件：`config.json`
-（全局设置 + 配置方案）、`room-tokens.dat`、`accounts.json`（含 `profile_id`）、
+（全局设置 + 配置方案）、`room-tokens.dat`、`accounts.json`（含 `profile_id` / `auth_method`）、
 `interop-device.dat`、`admin.json`、`logs/`。Windows 使用 DPAPI，其他平台使用 `0600` 权限。
 
 <details>
@@ -178,7 +181,8 @@ flowchart LR
 | GET | `/api/diagnostics?profile_id=` | 只读运行诊断 |
 | GET | `/api/backup` | 导出配置备份（不含登录凭证） |
 | POST | `/api/restore` | 恢复配置 |
-| POST | `/api/session/import` / `/api/session/interop-login` | 导入 sauth / 邮箱登录（仅本机） |
+| POST | `/api/session/import` | 导入 sauth；请求体用 `auth_method` 选择 `interop` / `mobile_netease`（仅本机） |
+| POST | `/api/session/interop-login` | 基岩互通版邮箱登录（仅本机） |
 
 `/api/session/*` 只允许本机访问；控制台只允许白名单 Host/Origin。
 </details>
@@ -218,6 +222,16 @@ limbo 预加载的一致。
 「已进入世界」标签断开的是已经进入上游世界的玩家；「网易房间成员」标签踢出的是 TanLobby
 房间成员，包含已进房但还没进入世界的玩家。房间踢出依赖 `dockerB` transfer 节点；踢出不会
 封禁，玩家仍可能重新加入，除非房间设置了仅好友、密码或准入等级。
+</details>
+
+<details>
+<summary><strong>支持哪些登录方式？</strong></summary>
+
+- **基岩互通版**：邮箱密码直登，或导入互通版 `sauth`（platform=pc / app_channel=a50_sdk_cn）；
+- **网易手游**：导入手游 `sauth_json`（platform=ad / app_channel=netease...），需要包含
+  `sessionid` 和 `access_token`；
+- 两种方式可以同时存在，账号通过 `accounts.json` 的 `auth_method` 区分；
+- 4399 手游、Java 经典版网易/4399 渠道仍在后续计划中。
 </details>
 
 <details>
@@ -293,6 +307,7 @@ Windows 一键构建：`.\scripts\build.ps1`。前端缺少依赖时会自动 `n
 | 真实玩家 `list` / `kick`（代理模式） | ✅ 实机验证 |
 | 多配置方案 + 每账号仪表盘 | ✅ 实机验证 |
 | 第一方认证链（PE/资料/开房） | ✅ 本地测试 + 真实账号探针 + 实机 |
+| 网易手游会话导入（PE/资料） | ✅ 真实抓包 + 本地端到端探针；手游开房待实测 |
 | 房间侧踢人 / 标签 / 准入等级 | ✅ 实机验证（踢人依赖 dockerB） |
 | 网易房间成员列表（含未进世界） | ✅ 实机验证 |
 | 手动同意好友申请 | ✅ 实机验证 |
@@ -308,8 +323,9 @@ Windows 一键构建：`.\scripts\build.ps1`。前端缺少依赖时会自动 `n
 > （内存、文件描述符、UDP 端口、limbo 进程）和网易侧限制影响；>8 的真实压力测试尚未执行，
 > 这不是一个代码阈值，也没有已知的 8 账号相关缺陷。
 
-证书与兼容性说明：PE 认证常量仍为 `3.10.5.301486`，默认房间版本 `1.21.130.0`、协议 `43`。
-互通版客户端 manifest 更新后，必须重新抓包并验证，不能只改常量。
+证书与兼容性说明：基岩互通版 PE 常量仍为 `3.10.5.301486`；网易手游抓包版本为
+`3.10.16.302017`（engine `3.10.5.301327`、patch `3.10.16.302017`）。默认房间版本
+`1.21.130.0`、协议 `43`。客户端 manifest 更新后，必须重新抓包并验证，不能只改常量。
 
 ## 许可
 

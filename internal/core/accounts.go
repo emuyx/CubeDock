@@ -8,6 +8,7 @@ import (
 
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/fileutil"
+	"github.com/emuyx/cubedock/internal/netease"
 )
 
 // AccountStatus is the non-secret account metadata exposed to the console.
@@ -19,8 +20,9 @@ type AccountStatus struct {
 	Name           string `json:"name,omitempty"`
 	UID            string `json:"uid,omitempty"`
 	Level          int    `json:"level,omitempty"`
-	Platform       string `json:"platform,omitempty"`   // interop = 基岩互通版会话
-	ExpiresAt      string `json:"expires_at,omitempty"` // access_token 到期时间
+	Platform       string `json:"platform,omitempty"`    // legacy label
+	AuthMethod     string `json:"auth_method,omitempty"` // interop / mobile_netease / mobile_4399
+	ExpiresAt      string `json:"expires_at,omitempty"`  // access_token 到期时间
 	ProfileError   string `json:"profile_error,omitempty"`
 	VerifiedAt     string `json:"verified_at,omitempty"`
 	ProfileID      string `json:"profile_id,omitempty"`
@@ -35,6 +37,7 @@ type accountRecord struct {
 	UID          string `json:"uid,omitempty"`
 	Level        int    `json:"level,omitempty"`
 	Platform     string `json:"platform,omitempty"`
+	AuthMethod   string `json:"auth_method,omitempty"`
 	ExpiresAt    string `json:"expires_at,omitempty"`
 	ProfileError string `json:"profile_error,omitempty"`
 	VerifiedAt   string `json:"verified_at,omitempty"`
@@ -49,6 +52,7 @@ type AccountMeta struct {
 	UID          string
 	Level        int
 	Platform     string
+	AuthMethod   string
 	ExpiresAt    string
 	ProfileError string
 	Verified     string
@@ -73,6 +77,10 @@ func loadAccounts(path string, tokenCount int, defaultProfileID string) ([]accou
 	for index := range records {
 		if records[index].ProfileID == "" {
 			records[index].ProfileID = defaultProfileID
+			changed = true
+		}
+		if records[index].AuthMethod == "" {
+			records[index].AuthMethod = string(netease.AuthInterop)
 			changed = true
 		}
 	}
@@ -108,7 +116,8 @@ func (m *Manager) accountStatusesLocked() []AccountStatus {
 		status := AccountStatus{
 			Index: index, Email: record.Email, Label: record.Label,
 			Name: record.Name, UID: record.UID, Level: record.Level,
-			Platform: record.Platform, ExpiresAt: record.ExpiresAt,
+			Platform: record.Platform, AuthMethod: record.AuthMethod,
+			ExpiresAt:    record.ExpiresAt,
 			ProfileError: record.ProfileError, VerifiedAt: record.VerifiedAt,
 			ProfileID: record.ProfileID,
 		}

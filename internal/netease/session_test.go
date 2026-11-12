@@ -8,6 +8,8 @@ import (
 
 const testInnerSession = `{"sdkuid":"42","sessionid":"session-token","udid":"udid","deviceid":"device","platform":"pc","app_channel":"a50_sdk_cn","access_token":"access"}`
 
+const testMobileSession = `{"sdkuid":"42","sessionid":"mobile-session","udid":"udid","deviceid":"device","platform":"ad","app_channel":"netease.wyzymnqsd_cps_dev","login_channel":"netease","source_platform":"ad","source_app_channel":"netease.wyzymnqsd_cps_dev","gameid":"x19","sdk_version":"5.16.0","client_login_sn":"SN","access_token":"access"}`
+
 func TestParseSessionAcceptsCookieAndDoubleEncoding(t *testing.T) {
 	cookie, _ := json.Marshal(map[string]string{"sauth_json": testInnerSession})
 	double, _ := json.Marshal(string(cookie))
@@ -21,6 +23,9 @@ func TestParseSessionAcceptsCookieAndDoubleEncoding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if session.Method != AuthInterop {
+				t.Fatalf("method = %q", session.Method)
+			}
 			if session.SDKUID != "42" || session.SessionID != "session-token" || session.AccessToken != "access" {
 				t.Fatalf("session = %+v", session)
 			}
@@ -28,12 +33,25 @@ func TestParseSessionAcceptsCookieAndDoubleEncoding(t *testing.T) {
 	}
 }
 
-func TestParseSessionRejectsPhoneAndMissingFields(t *testing.T) {
-	phone := strings.Replace(testInnerSession, `"platform":"pc"`, `"platform":"ad"`, 1)
-	phone = strings.Replace(phone, `"app_channel":"a50_sdk_cn"`, `"app_channel":"netease"`, 1)
-	if _, err := ParseSession(phone); err == nil || !strings.Contains(err.Error(), "普通手游") {
-		t.Fatalf("phone session error = %v", err)
+func TestParseSessionInfersMobileMethod(t *testing.T) {
+	session, err := ParseSession(testMobileSession)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if session.Method != AuthMobileNetEase || session.Platform != "ad" ||
+		session.AppChannel != "netease.wyzymnqsd_cps_dev" ||
+		session.SDKVersion != "5.16.0" || session.ClientLoginSN != "SN" {
+		t.Fatalf("mobile session = %+v", session)
+	}
+	if _, err := ParseSessionFor(AuthInterop, testMobileSession); err == nil {
+		t.Fatal("mobile session accepted as interop")
+	}
+	if _, err := ParseSessionFor(AuthMobileNetEase, testInnerSession); err == nil {
+		t.Fatal("interop session accepted as mobile")
+	}
+}
+
+func TestParseSessionRejectsMissingFields(t *testing.T) {
 	missing := strings.Replace(testInnerSession, `"udid":"udid",`, "", 1)
 	if _, err := ParseSession(missing); err == nil || !strings.Contains(err.Error(), "udid") {
 		t.Fatalf("missing field error = %v", err)

@@ -70,6 +70,14 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
   const isProxy = account =>
     (rooms[account.index]?.connection_mode || account.connection_mode || 'proxy') === 'proxy';
 
+  const authMethodOf = account => account.auth_method || account.platform || 'interop';
+  const authLabelOf = account =>
+    authMethodOf(account) === 'mobile_netease'
+      ? '网易手游'
+      : authMethodOf(account) === 'mobile_4399'
+        ? '4399 手游'
+        : '互通版会话';
+
   const phaseOf = account => rooms[account.index]?.phase || 'stopped';
   const expired = account => account.expires_at && new Date(account.expires_at) < new Date();
   const hasError = account =>
@@ -281,9 +289,11 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
                       variant="outlined"
                       label={profileOf(account)?.connection_mode === 'transfer' ? '转服' : '代理'}
                     />
-                    {account.platform === 'interop' && (
-                      <Chip size="small" color="secondary" label="互通版会话" />
-                    )}
+                    <Chip
+                      size="small"
+                      color={authMethodOf(account) === 'interop' ? 'secondary' : 'info'}
+                      label={authLabelOf(account)}
+                    />
                     {sessionExpired && <Chip size="small" color="error" label="登录已过期" />}
                   </Stack>
 
@@ -418,18 +428,20 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
                     ) : (
                       <Chip size="small" color="warning" label={account.label || '未命名'} />
                     )}
-                    {account.platform === 'interop' && (
-                      <Stack direction="row" spacing={0.6} alignItems="center" sx={{ mt: 0.4 }}>
-                        <Chip size="small" color="secondary" label="互通版会话" />
-                        {account.expires_at && (
-                          <Typography variant="caption" color={sessionExpired ? 'error' : 'text.secondary'}>
-                            {sessionExpired
-                              ? '登录已过期，请更新登录'
-                              : `${new Date(account.expires_at).toLocaleDateString('zh-CN')} 到期`}
-                          </Typography>
-                        )}
-                      </Stack>
-                    )}
+                    <Stack direction="row" spacing={0.6} alignItems="center" sx={{ mt: 0.4 }}>
+                      <Chip
+                        size="small"
+                        color={authMethodOf(account) === 'interop' ? 'secondary' : 'info'}
+                        label={authLabelOf(account)}
+                      />
+                      {account.expires_at && (
+                        <Typography variant="caption" color={sessionExpired ? 'error' : 'text.secondary'}>
+                          {sessionExpired
+                            ? '登录已过期，请更新登录'
+                            : `${new Date(account.expires_at).toLocaleDateString('zh-CN')} 到期`}
+                        </Typography>
+                      )}
+                    </Stack>
                   </TableCell>
                   <TableCell>
                     {account.name ? (
@@ -572,6 +584,9 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
               profiles={profiles}
               defaultProfileId={defaultProfileID}
               initialProfileId={accounts[reloginIndex]?.profile_id || defaultProfileID}
+              initialAuthMethod={
+                accounts[reloginIndex]?.auth_method || accounts[reloginIndex]?.platform || 'interop'
+              }
               onAdded={() => {
                 setReloginIndex(null);
                 onChanged?.();

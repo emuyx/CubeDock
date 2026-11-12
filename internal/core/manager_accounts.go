@@ -4,11 +4,13 @@ package core
 
 import (
 	"fmt"
-	"github.com/emuyx/cubedock/internal/secret"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/emuyx/cubedock/internal/netease"
+	"github.com/emuyx/cubedock/internal/secret"
 )
 
 // Token returns the stored session for one room.
@@ -162,9 +164,13 @@ func (m *Manager) AssignAccountProfile(index int, profileID string) error {
 func recordFromMeta(meta AccountMeta) accountRecord {
 	record := accountRecord{
 		Email: meta.Email, Label: meta.Label, Name: meta.Name, UID: meta.UID,
-		Level: meta.Level, Platform: meta.Platform, ExpiresAt: meta.ExpiresAt,
+		Level: meta.Level, Platform: meta.Platform, AuthMethod: meta.AuthMethod,
+		ExpiresAt:    meta.ExpiresAt,
 		ProfileError: meta.ProfileError, VerifiedAt: meta.Verified,
 		ProfileID: meta.ProfileID,
+	}
+	if record.AuthMethod == "" {
+		record.AuthMethod = string(netease.AuthInterop)
 	}
 	if record.VerifiedAt == "" && record.Name != "" {
 		record.VerifiedAt = time.Now().Format(time.RFC3339)

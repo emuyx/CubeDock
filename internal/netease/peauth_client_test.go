@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -49,6 +50,65 @@ func TestAuthenticatePerformsPEAuth(t *testing.T) {
 	}
 	creds := client.Credentials()
 	if creds.UserID != "42" || creds.Token != "0123456789abcdef" || creds.Seed != "seed-value" {
+		t.Fatalf("credentials = %+v", creds)
+	}
+}
+
+func TestAuthenticateMobileUsesMobileProfile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/pe-authentication" {
+			http.NotFound(w, r)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		plain, err := decryptEnvelope(string(body))
+		if err != nil {
+			t.Errorf("request envelope: %v", err)
+			return
+		}
+		var payload peAuthRequest
+		if err := json.Unmarshal(plain, &payload); err != nil {
+			t.Errorf("request json: %v", err)
+			return
+		}
+		if payload.EngineVersion != "3.10.5.301327" || payload.PatchVersion != "3.10.16.302017" {
+			t.Errorf("mobile versions = %+v", payload)
+		}
+		if payload.PayChannel != "dashen_cloudgame" {
+			t.Errorf("pay channel = %q", payload.PayChannel)
+		}
+		if payload.SauthJSON["platform"] != "ad" || payload.SauthJSON["sdk_version"] != "5.16.0" {
+			t.Errorf("mobile sauth = %+v", payload.SauthJSON)
+		}
+		if payload.SauthJSON["client_login_sn"] != "SN" {
+			t.Errorf("client login sn = %v", payload.SauthJSON["client_login_sn"])
+		}
+		wantMessage := "3.10.5.301327" + "393dfdf6f78831f80a7e6aa305b21227" +
+			"3.10.16.302017" + "741daafcbdbee57ee1526cee9a8c4e14" +
+			interopSignHash + payload.Seed
+		if payload.Message != wantMessage {
+			t.Error("mobile message constants do not match capture")
+		}
+		wantSign, err := peAuthSign(wantMessage, 2, 8)
+		if err != nil || payload.Sign != wantSign {
+			t.Errorf("mobile sign mismatch: %v", err)
+		}
+		if !strings.Contains(payload.SaData, `"os_name":"android"`) {
+			t.Errorf("mobile sa_data = %s", payload.SaData)
+		}
+		response, _ := encryptEnvelope([]byte(`{"code":0,"message":"ok","entity":{"entity_id":"42","token":"mobile-token","seed":"seed"}}`), rand.Reader)
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.Client())
+	client.g79 = ReleaseInfo{CoreServerURL: server.URL}
+	client.discovered = true
+	if err := client.AuthenticateFor(context.Background(), AuthMobileNetEase, testMobileSession); err != nil {
+		t.Fatal(err)
+	}
+	creds := client.Credentials()
+	if creds.UserID != "42" || creds.Token != "mobile-token" || creds.Session.Method != AuthMobileNetEase {
 		t.Fatalf("credentials = %+v", creds)
 	}
 }

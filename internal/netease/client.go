@@ -2,9 +2,15 @@ package netease
 
 import "context"
 
-// Authenticate performs PE authentication for one normalized session.
+// Authenticate performs PE authentication for one normalized session. The
+// method is inferred from the session; use AuthenticateFor to force one.
 func (c *Client) Authenticate(ctx context.Context, session string) error {
-	parsed, err := ParseSession(session)
+	return c.AuthenticateFor(ctx, "", session)
+}
+
+// AuthenticateFor performs PE authentication using a specific provider.
+func (c *Client) AuthenticateFor(ctx context.Context, method AuthMethod, session string) error {
+	parsed, err := ParseSessionFor(method, session)
 	if err != nil {
 		return err
 	}

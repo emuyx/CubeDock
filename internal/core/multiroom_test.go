@@ -14,6 +14,7 @@ import (
 
 	"github.com/emuyx/cubedock/internal/auth"
 	"github.com/emuyx/cubedock/internal/config"
+	"github.com/emuyx/cubedock/internal/netease"
 	"github.com/emuyx/cubedock/internal/room"
 	"github.com/emuyx/cubedock/internal/session"
 )
@@ -101,7 +102,7 @@ func TestManagerSupervisesSixteenRooms(t *testing.T) {
 	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
-	manager.prepareRoom = func(_ context.Context, _ uint8, token string) (auth.RoomInfo, error) {
+	manager.prepareRoom = func(_ context.Context, _ netease.AuthMethod, _ uint8, token string) (auth.RoomInfo, error) {
 		return auth.RoomInfo{UserID: 1, PlayerName: "bot-" + token, ProtocolID: 43}, nil
 	}
 
@@ -248,7 +249,7 @@ func TestManagerStopCancelsBlockedAuthentication(t *testing.T) {
 	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
-	manager.prepareRoom = func(ctx context.Context, _ uint8, _ string) (auth.RoomInfo, error) {
+	manager.prepareRoom = func(ctx context.Context, _ netease.AuthMethod, _ uint8, _ string) (auth.RoomInfo, error) {
 		<-ctx.Done()
 		return auth.RoomInfo{}, ctx.Err()
 	}
@@ -300,7 +301,7 @@ func TestManagerKeepsHealthyRoomsAfterOneFailure(t *testing.T) {
 	manager.pingFn = func(context.Context, config.Profile) (string, error) {
 		return "1.21.130.0", nil
 	}
-	manager.prepareRoom = func(_ context.Context, _ uint8, token string) (auth.RoomInfo, error) {
+	manager.prepareRoom = func(_ context.Context, _ netease.AuthMethod, _ uint8, token string) (auth.RoomInfo, error) {
 		return auth.RoomInfo{UserID: 1, PlayerName: "bot-" + token, ProtocolID: 43}, nil
 	}
 	manager.openRoom = func(_ context.Context, _ config.Profile, info auth.RoomInfo, _ func(string)) (roomHost, error) {
