@@ -25,9 +25,10 @@
 | 平台 | Windows / Linux / macOS |
 | 控制台 | React + MUI；配置方案页 + 每账号仪表盘，默认 `http://127.0.0.1:18321/` |
 
-> 当前开发版本 **v0.4.0-dev**；最新正式发布仍为 **v0.3.2**，可从
-> [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的发布包。
-> `main` 分支包含多登录方式和网易手游邮箱/密码直登改动，尚未正式发布。
+> 当前稳定版 **v0.3.2**；可从 [Releases](https://github.com/emuyx/CubeDock/releases/latest)
+> 下载对应系统的发布包。
+> `main` 分支为开发版 **v0.4.0-dev**，包含多登录方式和网易手游邮箱/密码直登改动，
+> 尚未正式发布。
 
 ## 架构
 
