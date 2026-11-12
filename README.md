@@ -2,6 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/emuyx/CubeDock/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/emuyx/CubeDock?color=f59e0b&label=release"></a>
+  <a href="https://github.com/emuyx/CubeDock/releases"><img alt="Total downloads" src="https://img.shields.io/github/downloads/emuyx/CubeDock/total?color=f59e0b&label=downloads"></a>
   <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/emuyx/CubeDock/release.yml?branch=main&label=build"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.26%2B-34d399?logo=go&logoColor=white">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-f59e0b">
