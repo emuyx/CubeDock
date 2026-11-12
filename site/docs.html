@@ -485,20 +485,9 @@
               </div>
             </details>
             <details class="faq-item">
-              <summary>8 个账号是上限吗？为什么文档里还写着 8？</summary>
+              <summary>高账号数、Linux/macOS 和资源包的限制</summary>
               <div class="faq-body">
-                <p>不是。8 是旧 NEMCBridge 的遗留限制：它使用的网易验证中转最多免费获取
-                8 个密钥，早期版本因此有过固定 8 账号/房间的限制。该硬限制已在 v0.1.1 前移除，
-                当前认证链由 <code>internal/netease</code> 第一方实现，账号数量不设硬上限。</p>
-                <p>文档里的“8”只是当时真实客户端验收覆盖到的数量；本地已有 16 房间监督测试，
-                但 &gt;8 个真实网易账号同时登录/开房/重连仍未实测。实际数量取决于机器资源、
-                端口/文件描述符和网易侧限制。</p>
-              </div>
-            </details>
-            <details class="faq-item">
-              <summary>多账号并发、Linux/macOS 和资源包的限制</summary>
-              <div class="faq-body">
-                <p>&gt;8 账号真实并发、Linux/macOS 实机、<code>go test -race</code>、
+                <p>更高账号数的真实压力测试、Linux/macOS 实机、<code>go test -race</code>、
                 真实移动设备/跨浏览器和非 Windows 管理员登录仍未实测；加密/动态资源包当前不支持。
                 公开分发前仍建议对 vendored solver 做许可复核。</p>
               </div>

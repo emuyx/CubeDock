@@ -240,18 +240,6 @@ limbo 预加载的一致。
 - 同一网易账号不能同时开两个房间；账号数量不设固定上限，实际受机器资源与网易限制。
 </details>
 
-<details>
-<summary><strong>8 个账号是上限吗？为什么文档里还写着 8？</strong></summary>
-
-不是。8 是**旧 NEMCBridge 的遗留限制**：它使用的网易验证中转最多免费获取 8 个密钥，
-早期版本因此有过固定 8 账号/房间的限制。该硬限制已在 v0.1.1 前移除，当前认证链由
-`internal/netease` 第一方实现，账号数量不设硬上限。
-
-文档里的“8”只是当时真实客户端验收覆盖到的数量；本地已有 16 房间监督测试
-（`TestManagerSupervisesSixteenRooms`），但 **>8 个真实网易账号同时登录/开房/重连仍未实测**。
-实际可用数量取决于机器资源、端口/文件描述符和网易侧限制。
-</details>
-
 更多 FAQ 见 [使用文档](https://emuyx.github.io/CubeDock/docs.html#troubleshooting) 和 WebUI 的「常见问题」页面。
 
 ## 开发
