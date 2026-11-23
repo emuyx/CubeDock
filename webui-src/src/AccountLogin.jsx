@@ -20,7 +20,8 @@ import { api } from './api.js';
 import { useToast } from './App.jsx';
 import { copyText } from './util.js';
 
-const normalizePlatform = value => (value === 'mobile_netease' ? 'mobile_netease' : 'interop');
+const normalizePlatform = value =>
+  value === 'mobile_netease' || value === 'mobile_4399' ? value : 'interop';
 
 export default function AccountLogin({
   onAdded,
@@ -51,9 +52,19 @@ export default function AccountLogin({
   const [sauthBusy, setSauthBusy] = useState(false);
   const [sauthError, setSauthError] = useState('');
   const [sauthProfile, setSauthProfile] = useState(null);
+  const [captchaID, setCaptchaID] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [captchaImageType, setCaptchaImageType] = useState('image/png');
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [captchaMessage, setCaptchaMessage] = useState('');
   const requestRef = useRef(false);
 
-  const platformLabel = platform === 'mobile_netease' ? '网易手游' : '基岩互通版';
+  const platformLabel =
+    platform === 'mobile_netease'
+      ? '网易手游'
+      : platform === 'mobile_4399'
+        ? '4399 手游'
+        : '基岩互通版';
   const locked = busy || sauthBusy;
 
   useEffect(() => {
@@ -69,6 +80,14 @@ export default function AccountLogin({
     if (next) setProfileId(current => current || next);
   }, [initialProfileId, defaultProfileId, profiles]);
 
+  const clearCaptcha = () => {
+    setCaptchaID('');
+    setCaptchaImage('');
+    setCaptchaImageType('image/png');
+    setCaptchaInput('');
+    setCaptchaMessage('');
+  };
+
   const changePlatform = (_, next) => {
     if (!next || next === platform) return;
     setPlatform(next);
@@ -79,6 +98,7 @@ export default function AccountLogin({
     setSauthLabel('');
     setSauthError('');
     setSauthProfile(null);
+    clearCaptcha();
   };
 
   const changeMode = (_, next) => {
@@ -88,15 +108,20 @@ export default function AccountLogin({
 
   const runLogin = async () => {
     if (requestRef.current) return;
+    const is4399 = platform === 'mobile_4399';
     const credentials = {
-      email: email.trim(),
+      [is4399 ? 'username' : 'email']: email.trim(),
       password,
       label: label.trim(),
       profile_id: profileId,
     };
+    if (is4399) {
+      if (captchaID) credentials.captcha_id = captchaID;
+      if (captchaInput.trim()) credentials.captcha = captchaInput.trim();
+    }
     if (replaceIndex !== null) credentials.index = replaceIndex;
-    if (!credentials.email || !credentials.password) {
-      setError('请填写网易邮箱和密码');
+    if (!credentials[is4399 ? 'username' : 'email'] || !credentials.password) {
+      setError(is4399 ? '请填写 4399 账号和密码' : '请填写网易邮箱和密码');
       return;
     }
     requestRef.current = true;
@@ -105,15 +130,27 @@ export default function AccountLogin({
     setMessage('');
     setVerifyURL('');
     try {
-      const endpoint = platform === 'mobile_netease'
-        ? 'session/mobile-login'
-        : 'session/interop-login';
+      const endpoint =
+        platform === 'mobile_4399'
+          ? 'session/4399-login'
+          : platform === 'mobile_netease'
+            ? 'session/mobile-login'
+            : 'session/interop-login';
       const result = await api(endpoint, credentials);
+      if (result.status === 'need_captcha') {
+        setCaptchaID(result.captcha_id || '');
+        setCaptchaImage(result.captcha_image || '');
+        setCaptchaImageType(result.captcha_image_type || 'image/png');
+        setCaptchaInput('');
+        setCaptchaMessage(result.message || '请输入图形验证码');
+        return;
+      }
       if (result.status === 'need_verify') {
         setVerifyURL(current => result.verify_url || current || '');
         setMessage(result.message || '需要完成网易安全验证');
         return;
       }
+      clearCaptcha();
       setVerifyURL('');
       setMessage('');
       notify(
@@ -125,7 +162,11 @@ export default function AccountLogin({
       setPassword('');
       if (onAdded) onAdded(result);
     } catch (failure) {
-      setError(failure.message || `${platformLabel}直登失败`);
+      const text = failure.message || `${platformLabel}直登失败`;
+      if (is4399 && text.includes('验证码')) {
+        clearCaptcha();
+      }
+      setError(text);
     } finally {
       requestRef.current = false;
       setBusy(false);
@@ -232,8 +273,8 @@ export default function AccountLogin({
     <Stack spacing={1.6}>
       {profileField}
       <TextField
-        label="网易邮箱"
-        type="email"
+        label={platform === 'mobile_4399' ? '4399 账号' : '网易邮箱'}
+        type={platform === 'mobile_4399' ? 'text' : 'email'}
         value={email}
         onChange={event => setEmail(event.target.value)}
         autoComplete="off"
@@ -262,6 +303,35 @@ export default function AccountLogin({
           },
         }}
       />
+      {platform === 'mobile_4399' && captchaImage && (
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1.2}
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+        >
+          <Box
+            component="img"
+            src={`data:${captchaImageType || 'image/png'};base64,${captchaImage}`}
+            alt="4399 图形验证码"
+            sx={{
+              width: 148,
+              height: 'auto',
+              borderRadius: 1,
+              bgcolor: '#fff',
+              p: 0.5,
+              alignSelf: 'flex-start',
+            }}
+          />
+          <TextField
+            size="small"
+            label="图形验证码"
+            value={captchaInput}
+            onChange={event => setCaptchaInput(event.target.value)}
+            fullWidth
+            helperText={captchaMessage}
+          />
+        </Stack>
+      )}
       <TextField
         size="small"
         label="备注（可选）"
@@ -342,11 +412,19 @@ export default function AccountLogin({
         multiline
         minRows={4}
         maxRows={10}
-        label={platform === 'mobile_netease' ? '手游 sauth/session JSON' : '登录凭证（互通版 sauth 会话）'}
+        label={
+          platform === 'mobile_netease'
+            ? '手游 sauth/session JSON'
+            : platform === 'mobile_4399'
+              ? '4399 手游 sauth/session JSON'
+              : '登录凭证（互通版 sauth 会话）'
+        }
         placeholder={
           platform === 'mobile_netease'
             ? '粘贴包含 platform=ad、app_channel、sessionid、access_token 的 JSON'
-            : '每行一个会话，或粘贴完整 JSON'
+            : platform === 'mobile_4399'
+              ? '粘贴包含 platform=ad、app_channel=4399com、sessionid、access_token 的 JSON'
+              : '每行一个会话，或粘贴完整 JSON'
         }
         value={sauth}
         onChange={event => setSauth(event.target.value)}
@@ -383,7 +461,7 @@ export default function AccountLogin({
     <Stack spacing={compact ? 1.8 : 2.2}>
       {replaceIndex !== null && (
         <Alert severity="info">
-          正在更新房间 {replaceIndex + 1} 的登录。旧凭据过期后，请用邮箱密码或新的 sauth 重新登录。
+          正在更新房间 {replaceIndex + 1} 的登录。旧凭据过期后，请用账号密码或新的 sauth 重新登录。
         </Alert>
       )}
 
@@ -409,18 +487,24 @@ export default function AccountLogin({
             value={platform}
             onChange={changePlatform}
             aria-label="登录平台"
+            sx={{ '& .MuiToggleButton-root': { px: 0.6, fontSize: 13, whiteSpace: 'nowrap' } }}
           >
             <ToggleButton value="interop" disabled={locked}>
-              基岩互通版
+              互通版
             </ToggleButton>
             <ToggleButton value="mobile_netease" disabled={locked}>
               网易手游
+            </ToggleButton>
+            <ToggleButton value="mobile_4399" disabled={locked}>
+              4399
             </ToggleButton>
           </ToggleButtonGroup>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
             {platform === 'mobile_netease'
               ? '手游邮箱/密码，或手游 sauth 会话'
-              : '互通版邮箱/密码，或互通版 sauth 会话'}
+              : platform === 'mobile_4399'
+                ? '4399 账号/密码（4399 手游 OAuth），或 4399 sauth 会话'
+                : '互通版邮箱/密码，或互通版 sauth 会话'}
           </Typography>
         </Box>
       </Box>

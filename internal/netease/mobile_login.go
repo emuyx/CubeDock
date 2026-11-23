@@ -556,8 +556,9 @@ func (s *MobileLoginService) do(ctx context.Context, method, endpoint, contentTy
 }
 
 // encryptMobileParams produces hex(AES/ECB/PKCS7(JSON)) for the mobile password
-// login. Unlike the interop chain, the password is sent as plaintext inside the
-// encrypted envelope, and password_level is fixed at 3.
+// login. Unlike the interop chain, the JSON contains hex(md5(GBK(password))),
+// the AES key is the device key returned by /devices, and password_level is
+// fixed at 3.
 type mobileParamsPayload struct {
 	Username      string `json:"username"`
 	Password      string `json:"password"`

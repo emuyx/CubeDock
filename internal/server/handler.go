@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/emuyx/cubedock/internal/console"
 	"github.com/emuyx/cubedock/internal/core"
 	"github.com/emuyx/cubedock/internal/interoplogin"
+	"github.com/emuyx/cubedock/internal/m4399login"
 	"github.com/emuyx/cubedock/internal/netease"
 	"github.com/emuyx/cubedock/internal/redact"
 	"github.com/emuyx/cubedock/internal/webui"
@@ -26,11 +28,16 @@ type mobileLoginService interface {
 	Login(ctx context.Context, email, password string) (map[string]any, error)
 }
 
+type m4399LoginService interface {
+	Login(ctx context.Context, username, password, captchaID, captcha string) (map[string]any, error)
+}
+
 type consoleHandler struct {
 	manager *core.Manager
 	admin   *Admin
 	interop *interoplogin.Service
 	mobile  mobileLoginService
+	m4399   m4399LoginService
 	runtime RuntimeInfo
 }
 
@@ -45,6 +52,7 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 		admin:   admin,
 		interop: interoplogin.New(manager.Dir()),
 		mobile:  netease.NewMobileLoginService(manager.Dir()),
+		m4399:   m4399login.New(),
 		runtime: runtime.withDefaults(),
 	}
 	mux := http.NewServeMux()
@@ -81,6 +89,7 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 	mux.HandleFunc("POST /api/session/import", h.importSession)
 	mux.HandleFunc("POST /api/session/interop-login", h.interopLogin)
 	mux.HandleFunc("POST /api/session/mobile-login", h.mobileLogin)
+	mux.HandleFunc("POST /api/session/4399-login", h.login4399)
 	mux.HandleFunc("POST /api/account/remove", h.removeAccount)
 	mux.HandleFunc("POST /api/account/profile", h.refreshProfile)
 	mux.HandleFunc("POST /api/account/assign-profile", h.assignProfile)
@@ -553,6 +562,105 @@ func (h *consoleHandler) mobileLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	index, err := h.saveSession(token, method, method, expiresAt, email, body.Label, body.ProfileID, profile, body.Index)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	result := map[string]any{
+		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
+		"level": profile.Level, "platform": method, "auth_method": method,
+		"expires_at": expiresAt, "profile_id": h.accountProfileID(index),
+	}
+	if expiresAt == "" {
+		delete(result, "expires_at")
+	}
+	respond(w, result)
+}
+
+func (h *consoleHandler) login4399(w http.ResponseWriter, r *http.Request) {
+	if !loopbackRequest(r) {
+		http.Error(w, "为避免密码经网络明文传输，网易账号登录仅允许本机访问控制台", http.StatusForbidden)
+		return
+	}
+	if h.manager.Snapshot().Running {
+		http.Error(w, "请先停止房间，再添加或更新账号", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Username  string `json:"username"`
+		Password  string `json:"password"`
+		CaptchaID string `json:"captcha_id"`
+		Captcha   string `json:"captcha"`
+		Label     string `json:"label"`
+		Index     *int   `json:"index"`
+		ProfileID string `json:"profile_id"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32*1024))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil {
+		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	username := strings.TrimSpace(body.Username)
+	if username == "" || body.Password == "" {
+		http.Error(w, "请填写 4399 账号和密码", http.StatusBadRequest)
+		return
+	}
+	if h.m4399 == nil {
+		http.Error(w, "4399 登录服务不可用", http.StatusInternalServerError)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	sauth, err := h.m4399.Login(ctx, username, body.Password,
+		strings.TrimSpace(body.CaptchaID), strings.TrimSpace(body.Captcha))
+	if err != nil {
+		var captcha *m4399login.CaptchaRequired
+		if errors.As(err, &captcha) {
+			message := captcha.Message
+			if message == "" {
+				message = "请输入图形验证码"
+			}
+			imageType := captcha.ImageType
+			if imageType == "" {
+				imageType = "image/png"
+			}
+			h.manager.Record("账号", "4399 登录需要图形验证码")
+			respond(w, map[string]any{
+				"status":             "need_captcha",
+				"captcha_id":         captcha.CaptchaID,
+				"captcha_image":      base64.StdEncoding.EncodeToString(captcha.Image),
+				"captcha_image_type": imageType,
+				"message":            message,
+			})
+			return
+		}
+		message := redact.Sanitize(err.Error(), body.Password)
+		message = redact.Sanitize(message, username)
+		h.manager.Record("账号", "4399 直登失败："+message)
+		http.Error(w, message, http.StatusBadRequest)
+		return
+	}
+	inner, err := json.Marshal(sauth)
+	if err != nil {
+		http.Error(w, "序列化会话失败", http.StatusInternalServerError)
+		return
+	}
+	token, method, expiresAt, err := core.NormalizeSession(string(inner), string(netease.AuthMobile4399))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	verifyCtx, verifyCancel := context.WithTimeout(r.Context(), 75*time.Second)
+	defer verifyCancel()
+	profile, err := auth.LookupProfileFor(verifyCtx, netease.AuthMobile4399, token)
+	if err != nil {
+		message := redact.Sanitize(err.Error(), token)
+		h.manager.Record("账号", "4399 会话验证失败："+message)
+		http.Error(w, message, http.StatusBadRequest)
+		return
+	}
+	index, err := h.saveSession(token, method, method, expiresAt, username, body.Label, body.ProfileID, profile, body.Index)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

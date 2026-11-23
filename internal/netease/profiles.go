@@ -159,6 +159,29 @@ var mobileNetEasePEAuthProfile = PEAuthProfile{
 	},
 }
 
+// 4399 mobile/Bedrock sessions are issued by the 4399 open OAuth login with
+// the 4399com/ad channel. The engine/patch/hash constants mirror the verified
+// mobile profile; a real 4399 account accepted pay_channel=4399com on
+// 2026-11-23 (PE and room credentials verified).
+var mobile4399PEAuthProfile = PEAuthProfile{
+	Method:           AuthMobile4399,
+	EngineVersion:    mobileNetEasePEAuthProfile.EngineVersion,
+	PatchVersion:     mobileNetEasePEAuthProfile.PatchVersion,
+	LibraryHash:      mobileNetEasePEAuthProfile.LibraryHash,
+	PatchHash:        mobileNetEasePEAuthProfile.PatchHash,
+	SignHash:         mobileNetEasePEAuthProfile.SignHash,
+	SignSP:           mobileNetEasePEAuthProfile.SignSP,
+	SignTR:           mobileNetEasePEAuthProfile.SignTR,
+	Platform:         "ad",
+	AppChannel:       "4399com",
+	LoginChannel:     "4399com",
+	SourcePlatform:   "ad",
+	SourceAppChannel: "4399com",
+	SDKVersion:       "3.18.0",
+	PayChannel:       "4399com",
+	Device:           mobileNetEasePEAuthProfile.Device,
+}
+
 func profileFor(method AuthMethod) (PEAuthProfile, error) {
 	switch method {
 	case AuthInterop:
@@ -166,7 +189,7 @@ func profileFor(method AuthMethod) (PEAuthProfile, error) {
 	case AuthMobileNetEase:
 		return mobileNetEasePEAuthProfile, nil
 	case AuthMobile4399:
-		return PEAuthProfile{}, fmt.Errorf("4399 手游认证尚未配置：需要抓包确认 app_channel / PE 常量")
+		return mobile4399PEAuthProfile, nil
 	default:
 		return PEAuthProfile{}, fmt.Errorf("未知的登录方式 %q", method)
 	}

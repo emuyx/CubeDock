@@ -28,8 +28,8 @@
 
 > 当前稳定版 **v0.3.2**；可从 [Releases](https://github.com/emuyx/CubeDock/releases/latest)
 > 下载对应系统的发布包。
-> `main` 分支为开发版 **v0.4.1-dev**，包含多登录方式和网易手游邮箱/密码直登改动，
-> 尚未正式发布。
+> `main` 分支为开发版 **v0.4.1-dev**，包含多登录方式、网易手游邮箱/密码直登和
+> 4399 手游 OAuth 登录改动，尚未正式发布。
 
 ## 架构
 
@@ -62,7 +62,7 @@ flowchart LR
 
 | 能力 | 说明 |
 | --- | --- |
-| 多登录方式 | 基岩互通版邮箱/sauth；网易手游会话导入 + 邮箱/密码直登（真机验证：登录/开房/进服）；4399/PC 后续 |
+| 多登录方式 | 基岩互通版邮箱/sauth；网易手游会话导入 + 邮箱/密码直登；4399 手游 OAuth 直登/会话导入（均真机验证登录/开房/进服）；PC/Java 后续 |
 | 互通版直登 | 邮箱密码走 a50 / x19 / uni_sauth，无需抓包 |
 | 第一方认证链 | `internal/netease` 实现 PE 认证、资料、transfer 节点和开房凭据；不再依赖 AGPL 组件 |
 | 加密中继 | P-384 单段链重签、ECDH / AES-CTR、游戏包直通 |
@@ -112,10 +112,13 @@ flowchart LR
 4. **添加网易账号**
    进入「账号与房间」→「添加网易账号」，选择配置方案和登录方式：
    - 「基岩互通版邮箱/密码」：使用网易邮箱和密码直登，或导入已有的互通版 `sauth`；
-   - 「网易手游邮箱/密码」：使用手游账号的邮箱和密码直登（本地实现，真实账号/开房待实测），
-     也可以在「会话类型」中选择「网易手游会话」，粘贴包含 `platform=ad`、`app_channel`、
-     `sessionid`、`access_token` 的手游 `sauth_json`。
-   每个账号对应一个房间；同一账号不能重复添加。两种登录方式可以同时存在。
+   - 「网易手游邮箱/密码」：使用手游账号的邮箱和密码直登（已真机验证登录/开房/进服），
+     也可以在「Sauth 登录」页选择「网易手游」，粘贴包含 `platform=ad`、`app_channel`、
+     `sessionid`、`access_token` 的手游 `sauth_json`；
+   - 「4399 手游」：使用 4399 账号和密码，通过 4399 开放平台 OAuth 登录
+     （如遇图形验证码按页面提示填写），或粘贴包含 `platform=ad`、`app_channel=4399com`、
+     `sessionid`、`access_token` 的 4399 手游 `sauth_json`。
+   每个账号对应一个房间；同一账号不能重复添加。多种登录方式可以同时存在。
 
 5. **启动房间**
    在「账号与房间」或侧边栏账号入口打开该账号的仪表盘，单独「启动 / 停止 / 重连」。
@@ -239,8 +242,12 @@ limbo 预加载的一致。
 - **网易手游**：邮箱密码直登会注册新设备，使用 `/devices` 返回的 device key
   加密登录参数；已真机验证通过登录、开房、进服。也支持导入手游 `sauth_json`
   （platform=ad / app_channel=netease...），需要包含 `sessionid` 和 `access_token`；
-- 两种方式可以同时存在，账号通过 `accounts.json` 的 `auth_method` 区分；
-- 4399 手游、Java 经典版网易/4399 渠道仍在后续计划中。
+- **4399 手游**：使用 4399 账号/密码通过 4399 开放平台 OAuth 换取
+  `4399com` / `ad` 的 NetEase 会话；已真机验证登录、开房、进服。也支持导入
+  4399 手游 `sauth_json`（platform=ad / app_channel=4399com），需要包含
+  `sessionid` 和 `access_token`；
+- 多种方式可以同时存在，账号通过 `accounts.json` 的 `auth_method` 区分；
+- Java 经典版网易/4399 渠道仍在后续计划中。
 </details>
 
 <details>

@@ -297,11 +297,14 @@
               <tr><td>基岩互通版 sauth</td><td>粘贴已有的互通版会话凭据（platform=pc / app_channel=a50_sdk_cn）</td></tr>
               <tr><td>网易手游邮箱</td><td>使用手游账号的网易邮箱和密码，走设备注册 / mpay / uni_sauth 链路（真机验证：登录/开房/进服）</td></tr>
               <tr><td>网易手游会话</td><td>粘贴手游 <code>sauth_json</code>，需包含 <code>platform=ad</code>、<code>app_channel</code>、<code>sessionid</code>、<code>access_token</code></td></tr>
+              <tr><td>4399 手游账号</td><td>使用 4399 账号和密码，通过 4399 开放平台 OAuth 登录；如遇图形验证码按页面提示填写（真机验证：登录/开房/进服）</td></tr>
+              <tr><td>4399 手游会话</td><td>粘贴 4399 手游 <code>sauth_json</code>，需包含 <code>platform=ad</code>、<code>app_channel=4399com</code>、<code>sessionid</code>、<code>access_token</code></td></tr>
             </tbody>
           </table>
           <p>
-            两种客户端可以同时存在：账号通过 <code>accounts.json</code> 的
-            <code>auth_method</code> 区分（<code>interop</code> / <code>mobile_netease</code>）。
+            多种登录方式可以同时存在：账号通过 <code>accounts.json</code> 的
+            <code>auth_method</code> 区分（<code>interop</code> / <code>mobile_netease</code> /
+            <code>mobile_4399</code>）。
             更新登录时会沿用账号当前的登录方式。
           </p>
           <ul>
@@ -315,7 +318,13 @@
             该功能属于 <code>main</code> 分支 v0.4.1-dev，尚未正式发布。抓取到的
             <code>sauth_json</code> 应来自真实手游认证请求；不要使用
             <code>unisdk_login_json</code> 单独导入，因为它缺少 <code>sessionid</code> 等字段。
-            4399 手游和 Java 经典版渠道仍在后续计划中。
+          </div>
+          <div class="doc-callout doc-note">
+            <strong>4399 手游：</strong>使用 4399 账号/密码通过 4399 开放平台 OAuth
+            换取 NetEase 会话；已真机验证通过登录、开房、进服。也支持导入 4399
+            手游 <code>sauth_json</code>（<code>platform=ad</code> /
+            <code>app_channel=4399com</code>）。该功能属于 <code>main</code> 分支
+            v0.4.1-dev，尚未正式发布。Java 经典版网易/4399 渠道仍在后续计划中。
           </div>
           <div class="doc-callout doc-warn">
             <strong>1351 安全验证：</strong>登录时若提示需要安全验证，点击页面上的「打开网易验证页面」
@@ -538,6 +547,7 @@
               <tr><td>手动同意好友申请</td><td>✅ 实机验证</td></tr>
               <tr><td>网易手游会话导入（PE/资料）</td><td>✅ 真实抓包 + 本地端到端探针；同一 sauth 链路已真机开房/进服</td></tr>
               <tr><td>网易手游邮箱/密码直登</td><td>✅ 真机验证：登录 / 开房 / 进服</td></tr>
+              <tr><td>4399 手游 OAuth 直登（4399com/ad）</td><td>✅ 真机验证：登录 / PE / 开房 / 进服</td></tr>
               <tr><td><code>govulncheck</code>（root / limbo）</td><td>✅ 0 个可达漏洞（Go 1.27.4）</td></tr>
               <tr><td><code>npm audit</code></td><td>✅ 0 vulnerabilities</td></tr>
               <tr><td>重复测试 / 跨平台构建</td><td>✅ 3× 全量测试 / 6 平台构建</td></tr>

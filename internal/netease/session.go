@@ -158,7 +158,7 @@ func NormalizeSession(input string, method AuthMethod) (token string, resolved A
 			inner["platform"] = "pc"
 		}
 	}
-	if resolved == AuthMobileNetEase {
+	if resolved == AuthMobileNetEase || resolved == AuthMobile4399 {
 		profile, profileErr := profileFor(resolved)
 		if profileErr == nil {
 			if textField(inner, "platform") == "" {
