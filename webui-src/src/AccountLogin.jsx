@@ -19,6 +19,7 @@ import { ContentCopy, Visibility, VisibilityOff } from '@mui/icons-material';
 import { api } from './api.js';
 import { useToast } from './App.jsx';
 import { copyText } from './util.js';
+import NameAccountForm from './NameAccountForm.jsx';
 
 const normalizePlatform = value =>
   value === 'mobile_netease' || value === 'mobile_4399' ? value : 'interop';
@@ -57,6 +58,7 @@ export default function AccountLogin({
   const [captchaImageType, setCaptchaImageType] = useState('image/png');
   const [captchaInput, setCaptchaInput] = useState('');
   const [captchaMessage, setCaptchaMessage] = useState('');
+  const [pendingName, setPendingName] = useState(null);
   const requestRef = useRef(false);
 
   const platformLabel =
@@ -98,6 +100,7 @@ export default function AccountLogin({
     setSauthLabel('');
     setSauthError('');
     setSauthProfile(null);
+    setPendingName(null);
     clearCaptcha();
   };
 
@@ -150,6 +153,12 @@ export default function AccountLogin({
         setMessage(result.message || '需要完成网易安全验证');
         return;
       }
+      if (result.status === 'need_name') {
+        setPendingName(result);
+        setMessage(result.message || '该账号还没有游戏名');
+        setPassword('');
+        return;
+      }
       clearCaptcha();
       setVerifyURL('');
       setMessage('');
@@ -191,6 +200,12 @@ export default function AccountLogin({
       };
       if (replaceIndex !== null) payload.index = replaceIndex;
       const result = await api('session/import', payload);
+      if (result.status === 'need_name') {
+        setPendingName(result);
+        setSauth('');
+        setSauthLabel('');
+        return;
+      }
       notify(
         replaceIndex !== null
           ? `已更新房间 ${(result.index ?? replaceIndex) + 1} 的登录：${result.name}`
@@ -456,6 +471,36 @@ export default function AccountLogin({
       {sauthError && errorAlert(sauthError)}
     </Stack>
   );
+
+  if (pendingName) {
+    return (
+      <Stack spacing={compact ? 1.8 : 2.2}>
+        <Alert severity="info">
+          账号已保存到房间 {(pendingName.index ?? 0) + 1}，但网易还没有返回游戏名。
+          设置游戏名后即可正常开房。
+        </Alert>
+        <NameAccountForm
+          index={pendingName.index}
+          compact={compact}
+          onDone={result => {
+            const merged = { ...pendingName, ...result, status: 'named' };
+            setPendingName(null);
+            setMessage('');
+            onAdded?.(merged);
+          }}
+          onSkip={() => {
+            const skipped = pendingName;
+            setPendingName(null);
+            notify('账号已保存；可以稍后到账号列表点击「起名」', 'info');
+            onAdded?.(skipped);
+          }}
+        />
+        <Typography variant="caption" color="text.secondary">
+          也可以关闭此窗口，稍后到账号列表点击「起名」。
+        </Typography>
+      </Stack>
+    );
+  }
 
   return (
     <Stack spacing={compact ? 1.8 : 2.2}>

@@ -312,6 +312,7 @@ export default function ConsoleView({ mode, toggleMode }) {
                     <Box hidden={page !== 'accounts'}>
                       <AccountsPanel
                         status={status}
+                        active={page === 'accounts'}
                         onChanged={refresh}
                         onOpenDashboard={index => setAccountIndex(index)}
                       />

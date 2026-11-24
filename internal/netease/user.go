@@ -3,10 +3,25 @@ package netease
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 )
+
+// ErrProfileNameMissing means the account exists but has not chosen its game
+// name yet. The caller can offer the naming flow and retry the profile.
+var ErrProfileNameMissing = errors.New("网易用户资料缺少游戏名")
+
+// ProfileNameMissingError carries the partial identity so the console can save
+// the session and show the account before a name is chosen.
+type ProfileNameMissingError struct {
+	Profile Profile
+}
+
+func (e *ProfileNameMissingError) Error() string { return ErrProfileNameMissing.Error() }
+
+func (e *ProfileNameMissingError) Unwrap() error { return ErrProfileNameMissing }
 
 type userDetailResponse struct {
 	Code    int    `json:"code"`
@@ -40,10 +55,11 @@ func (c *Client) fetchProfile(ctx context.Context) (Profile, error) {
 	if result.Code != 0 {
 		return Profile{}, fmt.Errorf("读取网易用户资料失败 (code %d): %s", result.Code, result.Message)
 	}
-	if result.Entity.Name == "" {
-		return Profile{}, fmt.Errorf("网易用户资料缺少游戏名")
+	identity := Profile{Name: result.Entity.Name, UID: creds.UserID, Level: result.Entity.Level}
+	if identity.Name == "" {
+		return identity, &ProfileNameMissingError{Profile: identity}
 	}
-	return Profile{Name: result.Entity.Name, UID: creds.UserID, Level: result.Entity.Level}, nil
+	return identity, nil
 }
 
 func (c *Client) fetchUserDetail(ctx context.Context, creds Credentials, core bool) (userDetailResponse, error) {

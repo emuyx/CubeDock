@@ -70,6 +70,7 @@ flowchart LR
 | 资源包 | 强制 SendPacks、Stack fallback、拉取、本地跳过、去重 |
 | 配置方案 | 多套连接/房间/资源包/表单设置；支持复制方案、按方案查看资源包 |
 | 账号仪表盘 | 每账号独立启动/停止/重连、房间状态、玩家、好友申请、资源包、诊断、日志 |
+| 新号起名/改名 | 新号未设置游戏名时先保存会话并自动进入起名；支持手动输入、随机中文名、随机英文+数字名；已有名字也可改名，网易 30 天限制错误原样提示 |
 | 房间管理 | 房间侧踢人、房间标签（最多 3 个）、准入等级、网易房间成员列表 |
 | 好友申请 | 运行中房间读取待处理申请，可自动或手动同意 |
 | Web 控制台 | 账号/房间、配置方案、实时控制台、诊断、设置、FAQ、深浅色主题；移动端使用卡片布局和全屏操作面板 |
@@ -176,6 +177,7 @@ flowchart LR
 | POST | `/api/config` | 保存配置方案与全局设置 |
 | POST | `/api/account/assign-profile` | 为账号切换配置方案 |
 | POST | `/api/account/profile` | 刷新账号资料 |
+| POST | `/api/account/set-name` | 为新号设置游戏名，或修改已有游戏名 |
 | POST | `/api/account/remove` | 移除账号 |
 | GET | `/api/packs?profile_id=` | 扫描某方案的资源包目录 |
 | POST | `/api/packs/refresh` | 机器人拉取并去重 |
@@ -194,6 +196,7 @@ flowchart LR
 | POST | `/api/session/import` | 导入 sauth；请求体用 `auth_method` 选择 `interop` / `mobile_netease`（仅本机） |
 | POST | `/api/session/interop-login` | 基岩互通版邮箱登录（仅本机） |
 | POST | `/api/session/mobile-login` | 网易手游邮箱/密码登录（仅本机；main 分支本地实现） |
+| POST | `/api/session/4399-login` | 4399 手游 OAuth 登录（仅本机；main 分支本地实现） |
 
 `/api/session/*` 只允许本机访问；控制台只允许白名单 Host/Origin。
 </details>

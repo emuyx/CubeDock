@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,23 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// PEAuthError is a non-zero PE authentication response. Code 2100 is the
+// temporary "operation too frequent" rate limit.
+type PEAuthError struct {
+	Code    int
+	Message string
+}
+
+func (e *PEAuthError) Error() string {
+	return fmt.Sprintf("PE 认证失败 (code %d): %s", e.Code, e.Message)
+}
+
+// IsPEAuthRateLimited reports whether err is the temporary PE rate limit.
+func IsPEAuthRateLimited(err error) bool {
+	var target *PEAuthError
+	return errors.As(err, &target) && target.Code == 2100
+}
 
 type peAuthRequest struct {
 	EngineVersion string         `json:"engine_version"`
@@ -118,7 +136,7 @@ func (c *Client) performPEAuth(ctx context.Context, session Session) (Credential
 		return Credentials{}, fmt.Errorf("解析 PE 认证响应失败: %w", err)
 	}
 	if result.Code != 0 {
-		return Credentials{}, fmt.Errorf("PE 认证失败 (code %d): %s", result.Code, result.Message)
+		return Credentials{}, &PEAuthError{Code: result.Code, Message: result.Message}
 	}
 	if result.Entity.EntityID == "" || result.Entity.Token == "" {
 		return Credentials{}, fmt.Errorf("PE 认证返回值不完整")

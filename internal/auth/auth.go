@@ -5,9 +5,11 @@ package auth
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/emuyx/cubedock/internal/netease"
 )
@@ -134,14 +136,89 @@ func LookupProfileFor(ctx context.Context, method netease.AuthMethod, token stri
 		return profile, fmt.Errorf("网易账号验证失败: %w", err)
 	}
 	identity, err := client.Profile(ctx)
+	profile = Profile{Name: identity.Name, UID: identity.UID, Level: identity.Level}
+	if err != nil {
+		// A new account has no game name yet. Return the partial identity so
+		// the console can save the session and offer the naming flow.
+		return profile, err
+	}
+	if profile.Name == "" {
+		return profile, netease.ErrProfileNameMissing
+	}
+	return profile, nil
+}
+
+// SetPlayerName sets the account's in-game name and returns the refreshed
+// profile. Authentication happens once; the nickname update and the profile
+// read share that PE session, avoiding the PE 2100 rate limit that a second
+// immediate authentication would trigger.
+func SetPlayerName(ctx context.Context, method netease.AuthMethod, token, name string) (Profile, error) {
+	var profile Profile
+	name = strings.TrimSpace(name)
+	session, err := unwrapToken(token)
 	if err != nil {
 		return profile, err
 	}
-	profile = Profile{Name: identity.Name, UID: identity.UID, Level: identity.Level}
-	if profile.Name == "" {
-		return profile, fmt.Errorf("网易账号验证成功但没有返回游戏名")
+	client, err := netease.New(ctx)
+	if err != nil {
+		return profile, fmt.Errorf("初始化网易认证客户端失败: %w", err)
 	}
-	return profile, nil
+	if err = authenticateWithRetry(ctx, client, method, session); err != nil {
+		return profile, fmt.Errorf("网易账号验证失败: %w", err)
+	}
+	if err = client.SetNickname(ctx, name); err != nil {
+		return profile, err
+	}
+	// The nickname endpoint may be visible to the profile service a moment
+	// later; retry the read without repeating PE authentication.
+	for attempt := 0; ; attempt++ {
+		identity, profileErr := client.Profile(ctx)
+		profileName := strings.TrimSpace(identity.Name)
+		profile = Profile{Name: profileName, UID: identity.UID, Level: identity.Level}
+		if profileErr == nil && profileName == name {
+			return profile, nil
+		}
+		if profileErr != nil && !errors.Is(profileErr, netease.ErrProfileNameMissing) {
+			return profile, profileErr
+		}
+		if attempt >= 2 {
+			if profileErr != nil {
+				return profile, profileErr
+			}
+			return profile, fmt.Errorf("游戏名设置后资料尚未更新，请稍后刷新")
+		}
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return profile, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+// authenticateWithRetry waits out the temporary PE 2100 rate limit. It is
+// used by the naming flow because the operator usually triggers it right after
+// adding a new account, which has just authenticated.
+func authenticateWithRetry(ctx context.Context, client *netease.Client, method netease.AuthMethod, session string) error {
+	delays := []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
+	var err error
+	for attempt := 0; ; attempt++ {
+		err = client.AuthenticateFor(ctx, method, session)
+		if err == nil {
+			return nil
+		}
+		if !netease.IsPEAuthRateLimited(err) || attempt >= len(delays) {
+			return err
+		}
+		timer := time.NewTimer(delays[attempt])
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 // unwrapToken accepts a raw session object or the legacy b64: transport form.

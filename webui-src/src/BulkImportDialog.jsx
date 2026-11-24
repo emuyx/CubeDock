@@ -80,6 +80,7 @@ export default function BulkImportDialog({
     setResults(next);
     let ok = 0;
     let failed = 0;
+    let needNames = 0;
     for (let index = 0; index < lines.length; index += 1) {
       if (abort.current) {
         setResults(current => current.map(row => (row.status === 'pending' ? { ...row, status: 'skipped' } : row)));
@@ -93,10 +94,18 @@ export default function BulkImportDialog({
           profile_id: profileId,
         });
         ok += 1;
+        if (result.status === 'need_name') needNames += 1;
         setResults(current =>
           current.map(row =>
             row.index === index
-              ? { ...row, status: 'ok', message: `房间 ${(result.index ?? 0) + 1} · ${result.name || '已添加'}` }
+              ? {
+                  ...row,
+                  status: 'ok',
+                  message:
+                    result.status === 'need_name'
+                      ? `房间 ${(result.index ?? 0) + 1} · 需要设置游戏名`
+                      : `房间 ${(result.index ?? 0) + 1} · ${result.name || '已添加'}`,
+                }
               : row,
           ),
         );
@@ -111,7 +120,8 @@ export default function BulkImportDialog({
     }
     setBusy(false);
     onChanged?.();
-    notify(`批量导入完成：成功 ${ok}，失败 ${failed}`, failed ? 'warning' : 'success');
+    const suffix = needNames ? `，${needNames} 个需要设置游戏名` : '';
+    notify(`批量导入完成：成功 ${ok}，失败 ${failed}${suffix}`, failed || needNames ? 'warning' : 'success');
   };
 
   const done = results.filter(row => row.status !== 'pending' && row.status !== 'running').length;
@@ -124,6 +134,7 @@ export default function BulkImportDialog({
         <Stack spacing={2} sx={{ pt: 1 }}>
           <Typography variant="body2" color="text.secondary">
             每行粘贴一个登录凭证（sauth 会话）。空行和 # 开头的行会被忽略。凭证只在本机内存中处理，不会保存到浏览器。
+            新号如未设置游戏名，导入后会提示需要起名，可到账号列表点击「起名」。
           </Typography>
           {running && <Alert severity="info">房间运行中，停止后才能导入账号。</Alert>}
           <TextField

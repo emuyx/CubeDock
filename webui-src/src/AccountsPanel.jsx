@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -31,6 +31,7 @@ import {
   ContentCopy,
   Dashboard,
   DeleteOutlined,
+  Edit,
   Key,
   PeopleAlt,
   Search,
@@ -41,9 +42,10 @@ import { copyText, phaseColor, phaseLabel } from './util.js';
 import { useConfirm, useToast } from './App.jsx';
 import AccountLogin from './AccountLogin.jsx';
 import BulkImportDialog from './BulkImportDialog.jsx';
+import NameAccountDialog from './NameAccountDialog.jsx';
 import PlayersDialog from './PlayersDialog.jsx';
 
-export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
+export default function AccountsPanel({ status, onChanged, onOpenDashboard, active = false }) {
   const notify = useToast();
   const confirm = useConfirm();
   const theme = useTheme();
@@ -52,6 +54,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [playersRoom, setPlayersRoom] = useState(null);
+  const [nameIndex, setNameIndex] = useState(null);
   const [reloginIndex, setReloginIndex] = useState(null);
   const [reloginEmail, setReloginEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -80,6 +83,24 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
 
   const phaseOf = account => rooms[account.index]?.phase || 'stopped';
   const expired = account => account.expires_at && new Date(account.expires_at) < new Date();
+  const needsName = account =>
+    !account.name && (account.profile_error || '').includes('缺少游戏名');
+  // Open the naming dialog automatically for a new account, but only once per
+  // account and only when the accounts page is visible and no other dialog is
+  // in the way. Manual editing and the "起名" button remain available.
+  const promptedNames = useRef(new Set());
+  useEffect(() => {
+    if (!active || running || nameIndex !== null || addOpen || reloginIndex !== null || bulkOpen) {
+      return;
+    }
+    const pending = accounts.find(
+      account => needsName(account) && !promptedNames.current.has(account.index),
+    );
+    if (pending) {
+      promptedNames.current.add(pending.index);
+      setNameIndex(pending.index);
+    }
+  }, [active, running, nameIndex, addOpen, reloginIndex, bulkOpen, accounts]);
   const hasError = account =>
     Boolean(account.profile_error || rooms[account.index]?.last_error || expired(account));
   const needle = query.trim().toLowerCase();
@@ -294,6 +315,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
                       color={authMethodOf(account) === 'interop' ? 'secondary' : 'info'}
                       label={authLabelOf(account)}
                     />
+                    {needsName(account) && <Chip size="small" color="warning" label="需要起名" />}
                     {sessionExpired && <Chip size="small" color="error" label="登录已过期" />}
                   </Stack>
 
@@ -340,6 +362,15 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
                       onClick={() => setPlayersRoom(account.index)}
                     >
                       玩家
+                    </Button>
+                    <Button
+                      size="small"
+                      color={needsName(account) ? 'warning' : 'inherit'}
+                      startIcon={<Edit fontSize="small" />}
+                      disabled={running || busy}
+                      onClick={() => setNameIndex(account.index)}
+                    >
+                      {account.name ? '改名' : '起名'}
                     </Button>
                     <Button
                       size="small"
@@ -434,6 +465,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
                         color={authMethodOf(account) === 'interop' ? 'secondary' : 'info'}
                         label={authLabelOf(account)}
                       />
+                      {needsName(account) && <Chip size="small" color="warning" label="需要起名" />}
                       {account.expires_at && (
                         <Typography variant="caption" color={sessionExpired ? 'error' : 'text.secondary'}>
                           {sessionExpired
@@ -487,6 +519,27 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
                     )}
                   </TableCell>
                   <TableCell align="right">
+                    <Tooltip
+                      title={
+                        running
+                          ? '请先停止房间'
+                          : account.name
+                            ? '修改游戏名'
+                            : '设置游戏名'
+                      }
+                    >
+                      <span>
+                        <IconButton
+                          size="small"
+                          color={needsName(account) ? 'warning' : 'default'}
+                          aria-label={account.name ? '修改游戏名' : '设置游戏名'}
+                          disabled={running || busy}
+                          onClick={() => setNameIndex(account.index)}
+                        >
+                          <Edit fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                     <Tooltip title="打开该账号仪表盘">
                       <span>
                         <IconButton
@@ -561,6 +614,18 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
         defaultProfileId={defaultProfileID}
       />
 
+      <NameAccountDialog
+        open={nameIndex !== null}
+        index={nameIndex}
+        initialName={nameIndex !== null ? accounts[nameIndex]?.name || '' : ''}
+        rename={nameIndex !== null && !!accounts[nameIndex]?.name}
+        onClose={() => setNameIndex(null)}
+        onNamed={() => {
+          setNameIndex(null);
+          onChanged?.();
+        }}
+      />
+
       <PlayersDialog
         open={playersRoom !== null}
         roomIndex={playersRoom}
@@ -587,7 +652,10 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
               initialAuthMethod={
                 accounts[reloginIndex]?.auth_method || accounts[reloginIndex]?.platform || 'interop'
               }
-              onAdded={() => {
+              onAdded={result => {
+                if (result?.status === 'need_name' && Number.isInteger(result.index)) {
+                  promptedNames.current.add(result.index);
+                }
                 setReloginIndex(null);
                 onChanged?.();
               }}
@@ -610,7 +678,10 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard }) {
               profiles={profiles}
               defaultProfileId={defaultProfileID}
               initialProfileId={defaultProfileID}
-              onAdded={() => {
+              onAdded={result => {
+                if (result?.status === 'need_name' && Number.isInteger(result.index)) {
+                  promptedNames.current.add(result.index);
+                }
                 setAddOpen(false);
                 onChanged?.();
               }}

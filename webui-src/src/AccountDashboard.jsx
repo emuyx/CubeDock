@@ -22,6 +22,7 @@ import {
   CloudDownload,
   ContentCopy,
   Download,
+  Edit,
   MonitorHeart,
   PeopleAlt,
   PersonAdd,
@@ -52,6 +53,7 @@ import {
   timestamp,
 } from './util.js';
 import { useToast } from './App.jsx';
+import NameAccountDialog from './NameAccountDialog.jsx';
 import PlayersDialog from './PlayersDialog.jsx';
 
 const STATUS = {
@@ -103,9 +105,11 @@ export default function AccountDashboard({
   const transfer = profile?.connection_mode === 'transfer';
   const phase = room.phase || 'stopped';
   const busyPhase = phase === 'starting' || phase === 'stopping';
+  const needsName = !account?.name && (account?.profile_error || '').includes('缺少游戏名');
   const [busy, setBusy] = useState('');
   const [assigning, setAssigning] = useState(false);
   const [playersOpen, setPlayersOpen] = useState(false);
+  const [nameOpen, setNameOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsError, setDiagnosticsError] = useState('');
@@ -309,6 +313,25 @@ export default function AccountDashboard({
         </Stack>
       </Stack>
 
+      {needsName && (
+        <Alert
+          severity="warning"
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              startIcon={<Edit />}
+              disabled={phase !== 'stopped'}
+              onClick={() => setNameOpen(true)}
+            >
+              设置游戏名
+            </Button>
+          }
+        >
+          该账号还没有游戏名。设置游戏名后才能正常开房和进服。
+        </Alert>
+      )}
+
       <Box
         sx={{
           display: 'grid',
@@ -439,6 +462,14 @@ export default function AccountDashboard({
                   onClick={() => setPlayersOpen(true)}
                 >
                   管理玩家
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<Edit />}
+                  disabled={phase !== 'stopped'}
+                  onClick={() => setNameOpen(true)}
+                >
+                  {account?.name ? '修改游戏名' : '设置游戏名'}
                 </Button>
                 <Button size="small" startIcon={<Refresh />} onClick={onChanged}>
                   刷新状态
@@ -672,6 +703,18 @@ export default function AccountDashboard({
           </Box>
         </CardContent>
       </Card>
+
+      <NameAccountDialog
+        open={nameOpen}
+        index={accountIndex}
+        initialName={account?.name || ''}
+        rename={!!account?.name}
+        onClose={() => setNameOpen(false)}
+        onNamed={() => {
+          setNameOpen(false);
+          onChanged?.();
+        }}
+      />
 
       <PlayersDialog
         open={playersOpen}

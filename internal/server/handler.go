@@ -92,6 +92,7 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 	mux.HandleFunc("POST /api/session/4399-login", h.login4399)
 	mux.HandleFunc("POST /api/account/remove", h.removeAccount)
 	mux.HandleFunc("POST /api/account/profile", h.refreshProfile)
+	mux.HandleFunc("POST /api/account/set-name", h.setAccountName)
 	mux.HandleFunc("POST /api/account/assign-profile", h.assignProfile)
 	mux.Handle("GET /", http.FileServer(http.FS(webui.Root())))
 
@@ -313,15 +314,21 @@ func (h *consoleHandler) saveConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // saveSession stores one verified session and its account metadata. index
-// selects an existing room to replace; nil adds a new account.
-func (h *consoleHandler) saveSession(token, platform, authMethod, expiresAt, email, label, profileID string, profile auth.Profile, index *int) (int, error) {
+// selects an existing room to replace; nil adds a new account. profileErr is
+// set when the account exists but has no game name yet.
+func (h *consoleHandler) saveSession(token, platform, authMethod, expiresAt, email, label, profileID, profileErr string, profile auth.Profile, index *int) (int, error) {
 	meta := core.AccountMeta{
 		Email: strings.TrimSpace(email), Label: strings.TrimSpace(label),
 		Name: profile.Name, UID: profile.UID, Level: profile.Level,
 		Platform: platform, AuthMethod: authMethod, ExpiresAt: expiresAt,
-		ProfileID: strings.TrimSpace(profileID),
+		ProfileError: profileErr,
+		ProfileID:    strings.TrimSpace(profileID),
 	}
 	methodLabel := netease.AuthMethodLabel(netease.AuthMethod(authMethod))
+	displayName := profile.Name
+	if displayName == "" {
+		displayName = "未命名账号"
+	}
 	if index != nil {
 		existing := h.manager.Accounts()
 		if *index < 0 || *index >= len(existing) {
@@ -351,15 +358,67 @@ func (h *consoleHandler) saveSession(token, platform, authMethod, expiresAt, ema
 		if err := h.manager.ReplaceAccount(*index, token, meta); err != nil {
 			return -1, err
 		}
-		h.manager.Record("账号", fmt.Sprintf("已更新房间 %d 的%s会话：%s", *index+1, methodLabel, profile.Name))
+		if profileErr != "" {
+			h.manager.Record("账号", fmt.Sprintf("已更新房间 %d 的%s会话，但账号还没有游戏名，需要先设置游戏名", *index+1, methodLabel))
+		} else {
+			h.manager.Record("账号", fmt.Sprintf("已更新房间 %d 的%s会话：%s", *index+1, methodLabel, displayName))
+		}
 		return *index, nil
 	}
 	created, err := h.manager.AddAccount(token, meta)
 	if err != nil {
 		return -1, err
 	}
-	h.manager.Record("账号", fmt.Sprintf("已导入%s会话：%s（UID %s）→ 房间 %d", methodLabel, profile.Name, profile.UID, created+1))
+	if profileErr != "" {
+		h.manager.Record("账号", fmt.Sprintf("已导入%s会话：%s（UID %s）→ 房间 %d；需要先设置游戏名",
+			methodLabel, displayName, profile.UID, created+1))
+	} else {
+		h.manager.Record("账号", fmt.Sprintf("已导入%s会话：%s（UID %s）→ 房间 %d", methodLabel, displayName, profile.UID, created+1))
+	}
 	return created, nil
+}
+
+// lookupSessionProfile resolves the account identity. A new account without a
+// game name is not a fatal error: it is returned with a profileErr so the
+// session can be saved and the naming flow offered.
+func (h *consoleHandler) lookupSessionProfile(ctx context.Context, method netease.AuthMethod, token, email string) (auth.Profile, string, string) {
+	profile, err := auth.LookupProfileFor(ctx, method, token)
+	if err == nil {
+		return profile, "", ""
+	}
+	if errors.Is(err, netease.ErrProfileNameMissing) {
+		return profile, netease.ErrProfileNameMissing.Error(), ""
+	}
+	message := redact.Sanitize(err.Error(), token)
+	if email != "" {
+		message = redact.Sanitize(message, email)
+	}
+	h.manager.Record("账号", netease.AuthMethodLabel(method)+"会话验证失败："+message)
+	return profile, "", message
+}
+
+// respondSession saves a verified session (possibly without a game name) and
+// returns the console response shape shared by all login methods.
+func (h *consoleHandler) respondSession(w http.ResponseWriter, token, platform, authMethod, expiresAt, email, label, profileID string, profile auth.Profile, profileErr string, index *int) {
+	savedIndex, err := h.saveSession(token, platform, authMethod, expiresAt, email, label, profileID, profileErr, profile, index)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	result := map[string]any{
+		"ok": true, "index": savedIndex, "name": profile.Name, "uid": profile.UID,
+		"level": profile.Level, "platform": platform, "auth_method": authMethod,
+		"expires_at": expiresAt, "profile_id": h.accountProfileID(savedIndex),
+	}
+	if expiresAt == "" {
+		delete(result, "expires_at")
+	}
+	if profileErr != "" {
+		result["status"] = "need_name"
+		result["message"] = "该网易账号还没有设置游戏名，请先设置游戏名"
+		result["profile_error"] = profileErr
+	}
+	respond(w, result)
 }
 
 func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
@@ -395,27 +454,12 @@ func (h *consoleHandler) importSession(w http.ResponseWriter, r *http.Request) {
 	authMethod := netease.AuthMethod(method)
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	profile, err := auth.LookupProfileFor(ctx, authMethod, token)
-	if err != nil {
-		message := redact.Sanitize(err.Error(), token)
-		h.manager.Record("账号", netease.AuthMethodLabel(authMethod)+"会话验证失败："+message)
-		http.Error(w, message, http.StatusBadRequest)
+	profile, profileErr, lookupErr := h.lookupSessionProfile(ctx, authMethod, token, body.Email)
+	if lookupErr != "" {
+		http.Error(w, lookupErr, http.StatusBadRequest)
 		return
 	}
-	index, err := h.saveSession(token, method, method, expiresAt, body.Email, body.Label, body.ProfileID, profile, body.Index)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	result := map[string]any{
-		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
-		"level": profile.Level, "platform": method, "auth_method": method,
-		"expires_at": expiresAt, "profile_id": h.accountProfileID(index),
-	}
-	if expiresAt == "" {
-		delete(result, "expires_at")
-	}
-	respond(w, result)
+	h.respondSession(w, token, method, method, expiresAt, body.Email, body.Label, body.ProfileID, profile, profileErr, body.Index)
 }
 
 func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
@@ -472,27 +516,12 @@ func (h *consoleHandler) interopLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	profile, err := auth.LookupProfileFor(ctx, netease.AuthInterop, token)
-	if err != nil {
-		message := redact.Sanitize(err.Error(), token)
-		h.manager.Record("账号", "互通版会话验证失败："+message)
-		http.Error(w, message, http.StatusBadRequest)
+	profile, profileErr, lookupErr := h.lookupSessionProfile(ctx, netease.AuthInterop, token, email)
+	if lookupErr != "" {
+		http.Error(w, lookupErr, http.StatusBadRequest)
 		return
 	}
-	index, err := h.saveSession(token, method, method, expiresAt, email, body.Label, body.ProfileID, profile, body.Index)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	result := map[string]any{
-		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
-		"level": profile.Level, "platform": method, "auth_method": method,
-		"expires_at": expiresAt, "profile_id": h.accountProfileID(index),
-	}
-	if expiresAt == "" {
-		delete(result, "expires_at")
-	}
-	respond(w, result)
+	h.respondSession(w, token, method, method, expiresAt, email, body.Label, body.ProfileID, profile, profileErr, body.Index)
 }
 
 func (h *consoleHandler) mobileLogin(w http.ResponseWriter, r *http.Request) {
@@ -554,27 +583,12 @@ func (h *consoleHandler) mobileLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	profile, err := auth.LookupProfileFor(ctx, netease.AuthMobileNetEase, token)
-	if err != nil {
-		message := redact.Sanitize(err.Error(), token)
-		h.manager.Record("账号", "手游会话验证失败："+message)
-		http.Error(w, message, http.StatusBadRequest)
+	profile, profileErr, lookupErr := h.lookupSessionProfile(ctx, netease.AuthMobileNetEase, token, email)
+	if lookupErr != "" {
+		http.Error(w, lookupErr, http.StatusBadRequest)
 		return
 	}
-	index, err := h.saveSession(token, method, method, expiresAt, email, body.Label, body.ProfileID, profile, body.Index)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	result := map[string]any{
-		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
-		"level": profile.Level, "platform": method, "auth_method": method,
-		"expires_at": expiresAt, "profile_id": h.accountProfileID(index),
-	}
-	if expiresAt == "" {
-		delete(result, "expires_at")
-	}
-	respond(w, result)
+	h.respondSession(w, token, method, method, expiresAt, email, body.Label, body.ProfileID, profile, profileErr, body.Index)
 }
 
 func (h *consoleHandler) login4399(w http.ResponseWriter, r *http.Request) {
@@ -653,27 +667,12 @@ func (h *consoleHandler) login4399(w http.ResponseWriter, r *http.Request) {
 	}
 	verifyCtx, verifyCancel := context.WithTimeout(r.Context(), 75*time.Second)
 	defer verifyCancel()
-	profile, err := auth.LookupProfileFor(verifyCtx, netease.AuthMobile4399, token)
-	if err != nil {
-		message := redact.Sanitize(err.Error(), token)
-		h.manager.Record("账号", "4399 会话验证失败："+message)
-		http.Error(w, message, http.StatusBadRequest)
+	profile, profileErr, lookupErr := h.lookupSessionProfile(verifyCtx, netease.AuthMobile4399, token, username)
+	if lookupErr != "" {
+		http.Error(w, lookupErr, http.StatusBadRequest)
 		return
 	}
-	index, err := h.saveSession(token, method, method, expiresAt, username, body.Label, body.ProfileID, profile, body.Index)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	result := map[string]any{
-		"ok": true, "index": index, "name": profile.Name, "uid": profile.UID,
-		"level": profile.Level, "platform": method, "auth_method": method,
-		"expires_at": expiresAt, "profile_id": h.accountProfileID(index),
-	}
-	if expiresAt == "" {
-		delete(result, "expires_at")
-	}
-	respond(w, result)
+	h.respondSession(w, token, method, method, expiresAt, username, body.Label, body.ProfileID, profile, profileErr, body.Index)
 }
 
 func (h *consoleHandler) removeAccount(w http.ResponseWriter, r *http.Request) {
@@ -739,6 +738,64 @@ func (h *consoleHandler) refreshProfile(w http.ResponseWriter, r *http.Request) 
 	}
 	h.manager.Record("账号", fmt.Sprintf("房间 %d 游戏名解析成功：%s（UID %s）", body.Index+1, profile.Name, profile.UID))
 	respond(w, map[string]any{"ok": true, "name": profile.Name, "uid": profile.UID, "level": profile.Level})
+}
+
+// setAccountName sets the game name for a new account that has no name yet.
+// The session was already saved by the login flow; this endpoint only needs
+// the stored token and the operator-supplied name.
+func (h *consoleHandler) setAccountName(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Index int    `json:"index"`
+		Name  string `json:"name"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil {
+		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	if h.manager.Snapshot().Running {
+		http.Error(w, "请先停止房间，再设置游戏名", http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(body.Name)
+	if body.Index < 0 || name == "" {
+		http.Error(w, "请指定账号序号和游戏名", http.StatusBadRequest)
+		return
+	}
+	accounts := h.manager.Accounts()
+	if body.Index >= len(accounts) {
+		http.Error(w, "账号序号无效", http.StatusBadRequest)
+		return
+	}
+	token, err := h.manager.Token(body.Index)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	method, err := netease.ParseAuthMethod(accounts[body.Index].AuthMethod)
+	if err != nil {
+		http.Error(w, "账号登录方式无效", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 75*time.Second)
+	defer cancel()
+	profile, err := auth.SetPlayerName(ctx, method, token, name)
+	if err != nil {
+		message := redact.Sanitize(err.Error(), token)
+		h.manager.Record("账号", fmt.Sprintf("房间 %d 设置游戏名失败：%s", body.Index+1, message))
+		http.Error(w, message, http.StatusBadRequest)
+		return
+	}
+	if err := h.manager.UpdateAccountProfile(body.Index, profile.Name, profile.UID, profile.Level, ""); err != nil {
+		http.Error(w, "保存账号资料失败", http.StatusInternalServerError)
+		return
+	}
+	h.manager.Record("账号", fmt.Sprintf("房间 %d 已设置游戏名：%s", body.Index+1, profile.Name))
+	respond(w, map[string]any{
+		"ok": true, "index": body.Index, "name": profile.Name,
+		"uid": profile.UID, "level": profile.Level,
+	})
 }
 
 func (h *consoleHandler) accountProfileID(index int) string {

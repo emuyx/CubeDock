@@ -557,6 +557,23 @@ export function installDemoApi() {
           if (!account) return failure('账号序号无效');
           return json({ ok: true, name: account.name, uid: account.uid, level: account.level });
         }
+        case 'POST account/set-name': {
+          if (state.running.size) return failure('请先停止房间，再设置游戏名');
+          const account = state.accounts[Number(body.index)];
+          if (!account) return failure('账号序号无效');
+          const name = String(body.name || '').trim();
+          if (!name) return failure('请填写游戏名');
+          account.name = name;
+          account.profile_error = '';
+          append('账号', `演示：房间 ${Number(body.index) + 1} 已设置游戏名 ${name}`);
+          return json({
+            ok: true,
+            index: Number(body.index),
+            name,
+            uid: account.uid,
+            level: account.level,
+          });
+        }
         case 'GET room/members': {
           const index = Number(parsed.searchParams.get('index'));
           if (!Number.isInteger(index)) return failure('账号序号无效');

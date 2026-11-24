@@ -326,6 +326,13 @@
             <code>app_channel=4399com</code>）。该功能属于 <code>main</code> 分支
             v0.4.1-dev，尚未正式发布。Java 经典版网易/4399 渠道仍在后续计划中。
           </div>
+          <div class="doc-callout doc-note">
+            <strong>新号起名 / 改名：</strong>新号登录后若网易返回“缺少游戏名”，
+            账号会先保存并自动弹取名界面，不会阻止登录。可以直接手动输入，也可以
+            使用随机中文名或随机英文+数字名；游戏名需为 3–12 个字符（中文按 1.5
+            个字符计算）。网易限制改名后 30 天内不能再次修改，限制期内的错误会
+            原样显示。该功能属于 <code>main</code> 分支 v0.4.1-dev，尚未正式发布。
+          </div>
           <div class="doc-callout doc-warn">
             <strong>1351 安全验证：</strong>登录时若提示需要安全验证，点击页面上的「打开网易验证页面」
             完成验证，再回到 CubeDock 点一次「登录并添加」。CubeDock 不会自动重试。
@@ -436,6 +443,7 @@
           <ul>
             <li>全局：<code>/api/status</code>、<code>/api/start</code>、<code>/api/stop</code>、<code>/api/config</code>；</li>
             <li>单账号：<code>/api/room/start</code>、<code>/api/room/stop</code>、<code>/api/room/restart</code>；</li>
+            <li>账号：<code>/api/account/set-name</code>（新号起名）；</li>
             <li>方案：<code>/api/account/assign-profile</code>、<code>/api/packs?profile_id=</code>、<code>/api/diagnostics?profile_id=</code>；</li>
             <li>房间：<code>/api/room/members?index=</code>、<code>/api/room/kick-member</code>；</li>
             <li>好友：<code>/api/friends?index=</code>、<code>/api/friend/accept</code>。</li>
