@@ -11,3 +11,9 @@ and [LICENSE](LICENSE) for the local glue and the upstream attributions.
 
 This copy is maintained only for CubeDock; do not treat the entire directory as
 a single upstream release. When upgrading, review every new file's license.
+
+## Local patches
+
+- `core/raknet/internal/message/open_connection_request_1.go`: the OCR1 cache
+  is guarded with an RWMutex. Nine simultaneous room opens previously hit
+  `concurrent map writes` during MTU discovery.

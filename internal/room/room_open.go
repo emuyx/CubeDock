@@ -30,7 +30,9 @@ func Open(ctx context.Context, profile config.Profile, info auth.RoomInfo, trace
 	opened := false
 	defer func() {
 		if !opened {
-			host.Close()
+			// Use created rather than the named host result: an error return
+			// assigns nil to host before deferred calls run.
+			created.Close()
 		}
 	}()
 

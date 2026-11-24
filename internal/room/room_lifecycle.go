@@ -119,6 +119,9 @@ func (h *Host) Err() error {
 // Close tears down the room. Disconnecting the owner's RakNet session removes
 // it from NetEase, so no shutdown packet is invented.
 func (h *Host) Close() {
+	if h == nil {
+		return
+	}
 	h.closeOnce.Do(func() {
 		close(h.done)
 		if h.control != nil {

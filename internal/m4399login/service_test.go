@@ -94,6 +94,18 @@ func newFakeService(t *testing.T, fake *fake4399) (*Service, *httptest.Server) {
 	return service, server
 }
 
+func TestCaptchaClientCache(t *testing.T) {
+	service := New()
+	client := &http.Client{}
+	service.rememberCaptchaClient("captcha-id", client)
+	if got := service.takeCaptchaClient("captcha-id"); got != client {
+		t.Fatalf("cached client = %p, want %p", got, client)
+	}
+	if got := service.takeCaptchaClient("captcha-id"); got != nil {
+		t.Fatalf("captcha client reused twice: %p", got)
+	}
+}
+
 func TestLogin(t *testing.T) {
 	fake := &fake4399{}
 	service, server := newFakeService(t, fake)

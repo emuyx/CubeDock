@@ -2,6 +2,7 @@ package message
 
 import (
 	"io"
+	"sync"
 )
 
 type OpenConnectionRequest1 struct {
@@ -9,19 +10,30 @@ type OpenConnectionRequest1 struct {
 	MTU            uint16
 }
 
-var cachedOCR1 = map[uint16][]byte{}
+var (
+	cachedOCR1Mu sync.RWMutex
+	cachedOCR1   = map[uint16][]byte{}
+)
 
 func (pk *OpenConnectionRequest1) MarshalBinary() (data []byte, err error) {
-	if b, ok := cachedOCR1[pk.MTU]; ok {
+	cachedOCR1Mu.RLock()
+	b, ok := cachedOCR1[pk.MTU]
+	cachedOCR1Mu.RUnlock()
+	if ok {
 		// Cache OpenConnectionRequest1 data. These are independent of any other
 		// inputs and are pretty big.
 		return b, nil
 	}
-	b := make([]byte, pk.MTU-20-8) // IP Header: 20 bytes, UDP Header: 8 bytes.
+	b = make([]byte, pk.MTU-20-8) // IP Header: 20 bytes, UDP Header: 8 bytes.
 	b[0] = IDOpenConnectionRequest1
 	copy(b[1:], unconnectedMessageSequence[:])
 	b[17] = pk.ClientProtocol
 
+	cachedOCR1Mu.Lock()
+	defer cachedOCR1Mu.Unlock()
+	if existing, ok := cachedOCR1[pk.MTU]; ok {
+		return existing, nil
+	}
 	cachedOCR1[pk.MTU] = b
 	return b, nil
 }

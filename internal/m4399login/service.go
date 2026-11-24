@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -79,16 +80,20 @@ type Service struct {
 	CaptchaURL  string
 	UserAgent   string
 	Now         func() time.Time
+
+	captchaMu      sync.Mutex
+	captchaClients map[string]*http.Client
 }
 
 func New() *Service {
 	return &Service{
-		CallbackURL: defaultCallbackURL,
-		LoginURL:    defaultLoginURL,
-		UniSauthURL: defaultUniSauthURL,
-		CaptchaURL:  defaultCaptchaURL,
-		UserAgent:   defaultUserAgent,
-		Now:         time.Now,
+		CallbackURL:    defaultCallbackURL,
+		LoginURL:       defaultLoginURL,
+		UniSauthURL:    defaultUniSauthURL,
+		CaptchaURL:     defaultCaptchaURL,
+		UserAgent:      defaultUserAgent,
+		Now:            time.Now,
+		captchaClients: make(map[string]*http.Client),
 	}
 }
 
@@ -144,9 +149,16 @@ func (s *Service) Login(ctx context.Context, username, password, captchaID, capt
 	if password == "" {
 		return nil, fmt.Errorf("请填写 4399 密码")
 	}
-	client, err := s.client()
-	if err != nil {
-		return nil, err
+	var client *http.Client
+	if id := strings.TrimSpace(captchaID); id != "" {
+		client = s.takeCaptchaClient(id)
+	}
+	if client == nil {
+		var err error
+		client, err = s.client()
+		if err != nil {
+			return nil, err
+		}
 	}
 	callback, err := s.fetchCallback(ctx, client)
 	if err != nil {
@@ -308,7 +320,34 @@ func (s *Service) captchaError(ctx context.Context, client *http.Client) error {
 	if err != nil {
 		return fmt.Errorf("获取 4399 验证码图片失败: %w", err)
 	}
+	s.rememberCaptchaClient(id, client)
 	return &CaptchaRequired{CaptchaID: id, Image: image, ImageType: contentType}
+}
+
+func (s *Service) rememberCaptchaClient(id string, client *http.Client) {
+	if id == "" || client == nil {
+		return
+	}
+	s.captchaMu.Lock()
+	defer s.captchaMu.Unlock()
+	if s.captchaClients == nil {
+		s.captchaClients = make(map[string]*http.Client)
+	}
+	if len(s.captchaClients) >= 64 {
+		for existing := range s.captchaClients {
+			delete(s.captchaClients, existing)
+			break
+		}
+	}
+	s.captchaClients[id] = client
+}
+
+func (s *Service) takeCaptchaClient(id string) *http.Client {
+	s.captchaMu.Lock()
+	defer s.captchaMu.Unlock()
+	client := s.captchaClients[id]
+	delete(s.captchaClients, id)
+	return client
 }
 
 func decodeText(raw []byte) string {
