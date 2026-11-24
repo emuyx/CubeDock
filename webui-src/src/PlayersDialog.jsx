@@ -10,7 +10,6 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  Stack,
   Tab,
   Table,
   TableBody,
@@ -21,10 +20,11 @@ import {
   Tabs,
   TextField,
   Tooltip,
-  Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import { Block, ContentCopy, ExitToApp, PersonOff, Refresh } from '@mui/icons-material';
 import { api, getRoomMembers, kickRoomMember, roomKickPlayer } from './api.js';
 import { copyText } from './util.js';
@@ -109,14 +109,22 @@ export default function PlayersDialog({ open, onClose, status, roomIndex = null,
     setTransfer(null);
     setAddress('');
     setTab(0);
-    load();
+    if (proxy) {
+      load();
+    } else {
+      // Guests are owned by the target server in transfer mode; do not keep
+      // polling /api/players for a list the console cannot manage.
+      setPlayers([]);
+      setLoading(false);
+      setError('');
+    }
     loadMembers();
     const timer = setInterval(() => {
-      load();
+      if (proxy) load();
       loadMembers();
     }, 2000);
     return () => clearInterval(timer);
-  }, [open, load, loadMembers]);
+  }, [open, load, loadMembers, proxy]);
 
   // PlayerStatus.Room is 1-based; roomIndex is the 0-based account index.
   const visible = players.filter(player => roomIndex === null || player.room === roomIndex + 1);

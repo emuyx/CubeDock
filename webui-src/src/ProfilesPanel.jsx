@@ -10,24 +10,26 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   List,
   ListItemButton,
   ListItemText,
   MenuItem,
-  Stack,
   Switch,
   Tab,
   Tabs,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import {
   Add,
   CloudDownload,
   ContentCopy,
   DeleteOutlined,
   Refresh,
+  RestartAlt,
   Save,
   Tune,
 } from '@mui/icons-material';
@@ -52,6 +54,7 @@ function splitLimbo(value) {
 
 const grid = { display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } };
 const ROOM_TAGS = ['生存', '创造', '冒险', '模拟', '动作', '建筑', '竞技', '休闲'];
+const BUILT_IN_ROOM_NAME = '来和我一起玩吧！';
 
 export default function ProfilesPanel({ status, active }) {
   const notify = useToast();
@@ -66,6 +69,8 @@ export default function ProfilesPanel({ status, active }) {
     busy,
     error,
     dirty,
+    externalChanged,
+    reload,
     discard,
   } = useConfigForm();
   const profiles = form?.profiles || [];
@@ -192,109 +197,127 @@ export default function ProfilesPanel({ status, active }) {
   };
 
   return (
-    <Stack spacing={2.2}>
-      <Card>
-        <CardContent sx={{ p: { xs: 2.2, sm: 2.8 } }}>
-          <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            spacing={2}
-            justifyContent="space-between"
-            alignItems={{ xs: 'stretch', sm: 'center' }}
-          >
-            <Box>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Tune color="primary" />
-                <Typography variant="h5">配置方案</Typography>
-                <Chip size="small" variant="outlined" label={`${profiles.length} 个`} />
-              </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                每个网易账号选择一个方案；同一方案可被多个账号共享。方案包含服务器、连接方式、房间设置、资源包和提示页面。
-              </Typography>
-            </Box>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
-              <Button
-                variant="outlined"
-                startIcon={<Add />}
-                onClick={add}
-                disabled={running || profiles.length >= 32}
-                sx={{ whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
-              >
-                添加方案
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<ContentCopy />}
-                onClick={duplicate}
-                disabled={!profile || running}
-                sx={{ whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
-              >
-                复制方案
-              </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteOutlined />}
-                onClick={remove}
-                disabled={!profile || running || profiles.length <= 1 || selectedAccounts > 0}
-                sx={{ whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
-              >
-                删除方案
-              </Button>
+    <Stack spacing={2.4}>
+      <Box>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1.5}
+          justifyContent="space-between"
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+        >
+          <Box>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Tune color="primary" />
+              <Typography variant="h5">配置方案</Typography>
             </Stack>
-          </Stack>
-          {running && <Alert severity="info" sx={{ mt: 1.6 }}>有房间运行中，停止全部房间后才能修改配置方案。</Alert>}
-          {error && <Alert severity="error" sx={{ mt: 1.6 }}>{error}</Alert>}
-          {dirty && <Alert severity="info" variant="outlined" sx={{ mt: 1.6 }}>方案有未保存的修改。</Alert>}
-        </CardContent>
-      </Card>
-
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '280px minmax(0, 1fr)' } }}>
-        <Card sx={{ alignSelf: 'start' }}>
-          <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
-            <Typography variant="overline" color="text.secondary" fontWeight={800} sx={{ px: 1 }}>
-              方案列表
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.3 }}>
+              {profiles.length} 个方案 · 每个网易账号选择一个，同一方案可被多个账号共享。
             </Typography>
-            <List disablePadding sx={{ mt: 0.5 }}>
-              {profiles.map(item => (
-                <ListItemButton
-                  key={item.id}
-                  selected={item.id === profileId}
-                  onClick={() => {
-                    setSelectedId(item.id);
-                    setTab(0);
-                  }}
-                  sx={{ borderRadius: 2, mb: 0.5 }}
+          </Box>
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'space-between', sm: 'flex-end' }}>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={add}
+              disabled={running || profiles.length >= 32}
+              sx={{ whiteSpace: 'nowrap', flexGrow: { xs: 1, sm: 0 } }}
+            >
+              添加方案
+            </Button>
+            <Tooltip title="复制当前方案">
+              <span>
+                <IconButton onClick={duplicate} disabled={!profile || running} aria-label="复制当前方案">
+                  <ContentCopy />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="删除当前方案">
+              <span>
+                <IconButton
+                  color="error"
+                  onClick={remove}
+                  aria-label="删除当前方案"
+                  disabled={!profile || running || profiles.length <= 1 || selectedAccounts > 0}
                 >
-                  <ListItemText
-                    primary={item.name}
-                    secondary={`${item.connection_mode === 'transfer' ? '转服' : '代理'} · ${assignedCount(item.id)} 个账号`}
-                    primaryTypographyProps={{ fontWeight: 750 }}
-                  />
-                </ListItemButton>
-              ))}
-            </List>
-            {profiles.length === 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ p: 1.5 }}>
-                还没有配置方案，请添加一个。
-              </Typography>
-            )}
-          </CardContent>
-        </Card>
+                  <DeleteOutlined />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+        </Stack>
+        {running && <Alert severity="info" sx={{ mt: 1.6 }}>有房间运行中，停止全部房间后才能修改配置方案。</Alert>}
+        {externalChanged && (
+          <Alert
+            severity="warning"
+            sx={{ mt: 1.6 }}
+            action={
+              <Button color="inherit" size="small" onClick={reload}>
+                加载最新
+              </Button>
+            }
+          >
+            服务端配置已在别处更新；当前修改尚未保存。
+          </Alert>
+        )}
+        {error && <Alert severity="error" sx={{ mt: 1.6 }}>{error}</Alert>}
+        {dirty && <Alert severity="info" variant="outlined" sx={{ mt: 1.6 }}>方案有未保存的修改。</Alert>}
+      </Box>
+
+      <Box
+        sx={{
+          display: 'grid',
+          gap: { xs: 2, lg: 3 },
+          gridTemplateColumns: { xs: '1fr', lg: '260px minmax(0, 1fr)' },
+        }}
+      >
+        <Box
+          sx={{
+            alignSelf: 'start',
+            pr: { lg: 2 },
+            borderRight: { lg: 1 },
+            borderColor: { lg: 'divider' },
+          }}
+        >
+          <Typography variant="overline" color="text.secondary" fontWeight={800} sx={{ px: 1 }}>
+            方案列表
+          </Typography>
+          <List disablePadding sx={{ mt: 0.3 }}>
+            {profiles.map(item => (
+              <ListItemButton
+                key={item.id}
+                selected={item.id === profileId}
+                onClick={() => {
+                  setSelectedId(item.id);
+                  setTab(0);
+                }}
+                sx={{ borderRadius: 2, mb: 0.5, px: 1.2 }}
+              >
+                <ListItemText
+                  primary={item.name}
+                  secondary={`${item.connection_mode === 'transfer' ? '转服' : '代理'} · ${assignedCount(item.id)} 个账号`}
+                  primaryTypographyProps={{ fontWeight: 750 }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+          {profiles.length === 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ p: 1.5 }}>
+              还没有配置方案，请添加一个。
+            </Typography>
+          )}
+        </Box>
 
         {profile ? (
           <Card component="form" onSubmit={save}>
             <CardContent sx={{ p: { xs: 2.2, sm: 2.8 } }}>
               <Stack spacing={2.2}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="h6" noWrap>{profile.name}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {profile.connection_mode === 'transfer' ? '转服模式' : '代理模式'} · {profile.upstream || '未填写服务器'}
-                      {selectedAccounts > 0 ? ` · ${selectedAccounts} 个账号使用` : ' · 暂无账号使用'}
-                    </Typography>
-                  </Box>
-                  <Chip size="small" color={profile.connection_mode === 'transfer' ? 'secondary' : 'primary'} label={profile.connection_mode === 'transfer' ? '转服' : '代理'} />
-                </Stack>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="h6" noWrap>{profile.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {profile.connection_mode === 'transfer' ? '转服模式' : '代理模式'} · {profile.upstream || '未填写服务器'}
+                    {selectedAccounts > 0 ? ` · ${selectedAccounts} 个账号使用` : ' · 暂无账号使用'}
+                  </Typography>
+                </Box>
 
                 <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" allowScrollButtonsMobile>
                   <Tab label="连接" />
@@ -384,7 +407,32 @@ export default function ProfilesPanel({ status, active }) {
                         required
                         fullWidth
                         inputProps={{ maxLength: 40 }}
-                        helperText={<FieldHint help="玩家在网易联机列表里看到的房间名。">1–40 个字</FieldHint>}
+                        slotProps={{
+                          input: {
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <Tooltip title="复位为内置房间名（自定义名称可能需要 VIP）">
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      aria-label="复位为内置房间名"
+                                      edge="end"
+                                      disabled={running || profile.room_name === BUILT_IN_ROOM_NAME}
+                                      onClick={() => updateProfile(profile.id, 'room_name', BUILT_IN_ROOM_NAME)}
+                                    >
+                                      <RestartAlt fontSize="small" />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                        helperText={
+                          <FieldHint help="自定义房间名可能需要 VIP；内置名称“来和我一起玩吧！”不需要。">
+                            1–40 个字
+                          </FieldHint>
+                        }
                       />
                       <TextField
                         label="房间密码（可选）"
@@ -543,9 +591,9 @@ export default function ProfilesPanel({ status, active }) {
                         <Typography variant="body2" color="text.secondary">目录中没有资源包。</Typography>
                       )}
                       {packs && packs.packs?.length > 0 && (
-                        <Stack spacing={1}>
+                        <Stack spacing={0}>
                           {packs.packs.map(pack => (
-                            <Box key={pack.file} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+                            <Box key={pack.file} sx={{ py: 1, borderTop: 1, borderColor: 'divider' }}>
                               <Typography variant="body2">{pack.name}</Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {pack.file} · {pack.uuid || '无 UUID'} · v{pack.version || '—'} · {formatBytes(pack.size)}
@@ -615,11 +663,9 @@ export default function ProfilesPanel({ status, active }) {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardContent sx={{ py: 8, textAlign: 'center' }}>
-              <Typography color="text.secondary">还没有配置方案，点击「添加方案」开始。</Typography>
-            </CardContent>
-          </Card>
+          <Box sx={{ py: 8, textAlign: 'center' }}>
+            <Typography color="text.secondary">还没有配置方案，点击「添加方案」开始。</Typography>
+          </Box>
         )}
       </Box>
     </Stack>

@@ -8,9 +8,9 @@ import {
   DialogTitle,
   IconButton,
   InputAdornment,
-  Stack,
   TextField,
 } from '@mui/material';
+import Stack from './Stack.jsx';
 import { Key, Visibility, VisibilityOff } from '@mui/icons-material';
 import { api } from './api.js';
 import { useToast } from './App.jsx';

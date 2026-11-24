@@ -7,13 +7,13 @@ import {
   CardContent,
   CircularProgress,
   MenuItem,
-  Stack,
   Step,
   StepLabel,
   Stepper,
   TextField,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import { ArrowBack, PlayArrow, SkipNext } from '@mui/icons-material';
 import { api } from './api.js';
 import { useToast } from './App.jsx';
@@ -27,7 +27,7 @@ const grid = { display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1
 
 export default function SetupWizard({ status, onChanged, onDone }) {
   const notify = useToast();
-  const { form, update, updateProfile, save, busy, error } = useConfigForm();
+  const { form, update, updateProfile, save, busy, error, externalChanged, reload } = useConfigForm();
   const [step, setStep] = useState(0);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState('');
@@ -103,6 +103,18 @@ export default function SetupWizard({ status, onChanged, onDone }) {
             ))}
           </Stepper>
 
+          {externalChanged && (
+            <Alert
+              severity="warning"
+              action={
+                <Button color="inherit" size="small" onClick={reload}>
+                  加载最新
+                </Button>
+              }
+            >
+              服务端配置已在别处更新；当前修改尚未保存。
+            </Alert>
+          )}
           {error && <Alert severity="error">{error}</Alert>}
 
           {step === 0 && (

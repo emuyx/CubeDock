@@ -7,9 +7,9 @@ import {
   Card,
   CardContent,
   Chip,
-  Stack,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import { ExpandMore, Help } from '@mui/icons-material';
 
 const text = children => <Typography variant="body2">{children}</Typography>;

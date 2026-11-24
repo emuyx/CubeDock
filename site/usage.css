@@ -1,6 +1,6 @@
 .usage-steps {
   display: grid;
-  gap: 12px;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -10,10 +10,15 @@
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   gap: 18px;
-  padding: 22px 24px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  padding: 20px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+}
+
+.usage-step:last-child {
+  border-bottom: 1px solid var(--line);
 }
 
 .usage-num {
@@ -67,7 +72,7 @@
   .usage-step {
     grid-template-columns: 1fr;
     gap: 8px;
-    padding: 18px;
+    padding: 16px 0;
   }
 
   .usage-cta {

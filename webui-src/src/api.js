@@ -1,7 +1,7 @@
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
-export async function api(path, data, method = 'POST') {
-  const init = { method, credentials: 'same-origin', headers: {} };
+export async function api(path, data, method = 'POST', options = {}) {
+  const init = { method, credentials: 'same-origin', headers: {}, signal: options.signal };
   if (data !== undefined) {
     init.headers = jsonHeaders;
     init.body = JSON.stringify(data);

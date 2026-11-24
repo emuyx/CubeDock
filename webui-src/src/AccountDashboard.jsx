@@ -5,17 +5,16 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
   CircularProgress,
   Divider,
   IconButton,
   InputAdornment,
   MenuItem,
-  Stack,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import {
   ArrowBack,
   Check,
@@ -24,7 +23,6 @@ import {
   Download,
   Edit,
   MonitorHeart,
-  PeopleAlt,
   PersonAdd,
   PlayArrow,
   Refresh,
@@ -44,17 +42,11 @@ import {
   startRoom,
   stopRoom,
 } from './api.js';
-import {
-  copyText,
-  downloadText,
-  formatDuration,
-  phaseColor,
-  phaseLabel,
-  timestamp,
-} from './util.js';
+import { copyText, downloadText, formatDuration, timestamp } from './util.js';
 import { useToast } from './App.jsx';
 import NameAccountDialog from './NameAccountDialog.jsx';
-import PlayersDialog from './PlayersDialog.jsx';
+import PhaseDot, { StatusDot } from './StatusDot.jsx';
+import RoomPlayersPanel from './RoomPlayersPanel.jsx';
 
 const STATUS = {
   ok: { label: '通过', color: 'success' },
@@ -67,23 +59,21 @@ function statusMeta(status) {
   return STATUS[status] || STATUS.skip;
 }
 
-function StatCard({ label, value, helper, color = 'text.primary' }) {
+function Metric({ label, value, hint }) {
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent sx={{ py: 1.6 }}>
-        <Typography variant="caption" color="text.secondary" fontWeight={750}>
-          {label}
+    <Box sx={{ minWidth: 104 }}>
+      <Typography variant="caption" color="text.secondary" display="block">
+        {label}
+      </Typography>
+      <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.25, wordBreak: 'break-all' }}>
+        {value}
+      </Typography>
+      {hint && (
+        <Typography variant="caption" color="text.secondary" display="block" noWrap>
+          {hint}
         </Typography>
-        <Typography variant="h6" fontWeight={850} color={color} sx={{ mt: 0.3, wordBreak: 'break-all' }}>
-          {value}
-        </Typography>
-        {helper && (
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.4 }}>
-            {helper}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </Box>
   );
 }
 
@@ -108,7 +98,6 @@ export default function AccountDashboard({
   const needsName = !account?.name && (account?.profile_error || '').includes('缺少游戏名');
   const [busy, setBusy] = useState('');
   const [assigning, setAssigning] = useState(false);
-  const [playersOpen, setPlayersOpen] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
@@ -299,16 +288,12 @@ export default function AccountDashboard({
             {account?.name || account?.label || `房间 ${accountIndex + 1}`} 的仪表盘
           </Typography>
         </Stack>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Chip size="small" color={phaseColor(phase)} label={phaseLabel(phase)} />
+        <Stack direction="row" spacing={1.4} alignItems="center" flexWrap="wrap" useFlexGap>
+          <PhaseDot phase={phase} />
           {profile && (
-            <Chip
-              size="small"
-              variant="outlined"
-              color={transfer ? 'secondary' : 'primary'}
-              icon={<Tune fontSize="small" />}
-              label={profile.name}
-            />
+            <Typography variant="caption" color="text.secondary">
+              配置方案 · {profile.name}
+            </Typography>
           )}
         </Stack>
       </Stack>
@@ -341,28 +326,49 @@ export default function AccountDashboard({
       >
         <Card>
           <CardContent sx={{ p: { xs: 2.2, sm: 3 } }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: 'stretch', sm: 'flex-start' }}
+            >
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="overline" color="text.secondary" fontWeight={800}>
                   本地联机房间
                 </Typography>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.4 }}>
-                  <Typography variant="h3" fontFamily="ui-monospace, monospace" sx={{ wordBreak: 'break-all' }}>
-                    {room.room_id || '—'}
+                {room.room_id ? (
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.4 }}>
+                    <Typography variant="h3" fontFamily="ui-monospace, monospace" sx={{ wordBreak: 'break-all' }}>
+                      {room.room_id}
+                    </Typography>
+                    <Tooltip title="复制房间号">
+                      <span>
+                        <IconButton size="small" onClick={() => copy(room.room_id)}>
+                          <ContentCopy />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                ) : (
+                  <Typography variant="h5" color="text.disabled" sx={{ mt: 1 }}>
+                    房间未启动
                   </Typography>
-                  <Tooltip title="复制房间号">
-                    <span>
-                      <IconButton size="small" disabled={!room.room_id} onClick={() => copy(room.room_id)}>
-                        <ContentCopy />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </Stack>
+                )}
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
                   {profile?.room_name || '未设置房间名'}
                 </Typography>
               </Box>
-              <Stack direction="row" spacing={1} alignItems="flex-start" flexWrap="wrap" useFlexGap>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gap: 1,
+                  width: { xs: '100%', sm: 336 },
+                  gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, minmax(0, 1fr))' },
+                  '& > :first-of-type': { gridColumn: { xs: '1 / -1', sm: 'auto' } },
+                  flexShrink: 0,
+                  alignSelf: 'flex-start',
+                }}
+              >
                 <Button
                   variant="contained"
                   startIcon={<PlayArrow />}
@@ -389,32 +395,27 @@ export default function AccountDashboard({
                 >
                   重连
                 </Button>
-              </Stack>
+              </Box>
             </Stack>
             <Divider sx={{ my: 2 }} />
-            <Box sx={{ display: 'grid', gap: 1.4, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(0, 1fr))' } }}>
-              <StatCard
+            <Stack direction="row" spacing={{ xs: 2.4, sm: 4 }} flexWrap="wrap" useFlexGap rowGap={1.4}>
+              <Metric
                 label="在线玩家"
                 value={proxy ? room.players ?? 0 : '—'}
-                helper={proxy ? '该房间合计' : '由目标服务器管理'}
+                hint={proxy ? undefined : '由目标服务器管理'}
               />
-              <StatCard
+              <Metric
                 label="在线时间"
                 value={room.connected_at ? formatDuration(room.connected_at) : '—'}
-                helper={room.retry_at ? '等待自动重连' : '断线自动重连已启用'}
+                hint={room.retry_at ? '等待重连' : undefined}
               />
-              <StatCard
-                label="连接方式"
-                value={transfer ? '转服' : '代理'}
-                helper={profile?.upstream || '未设置服务器'}
-              />
-              <StatCard
+              <Metric label="连接方式" value={transfer ? '转服' : '代理'} />
+              <Metric
                 label="服务器"
                 value={room.upstream_online ? '已连接' : phase === 'stopped' ? '—' : '未连接'}
-                helper={room.upstream_version || profile?.upstream || '—'}
-                color={room.upstream_online ? 'success.main' : 'text.primary'}
+                hint={room.upstream_version || profile?.upstream || undefined}
               />
-            </Box>
+            </Stack>
             {room.retry_at && (
               <Alert severity="warning" sx={{ mt: 1.6 }}>
                 房间正在等待重连（{new Date(room.retry_at).toLocaleTimeString('zh-CN', { hour12: false })}）。
@@ -433,11 +434,6 @@ export default function AccountDashboard({
                 onChange={changeProfile}
                 disabled={status.running || assigning || profiles.length === 0}
                 sx={{ maxWidth: 360 }}
-                helperText={
-                  status.running
-                    ? '需要先停止全部房间才能切换方案'
-                    : '切换后下次启动该账号的房间时生效'
-                }
               >
                 {profiles.map(item => (
                   <MenuItem key={item.id} value={item.id}>
@@ -457,37 +453,23 @@ export default function AccountDashboard({
                 </Button>
                 <Button
                   size="small"
-                  startIcon={<PeopleAlt />}
-                  disabled={!proxy}
-                  onClick={() => setPlayersOpen(true)}
-                >
-                  管理玩家
-                </Button>
-                <Button
-                  size="small"
                   startIcon={<Edit />}
                   disabled={phase !== 'stopped'}
                   onClick={() => setNameOpen(true)}
                 >
                   {account?.name ? '修改游戏名' : '设置游戏名'}
                 </Button>
-                <Button size="small" startIcon={<Refresh />} onClick={onChanged}>
-                  刷新状态
-                </Button>
               </Stack>
             </Stack>
           </CardContent>
         </Card>
 
-        <Stack spacing={2}>
-          <Card>
-            <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6">资源包</Typography>
-                {profile && (
-                  <Chip size="small" variant="outlined" label={profile.name} />
-                )}
-              </Stack>
+        <Card>
+          <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+            <Box sx={{ p: { xs: 2, sm: 2.4 } }}>
+              <Typography variant="subtitle1" fontWeight={800}>
+                资源包
+              </Typography>
               {transfer ? (
                 <>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8, wordBreak: 'break-all' }}>
@@ -498,7 +480,7 @@ export default function AccountDashboard({
                   </Typography>
                   {packsError && <Alert severity="error" sx={{ mt: 1 }}>{packsError}</Alert>}
                   {packsNotice && <Alert severity="success" sx={{ mt: 1 }}>{packsNotice}</Alert>}
-                  <Stack direction="row" spacing={1} sx={{ mt: 1.2 }} flexWrap="wrap" useFlexGap>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.2 }} alignItems="center">
                     <Button
                       size="small"
                       variant="contained"
@@ -508,31 +490,39 @@ export default function AccountDashboard({
                     >
                       {packsBusy ? '处理中…' : '从服务器拉取'}
                     </Button>
-                    <Button size="small" variant="outlined" startIcon={<Refresh />} onClick={loadPacks} disabled={packsBusy}>
-                      刷新列表
-                    </Button>
+                    <Tooltip title="刷新列表">
+                      <span>
+                        <IconButton size="small" onClick={loadPacks} disabled={packsBusy} aria-label="刷新资源包列表">
+                          <Refresh fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Stack>
                 </>
               ) : (
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
-                  代理模式不使用本地资源包；资源包由服务器直接下发给玩家。
+                  代理模式不使用本地资源包；资源包由服务器直接下发。
                 </Typography>
               )}
-            </CardContent>
-          </Card>
+            </Box>
 
-          <Card>
-            <CardContent>
+            <Divider />
+
+            <Box sx={{ p: { xs: 2, sm: 2.4 } }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6">好友申请</Typography>
-                <Button
-                  size="small"
-                  startIcon={friendsLoading ? <CircularProgress size={14} /> : <Refresh />}
-                  onClick={loadFriends}
-                  disabled={friendsLoading || phase === 'stopped'}
-                >
-                  刷新
-                </Button>
+                <Typography variant="subtitle1" fontWeight={800}>好友申请</Typography>
+                <Tooltip title="刷新好友申请">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={loadFriends}
+                      disabled={friendsLoading || phase === 'stopped'}
+                      aria-label="刷新好友申请"
+                    >
+                      {friendsLoading ? <CircularProgress size={16} /> : <Refresh fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
               </Stack>
               {phase === 'stopped' || phase === 'starting' || phase === 'authenticating' || phase === 'creating' ? (
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
@@ -585,40 +575,42 @@ export default function AccountDashboard({
                   )}
                 </>
               )}
-            </CardContent>
-          </Card>
+            </Box>
 
-          <Card>
-            <CardContent>
+            <Divider />
+
+            <Box sx={{ p: { xs: 2, sm: 2.4 } }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6">诊断</Typography>
-                <Button
-                  size="small"
-                  startIcon={diagnosticsBusy ? <CircularProgress size={14} /> : <MonitorHeart />}
-                  onClick={loadDiagnostics}
-                  disabled={diagnosticsBusy || !profile}
-                >
-                  {diagnostics ? '重新检测' : '检测该方案'}
-                </Button>
+                <Typography variant="subtitle1" fontWeight={800}>诊断</Typography>
+                <Tooltip title={diagnostics ? '重新检测' : '检测该方案'}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={loadDiagnostics}
+                      disabled={diagnosticsBusy || !profile}
+                      aria-label="运行诊断"
+                    >
+                      {diagnosticsBusy ? <CircularProgress size={16} /> : <MonitorHeart fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
               </Stack>
               {diagnosticsError && <Alert severity="error" sx={{ mt: 1 }}>{diagnosticsError}</Alert>}
               {summary && (
-                <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                  <Chip size="small" color="success" variant="outlined" label={`通过 ${summary.ok || 0}`} />
-                  <Chip size="small" color="warning" variant="outlined" label={`注意 ${summary.warn || 0}`} />
-                  <Chip size="small" color="error" variant="outlined" label={`失败 ${summary.fail || 0}`} />
-                  <Chip size="small" variant="outlined" label={`跳过 ${summary.skip || 0}`} />
-                </Stack>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.6 }}>
+                  通过 {summary.ok || 0} · 注意 {summary.warn || 0} · 失败 {summary.fail || 0} · 跳过 {summary.skip || 0}
+                </Typography>
               )}
               {checks.length > 0 && (
                 <Stack spacing={0.8} sx={{ mt: 1.2, maxHeight: 220, overflowY: 'auto' }}>
                   {checks.map(check => {
                     const meta = statusMeta(check.status);
                     return (
-                      <Box key={check.id} sx={{ p: 0.8, borderRadius: 1, bgcolor: 'action.hover' }}>
-                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                          <Typography variant="body2" fontWeight={700}>{check.label}</Typography>
-                          <Chip size="small" color={meta.color} variant="outlined" label={meta.label} />
+                      <Box key={check.id} sx={{ py: 0.7, borderBottom: 1, borderColor: 'divider' }}>
+                        <Stack direction="row" spacing={0.8} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <StatusDot color={meta.color} />
+                          <Typography variant="body2" fontWeight={650}>{check.label}</Typography>
+                          <Typography variant="caption" color="text.secondary">{meta.label}</Typography>
                         </Stack>
                         {check.detail && (
                           <Typography variant="caption" color="text.secondary" display="block" sx={{ wordBreak: 'break-all' }}>
@@ -631,14 +623,16 @@ export default function AccountDashboard({
                 </Stack>
               )}
               {!diagnostics && !diagnosticsBusy && !diagnosticsError && (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
-                  检测该账号所用方案的配置、服务器、中转房间和资源包；不会登录网易账号。
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.6 }}>
+                  检测配置、服务器、中转房间和资源包，不会登录网易账号。
                 </Typography>
               )}
-            </CardContent>
-          </Card>
-        </Stack>
+            </Box>
+          </CardContent>
+        </Card>
       </Box>
+
+      <RoomPlayersPanel roomIndex={accountIndex} proxy={proxy} />
 
       <Card>
         <CardContent>
@@ -716,13 +710,6 @@ export default function AccountDashboard({
         }}
       />
 
-      <PlayersDialog
-        open={playersOpen}
-        roomIndex={accountIndex}
-        status={status}
-        proxy={proxy}
-        onClose={() => setPlayersOpen(false)}
-      />
     </Stack>
   );
 }

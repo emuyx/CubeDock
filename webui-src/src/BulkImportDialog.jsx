@@ -9,12 +9,12 @@ import {
   DialogTitle,
   LinearProgress,
   MenuItem,
-  Stack,
   TextField,
-  Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import { PlayArrow, Stop } from '@mui/icons-material';
 import { api } from './api.js';
 import { useToast } from './App.jsx';
@@ -40,6 +40,7 @@ export default function BulkImportDialog({
   const [error, setError] = useState('');
   const [results, setResults] = useState([]);
   const abort = useRef(false);
+  const controller = useRef(null);
 
   const reset = () => {
     if (busy) return;
@@ -87,12 +88,14 @@ export default function BulkImportDialog({
         break;
       }
       setResults(current => current.map(row => (row.index === index ? { ...row, status: 'running' } : row)));
+      const request = new AbortController();
+      controller.current = request;
       try {
         const result = await api('session/import', {
           sauth: lines[index],
           label: label.trim() ? `${label.trim()}-${index + 1}` : '',
           profile_id: profileId,
-        });
+        }, 'POST', { signal: request.signal });
         ok += 1;
         if (result.status === 'need_name') needNames += 1;
         setResults(current =>
@@ -110,16 +113,30 @@ export default function BulkImportDialog({
           ),
         );
       } catch (failure) {
+        if (abort.current || failure.name === 'AbortError') {
+          setResults(current =>
+            current.map(row =>
+              row.index === index ? { ...row, status: 'skipped', message: '已停止' } : row,
+            ),
+          );
+          break;
+        }
         failed += 1;
         setResults(current =>
           current.map(row =>
             row.index === index ? { ...row, status: 'error', message: failure.message || '导入失败' } : row,
           ),
         );
+      } finally {
+        if (controller.current === request) controller.current = null;
       }
     }
     setBusy(false);
     onChanged?.();
+    if (abort.current) {
+      notify(`批量导入已停止：成功 ${ok}，失败 ${failed}`, 'warning');
+      return;
+    }
     const suffix = needNames ? `，${needNames} 个需要设置游戏名` : '';
     notify(`批量导入完成：成功 ${ok}，失败 ${failed}${suffix}`, failed || needNames ? 'warning' : 'success');
   };
@@ -211,7 +228,14 @@ export default function BulkImportDialog({
       </DialogContent>
       <DialogActions>
         {busy ? (
-          <Button color="warning" startIcon={<Stop />} onClick={() => { abort.current = true; }}>
+          <Button
+            color="warning"
+            startIcon={<Stop />}
+            onClick={() => {
+              abort.current = true;
+              controller.current?.abort();
+            }}
+          >
             停止
           </Button>
         ) : (

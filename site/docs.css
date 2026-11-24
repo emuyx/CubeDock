@@ -432,7 +432,7 @@
     inset: 0;
     z-index: 65;
     display: block;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(10, 8, 24, 0.55);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;

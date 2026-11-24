@@ -7,11 +7,11 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
-  Stack,
   Switch,
   TextField,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import { Download, Search, Send } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import { downloadText, eventLevel, timestamp } from './util.js';
@@ -182,32 +182,32 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
   };
 
   const download = () => {
-    if (!merged.length) {
-      notify('当前没有日志可导出', 'warning');
+    if (!filtered.length) {
+      notify('当前筛选结果没有日志可导出', 'warning');
       return;
     }
-    const text = merged
+    const text = filtered
       .map(event => `${event.time} [${event.source || '系统'}] ${event.message}`)
       .join('\n');
     downloadText(`cubedock-logs-${timestamp()}.txt`, text);
-    notify('日志已导出', 'success');
+    notify('当前筛选日志已导出', 'success');
   };
 
   const color = level => {
-    if (level === 'error') return '#fb7185';
-    if (level === 'debug') return '#9db5a8';
-    if (level === 'warning') return '#fbbf24';
-    return '#e6efe9';
+    if (level === 'error') return '#ff9aae';
+    if (level === 'debug') return '#b8b3c9';
+    if (level === 'warning') return '#ffd79a';
+    return '#f4f1fb';
   };
 
   const sourceColor = source => {
-    if (source === '控制台') return '#34d399';
-    if (source?.startsWith('房间')) return '#fbbf24';
-    if (source === '网易登录') return '#34d399';
-    if (source === '账号') return '#60a5fa';
-    if (source === '游戏') return '#fbbf24';
-    if (source === '管理员') return '#fb7185';
-    return '#fcd34d';
+    if (source === '控制台') return '#8fe3d2';
+    if (source?.startsWith('房间')) return '#ffd79a';
+    if (source === '网易登录') return '#8fe3d2';
+    if (source === '账号') return '#a8c8ff';
+    if (source === '游戏') return '#ffd79a';
+    if (source === '管理员') return '#ff9aae';
+    return '#f6d7a7';
   };
 
   return (
@@ -272,8 +272,8 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
 
       <Box
         sx={{
-          bgcolor: theme.palette.mode === 'dark' ? '#060c09' : '#0d1b16',
-          color: '#e6efe9',
+          bgcolor: theme.palette.mode === 'dark' ? '#141627' : '#1b1a2c',
+          color: '#f4f1fb',
           borderRadius: 3,
           border: '1px solid',
           borderColor: 'divider',
@@ -320,7 +320,7 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
                   >
                     [{source}]
                   </Box>
-                  <Box component="span" sx={{ color: echo ? '#fcd34d' : color(level) }}>
+                  <Box component="span" sx={{ color: echo ? '#ffc2d6' : color(level) }}>
                     {event.message}
                   </Box>
                 </Box>
@@ -339,7 +339,7 @@ export default function LogsPanel({ events = [], debugEnabled = false, onDebugCh
             borderColor: 'divider',
           }}
         >
-          <Box component="span" sx={{ color: '#34d399', fontFamily: 'monospace', fontWeight: 800 }}>
+          <Box component="span" sx={{ color: '#ffc2d6', fontFamily: 'monospace', fontWeight: 800 }}>
             ❯
           </Box>
           <TextField

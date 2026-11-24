@@ -7,14 +7,14 @@ import {
   IconButton,
   InputAdornment,
   MenuItem,
-  Stack,
   Tab,
   Tabs,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import { ContentCopy, Visibility, VisibilityOff } from '@mui/icons-material';
 import { api } from './api.js';
 import { useToast } from './App.jsx';
@@ -60,6 +60,7 @@ export default function AccountLogin({
   const [captchaMessage, setCaptchaMessage] = useState('');
   const [pendingName, setPendingName] = useState(null);
   const requestRef = useRef(false);
+  const importRef = useRef(false);
 
   const platformLabel =
     platform === 'mobile_netease'
@@ -173,7 +174,9 @@ export default function AccountLogin({
     } catch (failure) {
       const text = failure.message || `${platformLabel}直登失败`;
       if (is4399 && text.includes('验证码')) {
-        clearCaptcha();
+        // Keep the captcha panel visible so the operator can retry without
+        // restarting the whole login flow. A new challenge replaces it.
+        setCaptchaMessage(text);
       }
       setError(text);
     } finally {
@@ -183,11 +186,13 @@ export default function AccountLogin({
   };
 
   const importSauth = async () => {
+    if (importRef.current) return;
     const value = sauth.trim();
     if (!value) {
       setSauthError('请粘贴登录凭证');
       return;
     }
+    importRef.current = true;
     setSauthBusy(true);
     setSauthError('');
     setSauthProfile(null);
@@ -219,6 +224,7 @@ export default function AccountLogin({
     } catch (failure) {
       setSauthError(failure.message || `${platformLabel}会话验证失败`);
     } finally {
+      importRef.current = false;
       setSauthBusy(false);
     }
   };

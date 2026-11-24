@@ -30,7 +30,7 @@ import (
 
 // Set by the release workflow; local builds keep the dev defaults.
 var (
-	version = "v0.4.1-dev"
+	version = "v0.4.2-dev"
 	commit  = "unknown"
 )
 

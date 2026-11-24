@@ -94,6 +94,31 @@ export function downloadText(filename, text) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+export function getStored(key, fallback = null) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === null ? fallback : value;
+  } catch {
+    return fallback;
+  }
+}
+
+export function setStored(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Storage may be unavailable in private/incognito contexts.
+  }
+}
+
+export function removeStored(key) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Storage may be unavailable in private/incognito contexts.
+  }
+}
+
 export function timestamp() {
   const now = new Date();
   const pad = value => String(value).padStart(2, '0');

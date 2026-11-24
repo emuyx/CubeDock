@@ -25,6 +25,30 @@
     syncThemeLabel();
   }
 
+  var bgToggle = document.querySelector('.bg-toggle');
+
+  function syncBgLabel() {
+    if (!bgToggle) return;
+    var on = root.dataset.bg !== 'off';
+    var label = on ? '隐藏星空背景' : '显示星空背景';
+    bgToggle.setAttribute('aria-label', label);
+    bgToggle.setAttribute('title', label);
+  }
+
+  if (bgToggle) {
+    bgToggle.addEventListener('click', function () {
+      var next = root.dataset.bg === 'off' ? 'on' : 'off';
+      root.dataset.bg = next;
+      try {
+        localStorage.setItem('cubedock-site-bg', next);
+      } catch (error) {
+        /* ignore storage failures */
+      }
+      syncBgLabel();
+    });
+    syncBgLabel();
+  }
+
   var navToggle = document.querySelector('.nav-toggle');
   var siteNav = document.querySelector('.site-nav');
 

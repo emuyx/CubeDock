@@ -50,14 +50,19 @@ export function ConfigFormProvider({ status, onChanged, children }) {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [externalChanged, setExternalChanged] = useState(false);
   const signature = useMemo(() => JSON.stringify(status.config || {}), [status.config]);
+  const [seenSignature, setSeenSignature] = useState(() => signature);
 
   useEffect(() => {
     if (!dirty && status.config) {
       setForm(JSON.parse(JSON.stringify(status.config)));
+      setSeenSignature(signature);
+      setExternalChanged(false);
+    } else if (dirty) {
+      setExternalChanged(signature !== seenSignature);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, dirty]);
+  }, [signature, dirty, seenSignature]);
 
   const update = (field, value) => {
     setForm(current => ({ ...current, [field]: value }));
@@ -115,6 +120,7 @@ export function ConfigFormProvider({ status, onChanged, children }) {
       await api('config', { config: { ...form, debug: !!status.config?.debug } });
       notify('设置已保存', 'success');
       setDirty(false);
+      setExternalChanged(false);
       onChanged?.();
       return true;
     } catch (failure) {
@@ -123,6 +129,15 @@ export function ConfigFormProvider({ status, onChanged, children }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const reload = () => {
+    if (!status.config) return;
+    setForm(JSON.parse(JSON.stringify(status.config)));
+    setDirty(false);
+    setSeenSignature(signature);
+    setExternalChanged(false);
+    setError('');
   };
 
   return (
@@ -138,7 +153,12 @@ export function ConfigFormProvider({ status, onChanged, children }) {
         busy,
         error,
         dirty,
-        discard: () => setDirty(false),
+        externalChanged,
+        reload,
+        discard: () => {
+          setDirty(false);
+          setExternalChanged(false);
+        },
       }}
     >
       {children}

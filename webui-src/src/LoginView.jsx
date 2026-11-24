@@ -8,22 +8,25 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
-  Stack,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import {
   ArrowForward,
   DarkMode,
+  HideImage,
   LightMode,
   LockOutlined,
   Visibility,
   VisibilityOff,
+  Wallpaper,
 } from '@mui/icons-material';
 import { completeSetup, getSetupStatus, login } from './api.js';
+import { removeStored } from './util.js';
 
-export default function LoginView({ mode, toggleMode }) {
+export default function LoginView({ mode, toggleMode, background, toggleBackground }) {
   const [setup, setSetup] = useState(null);
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
@@ -87,7 +90,7 @@ export default function LoginView({ mode, toggleMode }) {
       await completeSetup(setupUsername.trim(), setupPassword, confirm);
       // A freshly created administrator should see the room setup wizard even
       // if this browser previously dismissed it for another install.
-      localStorage.removeItem('cubedock-setup-done');
+      removeStored('cubedock-setup-done');
       window.location.replace('/');
     } catch (failure) {
       setError(failure.message || '创建管理员账户失败');
@@ -129,12 +132,23 @@ export default function LoginView({ mode, toggleMode }) {
         position: 'relative',
       }}
     >
-      <Tooltip title={mode === 'dark' ? '切换浅色主题' : '切换深色主题'}>
-        <IconButton onClick={toggleMode} sx={{ position: 'absolute', top: 18, right: 18 }}>
-          {mode === 'dark' ? <LightMode /> : <DarkMode />}
-        </IconButton>
-      </Tooltip>
-      <Card sx={{ width: '100%', maxWidth: 470, boxShadow: 16 }}>
+      <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', top: 18, right: 18 }}>
+        <Tooltip title={background ? '隐藏星空背景' : '显示星空背景'}>
+          <IconButton
+            onClick={toggleBackground}
+            color={background ? 'primary' : 'default'}
+            aria-label={background ? '隐藏星空背景' : '显示星空背景'}
+          >
+            {background ? <Wallpaper /> : <HideImage />}
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={mode === 'dark' ? '切换浅色主题' : '切换深色主题'}>
+          <IconButton onClick={toggleMode}>
+            {mode === 'dark' ? <LightMode /> : <DarkMode />}
+          </IconButton>
+        </Tooltip>
+      </Stack>
+      <Card sx={{ width: '100%', maxWidth: 470, boxShadow: '0 24px 70px rgba(120, 80, 140, .18)' }}>
         <CardContent sx={{ p: { xs: 3, sm: 4.5 } }}>
           <Stack spacing={3.2}>
             <Stack direction="row" spacing={1.6} alignItems="center">
@@ -142,14 +156,14 @@ export default function LoginView({ mode, toggleMode }) {
                 sx={{
                   width: 46,
                   height: 46,
-                  borderRadius: 2.5,
+                  borderRadius: 3,
                   display: 'grid',
                   placeItems: 'center',
-                  background: 'linear-gradient(135deg,#f59e0b,#34d399)',
-                  color: '#fff',
+                  background: 'linear-gradient(135deg,#ffb7d0,#c6b4ff 55%,#9be8d8)',
+                  color: '#2b1621',
                   fontWeight: 900,
                   fontSize: 23,
-                  boxShadow: '0 10px 30px rgba(139,92,246,.35)',
+                  boxShadow: '0 10px 30px rgba(198,180,255,.35)',
                 }}
               >
                 C
@@ -158,8 +172,8 @@ export default function LoginView({ mode, toggleMode }) {
                 <Typography variant="h6" fontWeight={850}>
                   CubeDock <span style={{ fontWeight: 500, opacity: 0.72 }}>方块码头</span>
                 </Typography>
-                <Typography variant="caption" color="text.secondary" letterSpacing=".12em">
-                  CONTROL PANEL
+                <Typography variant="caption" color="text.secondary" letterSpacing=".08em">
+                  DOCK CONSOLE
                 </Typography>
               </Box>
             </Stack>

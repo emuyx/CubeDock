@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert, CssBaseline, Snackbar, ThemeProvider } from '@mui/material';
 import { buildTheme } from './theme.js';
+import { getStored, setStored } from './util.js';
 import LoginView from './LoginView.jsx';
 import ConsoleView from './ConsoleView.jsx';
 import ConfirmDialog from './ConfirmDialog.jsx';
@@ -12,18 +13,24 @@ const ConfirmContext = createContext(async () => false);
 export const useConfirm = () => useContext(ConfirmContext);
 
 export default function App() {
-  const [mode, setMode] = useState(() => localStorage.getItem('cubedock-theme') || 'dark');
+  const [mode, setMode] = useState(() => getStored('cubedock-theme', 'dark'));
+  const [background, setBackground] = useState(() => getStored('cubedock-background', '1') !== '0');
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' });
   const [confirmRequest, setConfirmRequest] = useState(null);
 
   useEffect(() => {
-    localStorage.setItem('cubedock-theme', mode);
+    setStored('cubedock-theme', mode);
   }, [mode]);
 
-  const theme = useMemo(() => buildTheme(mode), [mode]);
+  useEffect(() => {
+    setStored('cubedock-background', background ? '1' : '0');
+  }, [background]);
+
+  const theme = useMemo(() => buildTheme(mode, background), [mode, background]);
   const notify = (message, severity = 'info') => setToast({ open: true, message, severity });
   const closeToast = () => setToast(current => ({ ...current, open: false }));
   const toggleMode = () => setMode(current => (current === 'dark' ? 'light' : 'dark'));
+  const toggleBackground = () => setBackground(current => !current);
   const isLogin = window.location.pathname === '/login';
 
   const confirm = useCallback(
@@ -47,9 +54,19 @@ export default function App() {
       <ToastContext.Provider value={notify}>
         <ConfirmContext.Provider value={confirm}>
           {isLogin ? (
-            <LoginView mode={mode} toggleMode={toggleMode} />
+            <LoginView
+              mode={mode}
+              toggleMode={toggleMode}
+              background={background}
+              toggleBackground={toggleBackground}
+            />
           ) : (
-            <ConsoleView mode={mode} toggleMode={toggleMode} />
+            <ConsoleView
+              mode={mode}
+              toggleMode={toggleMode}
+              background={background}
+              toggleBackground={toggleBackground}
+            />
           )}
           <Snackbar
             open={toast.open}

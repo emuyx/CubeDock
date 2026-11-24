@@ -13,23 +13,27 @@ import {
   IconButton,
   Menu,
   MenuItem,
-  Stack,
   Toolbar,
   Tooltip,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
+import { useTheme } from '@mui/material/styles';
 import {
   AccountCircle,
   DarkMode,
+  HideImage,
   Key,
   LightMode,
   Logout,
   Menu as MenuIcon,
   Refresh,
+  Wallpaper,
   WarningAmber,
 } from '@mui/icons-material';
 import { getStatus, logout } from './api.js';
-import { phaseColor, phaseLabel } from './util.js';
+import { getStored, setStored } from './util.js';
+import PhaseDot from './StatusDot.jsx';
 import AccountDashboard from './AccountDashboard.jsx';
 import AccountsPanel from './AccountsPanel.jsx';
 import ChangePasswordDialog from './ChangePasswordDialog.jsx';
@@ -44,37 +48,38 @@ import SidebarNav from './SidebarNav.jsx';
 import { ConfigFormProvider } from './configForm.jsx';
 
 function Brand() {
+  const theme = useTheme();
   return (
     <Stack direction="row" spacing={1.2} alignItems="center">
       <Box
         sx={{
           width: 36,
           height: 36,
-          borderRadius: 2,
+          borderRadius: 2.5,
           display: 'grid',
           placeItems: 'center',
-          background: 'linear-gradient(135deg,#f59e0b,#34d399)',
-          color: '#fff',
+          background: `linear-gradient(135deg, ${theme.palette.primary.light}, #c6b4ff 55%, ${theme.palette.secondary.light})`,
+          color: '#2b1621',
           fontWeight: 900,
           fontSize: 18,
-          boxShadow: '0 6px 18px rgba(139,92,246,.35)',
+          boxShadow: '0 8px 24px rgba(198,180,255,.35)',
         }}
       >
         C
       </Box>
       <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
         <Typography fontWeight={850} lineHeight={1.1}>
-          Cube<span style={{ color: '#f59e0b' }}>Dock</span>
+          Cube<span style={{ color: theme.palette.primary.main }}>Dock</span>
         </Typography>
-        <Typography variant="caption" color="text.secondary" letterSpacing=".12em">
-          方块码头 · CONTROL PANEL
+        <Typography variant="caption" color="text.secondary" letterSpacing=".08em">
+          方块码头 · DOCK CONSOLE
         </Typography>
       </Box>
     </Stack>
   );
 }
 
-export default function ConsoleView({ mode, toggleMode }) {
+export default function ConsoleView({ mode, toggleMode, background, toggleBackground }) {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [page, setPage] = useState('home');
@@ -112,7 +117,7 @@ export default function ConsoleView({ mode, toggleMode }) {
   useEffect(() => {
     if (!status) return;
     const count = status.accounts?.length ?? 0;
-    if (count === 0 && localStorage.getItem('cubedock-setup-done') !== '1') {
+    if (count === 0 && getStored('cubedock-setup-done') !== '1') {
       setSetupActive(true);
     }
   }, [status]);
@@ -173,14 +178,14 @@ export default function ConsoleView({ mode, toggleMode }) {
   const isSetup = setupActive;
   const openSetup = () => setSetupActive(true);
   const finishSetup = () => {
-    localStorage.setItem('cubedock-setup-done', '1');
+    setStored('cubedock-setup-done', '1');
     setSetupActive(false);
   };
 
   return (
     <Box sx={{ minHeight: '100vh' }}>
       <AppBar position="sticky" color="transparent" elevation={0}>
-        <Toolbar sx={{ gap: 1 }}>
+        <Toolbar sx={{ gap: { xs: 0.5, sm: 1 }, px: { xs: 1, sm: 2 } }}>
           {!isSetup && (
             <IconButton
               onClick={() => setNavOpen(true)}
@@ -192,22 +197,16 @@ export default function ConsoleView({ mode, toggleMode }) {
           )}
           <Brand />
           <Box sx={{ flexGrow: 1 }} />
-          <Chip
-            size="small"
-            color={phaseColor(status.phase)}
-            label={phaseLabel(status.phase)}
-            sx={{ mr: { xs: 0, sm: 0.5 } }}
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            color={status.upstream_online ? 'success' : 'warning'}
-            label={status.upstream_online ? `服务器已连接${status.upstream_version ? ` · ${status.upstream_version}` : ''}` : '服务器未连接'}
-            sx={{ display: { xs: 'none', md: 'inline-flex' } }}
-          />
+          <PhaseDot phase={status.phase} sx={{ mr: { xs: 0, sm: 1 } }} />
           {window.__CUBEDOCK_DEMO__ && (
             <Tooltip title="演示模式：数据只保存在当前页面，不会连接真实服务">
-              <Chip size="small" color="warning" variant="outlined" label="演示模式" />
+              <Chip
+                size="small"
+                color="warning"
+                variant="outlined"
+                label="演示模式"
+                sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+              />
             </Tooltip>
           )}
           <Tooltip title="刷新">
@@ -217,6 +216,15 @@ export default function ConsoleView({ mode, toggleMode }) {
               sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
             >
               <Refresh />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={background ? '隐藏星空背景' : '显示星空背景'}>
+            <IconButton
+              onClick={toggleBackground}
+              color={background ? 'primary' : 'default'}
+              aria-label={background ? '隐藏星空背景' : '显示星空背景'}
+            >
+              {background ? <Wallpaper /> : <HideImage />}
             </IconButton>
           </Tooltip>
           <Tooltip title={mode === 'dark' ? '切换浅色主题' : '切换深色主题'}>

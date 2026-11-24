@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Alert, Box, Button, Chip, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, TextField } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import { Casino, Refresh } from '@mui/icons-material';
 import { api } from './api.js';
 import { useToast } from './App.jsx';
@@ -32,6 +34,7 @@ export default function NameAccountForm({
   const refreshSuggestions = () => setSuggestions(makeNameSuggestions());
 
   const submit = async () => {
+    if (busy) return;
     const trimmed = name.trim();
     if (!isValidName(trimmed)) {
       setError('游戏名长度需为 3–12 个字符（中文按 1.5 个字符计算）');
@@ -51,7 +54,14 @@ export default function NameAccountForm({
   };
 
   return (
-    <Stack spacing={compact ? 1.6 : 2}>
+    <Stack
+      component="form"
+      onSubmit={event => {
+        event.preventDefault();
+        submit();
+      }}
+      spacing={compact ? 1.6 : 2}
+    >
       <Alert severity={rename ? 'warning' : 'info'}>
         {rename
           ? '网易限制：游戏名修改后 30 天内无法再次修改。若仍在限制期，保存时会显示网易返回的错误。'
@@ -71,6 +81,7 @@ export default function NameAccountForm({
       />
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         <Button
+          type="button"
           size="small"
           variant="outlined"
           startIcon={<Casino />}
@@ -80,6 +91,7 @@ export default function NameAccountForm({
           随机中文名
         </Button>
         <Button
+          type="button"
           size="small"
           variant="outlined"
           startIcon={<Casino />}
@@ -89,6 +101,7 @@ export default function NameAccountForm({
           随机英文+数字
         </Button>
         <Button
+          type="button"
           size="small"
           startIcon={<Refresh />}
           onClick={refreshSuggestions}
@@ -130,11 +143,11 @@ export default function NameAccountForm({
       {error && <Alert severity="error">{error}</Alert>}
       <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
         {onSkip && (
-          <Button onClick={onSkip} disabled={busy} color="inherit">
+          <Button type="button" onClick={onSkip} disabled={busy} color="inherit">
             稍后设置
           </Button>
         )}
-        <Button variant="contained" onClick={submit} disabled={busy || !valid}>
+        <Button type="submit" variant="contained" disabled={busy || !valid}>
           {busy ? '保存中…' : rename ? '保存新游戏名' : '保存游戏名'}
         </Button>
       </Stack>

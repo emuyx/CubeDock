@@ -5,14 +5,13 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
   Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
   InputAdornment,
+  Menu,
   MenuItem,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -21,10 +20,11 @@ import {
   TableRow,
   TextField,
   Tooltip,
-  Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import {
   Add,
   Close,
@@ -33,13 +33,15 @@ import {
   DeleteOutlined,
   Edit,
   Key,
+  MoreVert,
   PeopleAlt,
   Search,
   UploadFile,
 } from '@mui/icons-material';
 import { api, assignProfile } from './api.js';
-import { copyText, phaseColor, phaseLabel } from './util.js';
+import { copyText } from './util.js';
 import { useConfirm, useToast } from './App.jsx';
+import PhaseDot from './StatusDot.jsx';
 import AccountLogin from './AccountLogin.jsx';
 import BulkImportDialog from './BulkImportDialog.jsx';
 import NameAccountDialog from './NameAccountDialog.jsx';
@@ -54,6 +56,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [playersRoom, setPlayersRoom] = useState(null);
+  const [menu, setMenu] = useState(null);
   const [nameIndex, setNameIndex] = useState(null);
   const [reloginIndex, setReloginIndex] = useState(null);
   const [reloginEmail, setReloginEmail] = useState('');
@@ -204,7 +207,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
           <Box>
             <Typography variant="h6">网易账号与房间</Typography>
             <Typography variant="body2" color="text.secondary">
-              每个账号对应一个房间；同一账号同时开两个房间会互相挤下线。账号数量不设固定上限。
+              一个账号对应一个房间；同一账号同时开两个房间会互相挤下线。
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -292,47 +295,48 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
             const sessionExpired = account.expires_at && new Date(account.expires_at) < new Date();
             return (
               <Card key={account.index} variant="outlined">
-                <CardContent sx={{ p: 1.7, '&:last-child': { pb: 1.7 } }}>
+                <CardContent sx={{ p: 1.6, '&:last-child': { pb: 1.6 } }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography fontWeight={800}>房间 {account.index + 1}</Typography>
-                      <Typography variant="body2" color="text.secondary" noWrap>
+                    <Box
+                      sx={{ minWidth: 0, flexGrow: 1, cursor: 'pointer' }}
+                      onClick={() => onOpenDashboard?.(account.index)}
+                    >
+                      <Typography variant="caption" color="text.secondary">
+                        房间 {account.index + 1}
+                      </Typography>
+                      <Typography fontWeight={750} noWrap>
                         {account.name || account.email || account.label || '未命名'}
                       </Typography>
                     </Box>
-                    <Chip size="small" color={phaseColor(phase)} label={phaseLabel(phase)} />
+                    <PhaseDot phase={phase} sx={{ mt: 0.3 }} />
                   </Stack>
 
-                  <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                    <Chip size="small" variant="outlined" label={profileOf(account)?.name || '默认配置'} />
-                    <Chip
-                      size="small"
-                      variant="outlined"
-                      label={profileOf(account)?.connection_mode === 'transfer' ? '转服' : '代理'}
-                    />
-                    <Chip
-                      size="small"
-                      color={authMethodOf(account) === 'interop' ? 'secondary' : 'info'}
-                      label={authLabelOf(account)}
-                    />
-                    {needsName(account) && <Chip size="small" color="warning" label="需要起名" />}
-                    {sessionExpired && <Chip size="small" color="error" label="登录已过期" />}
-                  </Stack>
-
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 1.2 }}>
-                    <Typography variant="body2" fontFamily="ui-monospace, monospace">
-                      {room?.room_id || '—'}
+                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.7 }}>
+                    <Typography variant="caption" fontFamily="ui-monospace, monospace">
+                      {room?.room_id || '未开房'}
                     </Typography>
-                    {room?.room_id && (
-                      <IconButton size="small" aria-label="复制房间号" onClick={() => copyRoom(room.room_id)}>
-                        <ContentCopy fontSize="inherit" />
+                    {room?.room_id ? (
+                      <IconButton
+                        size="small"
+                        aria-label="复制房间号"
+                        onClick={() => copyRoom(room.room_id)}
+                        sx={{ p: 0.3 }}
+                      >
+                        <ContentCopy sx={{ fontSize: 14 }} />
                       </IconButton>
-                    )}
+                    ) : null}
                     <Box sx={{ flexGrow: 1 }} />
                     <Typography variant="caption" color="text.secondary">
-                      {isProxy(account) ? `${room?.players ?? 0} 人` : '转服模式'}
+                      {isProxy(account) ? `${room?.players ?? 0} 人` : '人数不可见'}
                     </Typography>
                   </Stack>
+
+                  <Typography variant="caption" color="text.secondary" display="block" noWrap sx={{ mt: 0.5 }}>
+                    {profileOf(account)?.name || '默认配置'} ·{' '}
+                    {profileOf(account)?.connection_mode === 'transfer' ? '转服' : '代理'} · {authLabelOf(account)}
+                    {needsName(account) ? ' · 需要起名' : ''}
+                    {sessionExpired ? ' · 登录已过期' : ''}
+                  </Typography>
 
                   <TextField
                     select
@@ -342,7 +346,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                     value={profileIDOf(account)}
                     onChange={event => assign(account.index, event.target.value)}
                     disabled={running || busy}
-                    sx={{ mt: 1.2 }}
+                    sx={{ mt: 1 }}
                   >
                     {profiles.map(profile => (
                       <MenuItem key={profile.id} value={profile.id}>
@@ -351,47 +355,23 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                     ))}
                   </TextField>
 
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                    <Button size="small" startIcon={<Dashboard fontSize="small" />} onClick={() => onOpenDashboard?.(account.index)}>
+                  <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 1 }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      fullWidth
+                      startIcon={<Dashboard fontSize="small" />}
+                      onClick={() => onOpenDashboard?.(account.index)}
+                    >
                       仪表盘
                     </Button>
-                    <Button
+                    <IconButton
                       size="small"
-                      startIcon={<PeopleAlt fontSize="small" />}
-                      disabled={!isProxy(account)}
-                      onClick={() => setPlayersRoom(account.index)}
+                      aria-label="更多操作"
+                      onClick={event => setMenu({ anchor: event.currentTarget, index: account.index })}
                     >
-                      玩家
-                    </Button>
-                    <Button
-                      size="small"
-                      color={needsName(account) ? 'warning' : 'inherit'}
-                      startIcon={<Edit fontSize="small" />}
-                      disabled={running || busy}
-                      onClick={() => setNameIndex(account.index)}
-                    >
-                      {account.name ? '改名' : '起名'}
-                    </Button>
-                    <Button
-                      size="small"
-                      startIcon={<Key fontSize="small" />}
-                      disabled={running || busy}
-                      onClick={() => {
-                        setReloginEmail(account.email || '');
-                        setReloginIndex(account.index);
-                      }}
-                    >
-                      更新登录
-                    </Button>
-                    <Button
-                      size="small"
-                      color="error"
-                      startIcon={<DeleteOutlined fontSize="small" />}
-                      disabled={running || busy}
-                      onClick={() => remove(account.index)}
-                    >
-                      移除
-                    </Button>
+                      <MoreVert fontSize="small" />
+                    </IconButton>
                   </Stack>
                 </CardContent>
               </Card>
@@ -399,7 +379,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
           })}
         </Stack>
       ) : (
-      <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 3 }}>
+      <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 2 }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -457,15 +437,19 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                     {account.email ? (
                       <Typography variant="body2">{account.email}</Typography>
                     ) : (
-                      <Chip size="small" color="warning" label={account.label || '未命名'} />
+                      <Typography variant="body2" color="text.secondary">
+                        {account.label || '未命名'}
+                      </Typography>
                     )}
-                    <Stack direction="row" spacing={0.6} alignItems="center" sx={{ mt: 0.4 }}>
-                      <Chip
-                        size="small"
-                        color={authMethodOf(account) === 'interop' ? 'secondary' : 'info'}
-                        label={authLabelOf(account)}
-                      />
-                      {needsName(account) && <Chip size="small" color="warning" label="需要起名" />}
+                    <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.4 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {authLabelOf(account)}
+                      </Typography>
+                      {needsName(account) && (
+                        <Typography variant="caption" color="warning.main">
+                          需要起名
+                        </Typography>
+                      )}
                       {account.expires_at && (
                         <Typography variant="caption" color={sessionExpired ? 'error' : 'text.secondary'}>
                           {sessionExpired
@@ -491,7 +475,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                     )}
                   </TableCell>
                   <TableCell>
-                    <Chip size="small" color={phaseColor(phase)} label={phaseLabel(phase)} />
+                    <PhaseDot phase={phase} />
                   </TableCell>
                   <TableCell>
                     {room?.room_id ? (
@@ -513,7 +497,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                     {isProxy(account) ? (
                       <Typography variant="body2">{room?.players ?? 0}</Typography>
                     ) : (
-                      <Tooltip title="转服模式下玩家由目标服务器管理">
+                      <Tooltip title="转服模式下无法查看人数；玩家由目标服务器管理">
                         <Typography variant="body2" color="text.secondary">—</Typography>
                       </Tooltip>
                     )}
@@ -553,7 +537,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                       </span>
                     </Tooltip>
                     <Tooltip
-                      title={isProxy(account) ? '管理这个房间的玩家' : '转服模式下玩家由目标服务器管理'}
+                      title={isProxy(account) ? '管理这个房间的玩家' : '转服模式下无法查看人数'}
                     >
                       <span>
                         <IconButton
@@ -604,6 +588,55 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
         </Table>
       </TableContainer>
       )}
+
+      <Menu
+        anchorEl={menu?.anchor || null}
+        open={!!menu}
+        onClose={() => setMenu(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem
+          disabled={!menu || !isProxy(accounts[menu.index])}
+          onClick={() => {
+            setPlayersRoom(menu.index);
+            setMenu(null);
+          }}
+        >
+          管理玩家
+        </MenuItem>
+        <MenuItem
+          disabled={running || busy}
+          onClick={() => {
+            setNameIndex(menu.index);
+            setMenu(null);
+          }}
+        >
+          {menu && accounts[menu.index]?.name ? '修改游戏名' : '设置游戏名'}
+        </MenuItem>
+        <MenuItem
+          disabled={running || busy}
+          onClick={() => {
+            setReloginEmail(accounts[menu.index]?.email || '');
+            setReloginIndex(menu.index);
+            setMenu(null);
+          }}
+        >
+          更新登录
+        </MenuItem>
+        <MenuItem
+          divider
+          disabled={running || busy}
+          sx={{ color: 'error.main' }}
+          onClick={() => {
+            const index = menu.index;
+            setMenu(null);
+            remove(index);
+          }}
+        >
+          移除账号
+        </MenuItem>
+      </Menu>
 
       <BulkImportDialog
         open={bulkOpen}

@@ -5,14 +5,13 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
   CircularProgress,
   Divider,
-  Stack,
   Tab,
   Tabs,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import {
   CheckCircleOutlined,
   ContentCopy,
@@ -27,6 +26,7 @@ import {
 import { getDiagnostics } from './api.js';
 import { copyText, downloadText, timestamp } from './util.js';
 import { useToast } from './App.jsx';
+import { StatusDot } from './StatusDot.jsx';
 
 const STATUS = {
   ok: { label: '通过', color: 'success', Icon: CheckCircleOutlined },
@@ -78,9 +78,9 @@ function CheckRow({ check }) {
     >
       <StatusIcon color={meta.color} fontSize="small" sx={{ mt: 0.2 }} />
       <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={0.8} alignItems="center" flexWrap="wrap" useFlexGap>
           <Typography fontWeight={750}>{check.label}</Typography>
-          <Chip size="small" variant="outlined" color={meta.color} label={meta.label} />
+          <Typography variant="caption" color="text.secondary">{meta.label}</Typography>
         </Stack>
         {check.detail && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.4, wordBreak: 'break-all' }}>
@@ -201,11 +201,12 @@ export default function DiagnosticsPanel({ status, active, autoRun = false, onOp
                 <MonitorHeart color="primary" />
                 <Typography variant="h6">运行诊断</Typography>
                 {data && (
-                  <Chip
-                    size="small"
-                    color={overall.color}
-                    label={overall === STATUS.ok ? '全部通过' : overall.label}
-                  />
+                  <Stack direction="row" spacing={0.6} alignItems="center">
+                    <StatusDot color={overall.color} />
+                    <Typography variant="caption" color="text.secondary">
+                      {overall === STATUS.ok ? '全部通过' : overall.label}
+                    </Typography>
+                  </Stack>
                 )}
               </Stack>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
@@ -233,12 +234,9 @@ export default function DiagnosticsPanel({ status, active, autoRun = false, onOp
           {data && (
             <>
               <Divider sx={{ my: 2 }} />
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip size="small" color="success" variant="outlined" label={`通过 ${summary.ok || 0}`} />
-                <Chip size="small" color="warning" variant="outlined" label={`注意 ${summary.warn || 0}`} />
-                <Chip size="small" color="error" variant="outlined" label={`失败 ${summary.fail || 0}`} />
-                <Chip size="small" variant="outlined" label={`跳过 ${summary.skip || 0}`} />
-              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                通过 {summary.ok || 0} · 注意 {summary.warn || 0} · 失败 {summary.fail || 0} · 跳过 {summary.skip || 0}
+              </Typography>
               <Stack spacing={0.4} sx={{ mt: 1.6 }}>
                 {runtimeRows(data.runtime).map(([label, value]) => (
                   <InfoRow key={label} label={label} value={value} />
@@ -311,11 +309,23 @@ export default function DiagnosticsPanel({ status, active, autoRun = false, onOp
 
       {onOpenSetup && (
         <Card variant="outlined">
-          <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+          <CardContent
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              justifyContent: 'space-between',
+              alignItems: { xs: 'stretch', sm: 'center' },
+              gap: 1.4,
+            }}
+          >
             <Typography variant="body2" color="text.secondary">
               新用户？可以重新打开首次设置向导，按步骤配置服务器、添加账号并预检。
             </Typography>
-            <Button startIcon={<SettingsSuggest />} onClick={onOpenSetup}>
+            <Button
+              startIcon={<SettingsSuggest />}
+              onClick={onOpenSetup}
+              sx={{ flexShrink: 0, alignSelf: { xs: 'flex-start', sm: 'center' } }}
+            >
               重新打开首次设置
             </Button>
           </CardContent>

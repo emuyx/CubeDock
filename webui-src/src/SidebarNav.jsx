@@ -2,16 +2,15 @@ import React, { useState } from 'react';
 import {
   Box,
   Button,
-  Chip,
   IconButton,
   List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Stack,
   Tooltip,
-  Typography,
 } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import {
   ContentCopy,
   Help,
@@ -23,8 +22,9 @@ import {
   Terminal,
   Tune,
 } from '@mui/icons-material';
-import { copyText, phaseColor, phaseLabel } from './util.js';
+import { copyText } from './util.js';
 import { useToast } from './App.jsx';
+import PhaseDot from './StatusDot.jsx';
 import PlayersDialog from './PlayersDialog.jsx';
 
 export const PAGES = [
@@ -33,8 +33,8 @@ export const PAGES = [
   { key: 'profiles', label: '配置方案', icon: Tune },
   { key: 'console', label: '控制台', icon: Terminal },
   { key: 'diagnostics', label: '诊断', icon: MonitorHeart },
+  { key: 'settings', label: '全局设置', icon: SettingsIcon },
   { key: 'faq', label: '常见问题', icon: Help },
-  { key: 'settings', label: '设置', icon: SettingsIcon },
 ];
 
 export function accountMode(status, account) {
@@ -47,7 +47,6 @@ export default function SidebarNav({ page, onSelect, status, onOpenAccount }) {
   const [playersRoom, setPlayersRoom] = useState(null);
   const accounts = status?.accounts || [];
   const rooms = status?.rooms || [];
-  const anyProxy = accounts.some(account => accountMode(status, account) === 'proxy');
 
   const copyRoom = async roomId => {
     try {
@@ -89,7 +88,9 @@ export default function SidebarNav({ page, onSelect, status, onOpenAccount }) {
           我的房间
         </Typography>
         {accounts.length > 0 && (
-          <Chip size="small" variant="outlined" label={accounts.length} sx={{ height: 20 }} />
+          <Typography variant="caption" color="text.secondary">
+            {accounts.length}
+          </Typography>
         )}
       </Stack>
 
@@ -129,18 +130,13 @@ export default function SidebarNav({ page, onSelect, status, onOpenAccount }) {
                 <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }}>
                   {name}
                 </Typography>
-                <Chip
-                  size="small"
-                  color={phaseColor(phase)}
-                  label={phaseLabel(phase)}
-                  sx={{ height: 20, flexShrink: 0 }}
-                />
+                <PhaseDot phase={phase} sx={{ flexShrink: 0 }} />
               </Stack>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.2 }}>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography variant="caption" color="text.secondary" noWrap display="block">
                     {room?.room_id
-                      ? `${room.room_id} · ${proxy ? `${room.players ?? 0} 人` : '转服模式'}`
+                      ? `${room.room_id} · ${proxy ? `${room.players ?? 0} 人` : '转服模式（人数不可见）'}`
                       : '未开房'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" noWrap display="block">
@@ -148,7 +144,7 @@ export default function SidebarNav({ page, onSelect, status, onOpenAccount }) {
                   </Typography>
                 </Box>
                 <Stack direction="row" spacing={0} sx={{ flexShrink: 0 }}>
-                  <Tooltip title={proxy ? '管理玩家' : '转服模式下玩家由目标服务器管理'}>
+                  <Tooltip title={proxy ? '管理玩家' : '转服模式下无法查看人数'}>
                     <IconButton
                       size="small"
                       aria-label="管理玩家"
@@ -188,25 +184,6 @@ export default function SidebarNav({ page, onSelect, status, onOpenAccount }) {
           管理全部账号
         </Button>
       )}
-
-      <Box sx={{ mt: 1.5, p: 1.2, borderRadius: 2, bgcolor: 'action.hover' }}>
-        <Stack direction="row" justifyContent="space-between">
-          <Typography variant="caption" color="text.secondary">
-            账号
-          </Typography>
-          <Typography variant="caption" fontWeight={800}>
-            {accounts.length}
-          </Typography>
-        </Stack>
-        <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.3 }}>
-          <Typography variant="caption" color="text.secondary">
-            在线玩家
-          </Typography>
-          <Typography variant="caption" fontWeight={800}>
-            {anyProxy ? status?.players ?? 0 : '—'}
-          </Typography>
-        </Stack>
-      </Box>
 
       <PlayersDialog
         open={playersRoom !== null}

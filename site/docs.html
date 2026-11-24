@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="dark" data-bg="on">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,7 +8,7 @@
       name="description"
       content="CubeDock 使用文档：安装、首次初始化、配置方案、账号与房间仪表盘、代理/转服、资源包、房间管理、好友申请、API、诊断和故障排查。"
     />
-    <meta name="theme-color" content="#0a1410" />
+    <meta name="theme-color" content="#141625" />
     <meta property="og:title" content="CubeDock 使用文档" />
     <meta
       property="og:description"
@@ -24,6 +24,10 @@
           var saved = localStorage.getItem('cubedock-site-theme');
           if (saved === 'light' || saved === 'dark') {
             document.documentElement.dataset.theme = saved;
+          }
+          var savedBg = localStorage.getItem('cubedock-site-bg');
+          if (savedBg === 'on' || savedBg === 'off') {
+            document.documentElement.dataset.bg = savedBg;
           }
         } catch (error) {
           /* localStorage may be unavailable */
@@ -50,10 +54,9 @@
         </a>
 
         <nav class="site-nav" id="site-nav" aria-label="主导航">
-          <a href="./index.html#features">功能</a>
-          <a href="./index.html#modes">模式</a>
-          <a href="./index.html#quickstart">快速开始</a>
-          <a href="./index.html#usage">使用</a>
+          <a href="./index.html#features">能做什么</a>
+          <a href="./index.html#modes">连接方式</a>
+          <a href="./index.html#start">新手开始</a>
           <a href="./docs.html" aria-current="page">文档</a>
           <a href="./demo.html">演示</a>
           <a href="./index.html#faq">FAQ</a>
@@ -72,6 +75,18 @@
           >
             <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <button class="icon-btn bg-toggle" type="button" aria-label="隐藏星空背景" title="隐藏星空背景">
+            <svg class="bg-icon bg-on" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+              <circle cx="9" cy="9.5" r="1.5" />
+              <path d="m5.2 17 4.4-4.2 2.9 2.8 2.5-2.4L19 17" />
+            </svg>
+            <svg class="bg-icon bg-off" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+              <circle cx="9" cy="9.5" r="1.5" />
+              <path d="m5.2 17 4.4-4.2 2.9 2.8 2.5-2.4L19 17M4 20 20 4" />
             </svg>
           </button>
           <button class="icon-btn theme-toggle" type="button" aria-label="切换主题" title="切换主题">
@@ -156,9 +171,10 @@
           </p>
           <div class="doc-callout doc-note">
             <strong>版本提示：</strong>本文档对应当前稳定版 v0.3.2；下载按钮指向 Releases。
-            <code>main</code> 分支另有开发版 v0.4.1-dev，包含尚未正式发布的手游密码直登等改动。
-            中的最新版本。<a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">GitHub Actions 的测试版构建</a>
-            会保留每次 <code>main</code> 推送的构建产物，适合提前试用，但不保证稳定。
+            <code>main</code> 分支另有开发版 v0.4.2-dev，包含尚未正式发布的手游密码直登等改动。
+            普通用户也可以从
+            <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">GitHub Actions 的测试版构建</a>
+            下载 artifacts，解压方式与稳定版相同；只是可能不稳定，长期使用仍推荐 Releases。
           </div>
         </section>
 
@@ -315,7 +331,7 @@
             <strong>网易手游：</strong>已提供邮箱/密码直登，会注册新设备并使用
             <code>/devices</code> 返回的 device key 加密登录参数；已真机验证通过
             登录、开房、进服。也支持导入手游 <code>sauth_json</code>；
-            该功能属于 <code>main</code> 分支 v0.4.1-dev，尚未正式发布。抓取到的
+            该功能属于 <code>main</code> 分支 v0.4.2-dev，尚未正式发布。抓取到的
             <code>sauth_json</code> 应来自真实手游认证请求；不要使用
             <code>unisdk_login_json</code> 单独导入，因为它缺少 <code>sessionid</code> 等字段。
           </div>
@@ -324,14 +340,14 @@
             换取 NetEase 会话；已真机验证通过登录、开房、进服。也支持导入 4399
             手游 <code>sauth_json</code>（<code>platform=ad</code> /
             <code>app_channel=4399com</code>）。该功能属于 <code>main</code> 分支
-            v0.4.1-dev，尚未正式发布。Java 经典版网易/4399 渠道仍在后续计划中。
+            v0.4.2-dev，尚未正式发布。Java 经典版网易/4399 渠道仍在后续计划中。
           </div>
           <div class="doc-callout doc-note">
             <strong>新号起名 / 改名：</strong>新号登录后若网易返回“缺少游戏名”，
             账号会先保存并自动弹取名界面，不会阻止登录。可以直接手动输入，也可以
             使用随机中文名或随机英文+数字名；游戏名需为 3–12 个字符（中文按 1.5
             个字符计算）。网易限制改名后 30 天内不能再次修改，限制期内的错误会
-            原样显示。该功能属于 <code>main</code> 分支 v0.4.1-dev，尚未正式发布。
+            原样显示。该功能属于 <code>main</code> 分支 v0.4.2-dev，尚未正式发布。
           </div>
           <div class="doc-callout doc-warn">
             <strong>1351 安全验证：</strong>登录时若提示需要安全验证，点击页面上的「打开网易验证页面」

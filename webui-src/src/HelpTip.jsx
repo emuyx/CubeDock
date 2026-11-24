@@ -1,5 +1,7 @@
 import React from 'react';
-import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material';
+import { Box, IconButton, Tooltip } from '@mui/material';
+import Typography from './Typography.jsx';
+import Stack from './Stack.jsx';
 import { Help } from '@mui/icons-material';
 
 // HelpTip renders the small question mark used next to settings. Keep the
