@@ -46,6 +46,8 @@ CubeDock; only subdirectories carrying their own MIT LICENSE are used.
 | `github.com/ugorji/go/codec` | MIT |
 | `github.com/andreburgaud/crypt2go` | MIT |
 | `github.com/database64128/chacha8-go` | MIT |
+| `github.com/charmbracelet/bubbletea`, `lipgloss`, `x/ansi` | MIT |
+| `github.com/muesli/termenv`, `github.com/mattn/go-runewidth` | MIT |
 | `github.com/klauspost/compress` | BSD-3-Clause |
 | `github.com/google/uuid` | BSD-3-Clause |
 | `golang.org/x/crypto`, `golang.org/x/net`, `golang.org/x/sys`, `golang.org/x/term` | BSD-3-Clause |

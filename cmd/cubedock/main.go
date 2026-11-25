@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/emuyx/cubedock/internal/secret"
 	"github.com/emuyx/cubedock/internal/server"
 	"github.com/emuyx/cubedock/internal/session"
+	"github.com/emuyx/cubedock/internal/tui"
 )
 
 // Set by the release workflow; local builds keep the dev defaults.
@@ -42,6 +45,7 @@ func main() {
 }
 
 func run() error {
+	console.EnableUTF8()
 	showVersion := flag.Bool("version", false, "显示版本和源代码提交")
 	dataDir := flag.String("data-dir", "", "配置和日志目录（默认程序所在目录）")
 	headless := flag.Bool("headless", false, "不自动打开浏览器")
@@ -156,48 +160,134 @@ func run() error {
 	go func() { serverErr <- httpServer.Serve(listener) }()
 
 	address := fmt.Sprintf("http://127.0.0.1:%d", cfg.WebPort)
-	console.Banner(os.Stdout, version, commit)
-	console.URLs(os.Stdout, cfg.WebPort, console.IPv4Addresses())
-	fmt.Println("管理员账号：", admin.Username())
-	if admin.NeedsSetup() {
-		fmt.Println("管理员账户尚未创建：请打开控制台，按页面提示设置账号和密码。")
-	} else {
-		fmt.Println("管理员密码：已设置。忘记密码需停止程序后备份并删除 admin.json，重启后在控制台重新初始化。")
+	localURL := address + "/"
+	addresses := console.IPv4Addresses()
+	lanURLs := make([]string, 0, len(addresses))
+	for _, ip := range addresses {
+		lanURLs = append(lanURLs, fmt.Sprintf("http://%s:%d/", ip.String(), cfg.WebPort))
+	}
+
+	// The TUI is the default view on an interactive terminal. It coexists with
+	// the web console: both drive the same Manager. Redirected output, CI and
+	// dumb terminals keep the plain banner and log stream.
+	useTUI := tui.Enabled()
+	printPlainStatus := func() {
+		console.Banner(os.Stdout, version, commit)
+		console.URLs(os.Stdout, cfg.WebPort, addresses)
+		fmt.Println("管理员账号：", admin.Username())
+		if admin.NeedsSetup() {
+			fmt.Println("管理员账户尚未创建：请打开控制台，按页面提示设置账号和密码。")
+		} else {
+			fmt.Println("管理员密码：已设置。忘记密码需停止程序后备份并删除 admin.json，重启后在控制台重新初始化。")
+		}
+	}
+	if !useTUI {
+		printPlainStatus()
 	}
 	if !*headless {
-		openBrowser(address)
+		openBrowser(localURL)
 	}
 
 	if *runNow || cfg.AutoStart {
-		if err = manager.Start(); err != nil {
-			manager.Record("系统", err.Error())
-		}
+		go func() {
+			if err := manager.Start(); err != nil {
+				manager.Record("系统", err.Error())
+			}
+		}()
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	var timed <-chan time.Time
-	var timer *time.Timer
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+
 	if *runSeconds > 0 {
-		timer = time.NewTimer(time.Duration(*runSeconds) * time.Second)
-		timed = timer.C
+		timer := time.AfterFunc(time.Duration(*runSeconds)*time.Second, cancelRun)
 		defer timer.Stop()
 	}
-	select {
-	case <-ctx.Done():
-	case <-timed:
-	case <-manager.Exit():
-	case err = <-serverErr:
-		if err != http.ErrServerClosed {
-			return err
+	go func() {
+		select {
+		case <-manager.Exit():
+			cancelRun()
+		case <-runCtx.Done():
 		}
+	}()
+
+	var serverFailureMu sync.Mutex
+	var serverFailure error
+	go func() {
+		err := <-serverErr
+		if err == nil {
+			cancelRun()
+			return
+		}
+		if !errors.Is(err, http.ErrServerClosed) {
+			serverFailureMu.Lock()
+			serverFailure = err
+			serverFailureMu.Unlock()
+			cancelRun()
+		}
+	}()
+
+	if useTUI {
+		err := tui.Run(runCtx, tui.Options{
+			Manager:       manager,
+			Version:       version,
+			Commit:        commit,
+			AdminName:     admin.Username(),
+			SetupRequired: admin.NeedsSetup(),
+			LocalURL:      localURL,
+			LANURLs:       lanURLs,
+			OpenURL:       openBrowser,
+		})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "终端控制台不可用：", err)
+			if runCtx.Err() == nil {
+				printPlainStatus()
+				<-runCtx.Done()
+			}
+		}
+	} else {
+		<-runCtx.Done()
 	}
 
-	manager.Stop()
-	manager.Wait()
+	stopManager(manager, 10*time.Second)
 	shutdown, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	return httpServer.Shutdown(shutdown)
+	shutdownErr := httpServer.Shutdown(shutdown)
+	serverFailureMu.Lock()
+	failure := serverFailure
+	serverFailureMu.Unlock()
+	if failure != nil {
+		return failure
+	}
+	return shutdownErr
+}
+
+// stopManager asks every room to stop and waits for the runtime map to drain.
+// It keeps calling Stop while waiting because an auto-start/auth flow that was
+// already in progress can register a runtime just after the first Stop.
+func stopManager(manager *core.Manager, timeout time.Duration) {
+	manager.Stop()
+	done := make(chan struct{})
+	go func() {
+		manager.Wait()
+		close(done)
+	}()
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			manager.Stop()
+		case <-timer.C:
+			return
+		}
+	}
 }
 
 // loadTokens reads the protected token file. CUBEDOCK_TOKEN is only a

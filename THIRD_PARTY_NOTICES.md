@@ -43,6 +43,9 @@ RakNet 和房间协议实现。
 - `github.com/coder/websocket`、`github.com/df-mc/jsonc`、`github.com/ugorji/go/codec`、
   `github.com/go-gl/mathgl`、`github.com/andreburgaud/crypt2go`、
   `github.com/database64128/chacha8-go`（MIT）
+- `github.com/charmbracelet/bubbletea`、`github.com/charmbracelet/lipgloss`、
+  `github.com/charmbracelet/x/ansi`、`github.com/muesli/termenv`、
+  `github.com/mattn/go-runewidth` 等终端界面依赖（MIT）
 - `github.com/klauspost/compress`、`github.com/google/uuid`（BSD-3-Clause）
 - `golang.org/x/crypto`、`golang.org/x/net`、`golang.org/x/sys`、`golang.org/x/term`
   （BSD-3-Clause）
