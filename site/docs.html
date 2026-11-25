@@ -166,12 +166,13 @@
             <li><strong>转服模式</strong>：玩家先进入本地 limbo 虚空世界，预加载资源包并显示表单，再直连目标服务器。</li>
           </ul>
           <p>
-            当前版本还提供多配置方案、每账号独立房间 runtime、账号仪表盘、房间侧踢人、房间标签、
-            准入等级、网易房间成员列表、手动好友申请和第一方认证链。
+            当前版本还提供多配置方案、每账号独立房间 runtime、账号头像、房间卡片与网易大厅二维码、
+            玩家列表区分（已进服务器 / 仅加入房间）、自动刷新开关、空闲账号保活、可选本地保存密码、
+            房间侧踢人、房间标签、准入等级、网易房间成员列表、手动好友申请和第一方认证链。
           </p>
           <div class="doc-callout doc-note">
             <strong>版本提示：</strong>本文档对应当前稳定版 v0.3.2；下载按钮指向 Releases。
-            <code>main</code> 分支另有开发版 v0.4.2-dev，包含尚未正式发布的手游密码直登等改动。
+            <code>main</code> 分支另有开发版 v0.4.3-dev，包含尚未正式发布的手游密码直登等改动。
             普通用户也可以从
             <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">GitHub Actions 的测试版构建</a>
             下载 artifacts，解压方式与稳定版相同；只是可能不稳定，长期使用仍推荐 Releases。
@@ -272,17 +273,20 @@
               <tr><th>字段</th><th>说明</th></tr>
             </thead>
             <tbody>
-              <tr><td>房间名称 / 密码</td><td>显示在网易「本地联机」列表中；密码可选</td></tr>
-              <tr><td>房间总人数</td><td>包含 CubeDock 房主账号</td></tr>
-              <tr><td>房间版本</td><td>默认 <code>1.21.130.0</code></td></tr>
-              <tr><td>掉线重试间隔</td><td>房间掉线后等待多少秒重连</td></tr>
-              <tr><td>准入等级</td><td>限制可加入的玩家等级；<code>0</code> 表示不限制</td></tr>
-              <tr><td>房间标签</td><td>最多 3 个，例如生存、创造、建筑等</td></tr>
-              <tr><td>仅好友可见 / 自动同意好友 / 允许 PvP</td><td>控制房间准入和游戏内 PvP</td></tr>
+              <tr><td>房间名称</td><td>下拉选择官方 15 个内置名，也可以自由输入；普通账号一般选内置名，方块俱乐部/VIP 账号可自定义</td></tr>
+              <tr><td>房间密码</td><td>6 位数字，可选；留空表示无密码</td></tr>
+              <tr><td>房间总人数</td><td>2–10 人滑杆，包含 CubeDock 房主账号</td></tr>
+              <tr><td>公开性</td><td>所有人 / 好友可见；「仅受邀」待协议验证，暂未开放</td></tr>
+              <tr><td>房间标签</td><td>大厅标签最多 2 个，例如生存、创造、建筑等</td></tr>
+              <tr><td>准入等级</td><td>大厅界面 0–50；0 表示不限制</td></tr>
+              <tr><td>自动同意好友</td><td>开启「好友可见」时会自动跳过，避免陌生人通过好友申请进入</td></tr>
+              <tr><td>允许 PvP（大厅标记）</td><td>只影响网易房间的 PvP 标记；实际 PvP、默认权限、游戏模式、定位栏由后端服务器/存档决定</td></tr>
+              <tr><td>房间版本 / 掉线重试间隔</td><td>在「高级（一般不用改）」中；房间版本默认 <code>1.21.130.0</code></td></tr>
             </tbody>
           </table>
           <div class="doc-callout doc-note">
-            开启「仅好友可见」时，CubeDock 会跳过「自动同意好友申请」，避免陌生人通过好友申请进入房间。
+            开启「好友可见」时，CubeDock 会跳过「自动同意好友申请」，避免陌生人通过好友申请进入房间。
+            PvP、玩家默认权限、游戏模式和定位栏属于后端服务器/存档设置，CubeDock 只发送大厅标记，不控制实际规则。
           </div>
 
           <h3>资源包</h3>
@@ -325,13 +329,16 @@
           </p>
           <ul>
             <li><strong>配置方案</strong>：每个账号在添加时选择一套方案；</li>
-            <li><strong>更新登录</strong>：凭据过期后，在账号页点「更新登录」，用对应方式的邮箱密码或新的 sauth 重新登录。</li>
+            <li><strong>更新登录</strong>：凭据过期后，在账号页点「更新登录」，用对应方式的邮箱密码或新的 sauth 重新登录；</li>
+            <li><strong>头像与资料</strong>：账号列表、侧栏和仪表盘显示头像；在账号仪表盘点「刷新资料」可更新头像/等级；</li>
+            <li><strong>本地保存密码</strong>：更新登录时可勾选「在本机保存密码」。Windows 使用 DPAPI，其他平台使用 <code>0600</code> 文件；下次更新登录会自动预填，取消勾选或移除账号会删除；</li>
+            <li><strong>空闲账号保活</strong>：在「全局设置」开启后，无房间运行时按间隔刷新未过期账号的资料/头像；不会登录已过期账号。</li>
           </ul>
           <div class="doc-callout doc-note">
             <strong>网易手游：</strong>已提供邮箱/密码直登，会注册新设备并使用
             <code>/devices</code> 返回的 device key 加密登录参数；已真机验证通过
             登录、开房、进服。也支持导入手游 <code>sauth_json</code>；
-            该功能属于 <code>main</code> 分支 v0.4.2-dev，尚未正式发布。抓取到的
+            该功能属于 <code>main</code> 分支 v0.4.3-dev，尚未正式发布。抓取到的
             <code>sauth_json</code> 应来自真实手游认证请求；不要使用
             <code>unisdk_login_json</code> 单独导入，因为它缺少 <code>sessionid</code> 等字段。
           </div>
@@ -340,14 +347,14 @@
             换取 NetEase 会话；已真机验证通过登录、开房、进服。也支持导入 4399
             手游 <code>sauth_json</code>（<code>platform=ad</code> /
             <code>app_channel=4399com</code>）。该功能属于 <code>main</code> 分支
-            v0.4.2-dev，尚未正式发布。Java 经典版网易/4399 渠道仍在后续计划中。
+            v0.4.3-dev，尚未正式发布。Java/PC 经典版渠道暂不在近期计划中。
           </div>
           <div class="doc-callout doc-note">
             <strong>新号起名 / 改名：</strong>新号登录后若网易返回“缺少游戏名”，
             账号会先保存并自动弹取名界面，不会阻止登录。可以直接手动输入，也可以
             使用随机中文名或随机英文+数字名；游戏名需为 3–12 个字符（中文按 1.5
             个字符计算）。网易限制改名后 30 天内不能再次修改，限制期内的错误会
-            原样显示。该功能属于 <code>main</code> 分支 v0.4.2-dev，尚未正式发布。
+            原样显示。该功能属于 <code>main</code> 分支 v0.4.3-dev，尚未正式发布。
           </div>
           <div class="doc-callout doc-warn">
             <strong>1351 安全验证：</strong>登录时若提示需要安全验证，点击页面上的「打开网易验证页面」
@@ -365,8 +372,10 @@
             仪表盘提供：
           </p>
           <ul>
-            <li><strong>房间状态</strong>：启动、停止、重连，以及当前阶段和房间号；</li>
-            <li><strong>在线玩家 / 在线时间 / 连接方式 / 服务器</strong>；</li>
+            <li><strong>房间卡片</strong>：房主头像/昵称、房间号、人数、标签、公开性和模式；支持复制邀请和网易大厅兼容二维码；</li>
+            <li><strong>房间状态</strong>：启动、停止、重连，以及当前阶段、在线时间本地每秒走秒；</li>
+            <li><strong>房间玩家</strong>：分「已进入服务器」和「仅加入房间」两段；世界内玩家可房间踢出/断开，仅房间成员可房间踢出；</li>
+            <li><strong>自动刷新</strong>：仪表盘顶部可临时暂停 2 秒状态/玩家刷新，手动操作仍会刷新；</li>
             <li><strong>配置方案</strong>：查看当前方案，或切换到其他方案（需先停止全部房间）；</li>
             <li><strong>资源包</strong>：查看目录、包数量，或从服务器拉取；</li>
             <li><strong>好友申请</strong>：房间运行时读取待处理申请并手动同意；</li>
@@ -399,12 +408,13 @@
         <section id="management" class="doc-section reveal">
           <h2>房间与玩家管理</h2>
           <p>
-            代理模式下，玩家弹窗提供两个标签：
+            账号仪表盘的「房间玩家」分两段：
           </p>
           <ul>
-            <li><strong>已进入世界</strong>：已完成上游登录、进入世界的玩家；可断开其本地连接；</li>
-            <li><strong>网易房间成员</strong>：TanLobby 房间成员，包含已进房但尚未进入世界的玩家；可按房间玩家 ID 踢出。</li>
+            <li><strong>已进入服务器</strong>：已完成上游登录、进入世界的玩家；可房间踢出或断开本地连接；</li>
+            <li><strong>仅加入房间</strong>：停留在联机房间、尚未进入服务器的成员；可按房间玩家 ID 踢出。</li>
           </ul>
+          <p>转服模式下，进入服务器后的玩家由目标服务器管理；CubeDock 仍会显示停留在本地房间的成员。</p>
           <p>
             房间侧踢人通过 TanLobby 控制通道发送，并立即断开本地 NetherNet 连接。踢出依赖
             <code>dockerB</code> transfer 节点（SignalWebPort 8900）；<code>dockerA</code>
@@ -412,10 +422,10 @@
           </p>
           <div class="doc-callout doc-warn">
             <strong>踢出不等于封禁：</strong>被踢玩家仍可能重新加入。若需要持续限制，可配合
-            「仅好友可见」、房间密码或准入等级。
+            「好友可见」、房间密码或准入等级。
           </div>
           <p>
-            房间标签最多 3 个；标签和准入等级在配置方案中设置，保存后重新启动房间生效。
+            大厅标签最多 2 个；标签和准入等级在配置方案中设置，保存后重新启动房间生效。
             <code>TanNewGuestResponse</code> 不携带游戏名，因此等待中的成员显示为
             <code>房间玩家 &lt;ID&gt;</code>。
           </p>
@@ -424,7 +434,7 @@
         <section id="friends" class="doc-section reveal">
           <h2>好友申请</h2>
           <p>
-            配置方案可以开启「自动同意好友申请」；开启「仅好友可见」时自动同意会被跳过。
+            配置方案可以开启「自动同意好友申请」；开启「好友可见」时自动同意会被跳过。
             如果关闭自动同意，房间运行后可以在账号仪表盘的「好友申请」卡片中读取待处理申请，
             并逐个手动同意。
           </p>
@@ -459,7 +469,8 @@
           <ul>
             <li>全局：<code>/api/status</code>、<code>/api/start</code>、<code>/api/stop</code>、<code>/api/config</code>；</li>
             <li>单账号：<code>/api/room/start</code>、<code>/api/room/stop</code>、<code>/api/room/restart</code>；</li>
-            <li>账号：<code>/api/account/set-name</code>（新号起名）；</li>
+            <li>账号：<code>/api/account/set-name</code>（新号起名）、<code>/api/account/profile</code>（刷新资料）；</li>
+            <li>本地密码：<code>/api/account/password</code>（GET/POST，仅 loopback）；</li>
             <li>方案：<code>/api/account/assign-profile</code>、<code>/api/packs?profile_id=</code>、<code>/api/diagnostics?profile_id=</code>；</li>
             <li>房间：<code>/api/room/members?index=</code>、<code>/api/room/kick-member</code>；</li>
             <li>好友：<code>/api/friends?index=</code>、<code>/api/friend/accept</code>。</li>
@@ -489,6 +500,7 @@
             <li>管理员密码使用 bcrypt 保存；Cookie 为 HttpOnly、SameSite=Strict、12 小时；</li>
             <li>首个管理员初始化只允许 loopback；登录有按 IP 的限速；</li>
             <li>网易会话保存在 <code>room-tokens.dat</code>：Windows 使用 DPAPI，其他平台 0600；</li>
+            <li>可选本地密码保存在 <code>account-passwords.dat</code>：Windows 使用 DPAPI，其他平台 0600；默认不保存；</li>
             <li><code>admin.json</code> 不使用 DPAPI；不要提交或分享任何数据文件；</li>
             <li>认证链由第一方 <code>internal/netease</code> 实现，不再包含 AGPL 组件。</li>
           </ul>
@@ -545,8 +557,8 @@
             <details class="faq-item">
               <summary>高账号数、Linux/macOS 和资源包的限制</summary>
               <div class="faq-body">
-                <p>更高账号数的真实压力测试、Linux/macOS 实机、<code>go test -race</code>、
-                真实移动设备/跨浏览器和非 Windows 管理员登录仍未实测；加密/动态资源包当前不支持。
+                <p>更高账号数的真实压力测试、macOS 实机、真实移动设备/跨浏览器和非 Windows
+                管理员登录仍未实测；Linux WSL2 的 test/vet/race 已通过；加密/动态资源包当前不支持。
                 公开分发前仍建议对 vendored solver 做许可复核。</p>
               </div>
             </details>
@@ -569,6 +581,7 @@
               <tr><td>房间侧踢人 / 标签 / 准入等级</td><td>✅ 实机验证（踢人依赖 dockerB）</td></tr>
               <tr><td>网易房间成员列表</td><td>✅ 实机验证</td></tr>
               <tr><td>手动同意好友申请</td><td>✅ 实机验证</td></tr>
+              <tr><td>房间玩家区分 / 自动刷新 / 走秒 / 头像 / 二维码 / 保活 / 本地密码</td><td>✅ 本地测试与 demo 验证</td></tr>
               <tr><td>网易手游会话导入（PE/资料）</td><td>✅ 真实抓包 + 本地端到端探针；同一 sauth 链路已真机开房/进服</td></tr>
               <tr><td>网易手游邮箱/密码直登</td><td>✅ 真机验证：登录 / 开房 / 进服</td></tr>
               <tr><td>4399 手游 OAuth 直登（4399com/ad）</td><td>✅ 真机验证：登录 / PE / 开房 / 进服；多账户并发测试通过（含真实验证码，保持 45s）</td></tr>
@@ -576,7 +589,9 @@
               <tr><td><code>npm audit</code></td><td>✅ 0 vulnerabilities</td></tr>
               <tr><td>重复测试 / 跨平台构建</td><td>✅ 3× 全量测试 / 6 平台构建</td></tr>
               <tr><td>加密 / 动态资源包</td><td>🚧 未支持</td></tr>
-              <tr><td>Linux / macOS 实机、<code>go test -race</code></td><td>⏳ 部分覆盖</td></tr>
+              <tr><td>Linux WSL2（test/vet/race/构建/运行时冒烟）</td><td>✅ 通过</td></tr>
+              <tr><td>macOS 实机</td><td>⏳ 仅交叉编译/vet</td></tr>
+              <tr><td><code>go test -race</code></td><td>✅ Linux WSL2（root + limbo）</td></tr>
             </tbody>
           </table>
           <div class="doc-callout doc-note">

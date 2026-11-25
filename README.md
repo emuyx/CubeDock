@@ -15,7 +15,7 @@
 [项目主页](https://emuyx.github.io/CubeDock/) · [使用文档](https://emuyx.github.io/CubeDock/docs.html) · [界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) · [Issues](https://github.com/emuyx/CubeDock/issues)
 
 > 当前稳定版是 **v0.3.2**，去 [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的包就好。
-> `main` 是开发版 **v0.4.2-dev**，会有一些还没正式发布的新登录方式，偶尔也可能不太稳定。
+> `main` 是开发版 **v0.4.3-dev**，会有一些还没正式发布的新登录方式，偶尔也可能不太稳定。
 > 想尝鲜的话，普通用户也可以直接去 [GitHub Actions 的测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) 下载 artifacts，解压方式和稳定版一样；只是不保证稳定，长期用还是推荐 Releases。
 
 ## 它适合谁
@@ -53,7 +53,7 @@
 - **玩家进来就断？** 先检查服务器协议、版本和资源包；转服模式还要确认玩家能直连服务器。
 - **控制台打不开 / 忘记密码？** 默认 `http://127.0.0.1:18321/`；忘记密码就停止程序、备份数据目录、删除 `admin.json`，重启后重新创建。
 - **一个账号能开几个房间？** 一个账号一间房；多开几个账号就能多开几间。
-- **数据安全吗？** 凭证保存在本机数据目录，Windows 用 DPAPI，其他平台用 `0600` 权限。不要把这些文件发给别人。
+- **数据安全吗？** 凭证保存在本机数据目录，Windows 用 DPAPI，其他平台用 `0600` 权限。密码默认不保存；可选保存到 `account-passwords.dat`，同样受本机保护。不要把这些文件发给别人。
 
 更多问题可以看 [文档的故障排查](https://emuyx.github.io/CubeDock/docs.html#troubleshooting) 或控制台里的「常见问题」页。先别急 (・∀・)
 
@@ -102,9 +102,11 @@ Windows 一键构建：`.\scripts\build.ps1`。站点文件在 `site/`，`docs.h
 | 多账号 / 多房间并发 | ✅ 多个真实 4399 账号同时开房 45 秒，0 掉线 |
 | 互通版 / 网易手游 / 4399 手游登录 | ✅ 真机验证登录、开房、进服 |
 | 配置方案 + 账号仪表盘 + 房间管理 | ✅ 实机验证 |
+| 房间玩家区分 / 自动刷新 / 头像 / 二维码 / 保活 / 本地密码 | ✅ 本地测试与 demo 验证 |
 | 加密 / 动态资源包 | 🚧 暂不支持 |
-| Linux / macOS 实机 | ⏳ 部分覆盖（WSL + 交叉编译） |
-| `go test -race` | ⏳ 还没跑 |
+| Linux WSL2（test/vet/race/构建/运行时冒烟） | ✅ 通过 |
+| macOS 实机 | ⏳ 仅交叉编译/vet |
+| `go test -race` | ✅ Linux WSL2（root + limbo） |
 
 > 这些是目前的验证范围，不代表所有服务器/客户端组合都一定顺利。
 > 遇到问题欢迎带诊断报告来提 Issue，但请不要发账号、token 或数据目录。
