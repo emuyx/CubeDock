@@ -147,6 +147,28 @@ export default function SettingsForm({ status, onChanged }) {
                 每个账号使用自己选择的配置方案；账号或服务器未准备好时建议关闭。
               </Typography>
             </Box>
+            <Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={!!form.keep_alive}
+                    onChange={event => update('keep_alive', event.target.checked)}
+                    disabled={running}
+                  />
+                }
+                label="空闲账号保活"
+              />
+              <TextField
+                label="保活间隔（分钟）"
+                type="number"
+                value={form.keep_alive_minutes ?? 30}
+                onChange={event => update('keep_alive_minutes', Number(event.target.value))}
+                disabled={running || !form.keep_alive}
+                inputProps={{ min: 5, max: 1440 }}
+                sx={{ maxWidth: 220, mt: 1, ml: { xs: 0, sm: 6 } }}
+                helperText="未开房账号会定期刷新资料/头像；不会登录已过期账号。"
+              />
+            </Box>
             <Typography variant="caption" color="text.secondary">
               Debug 详细日志在「控制台」页即时开关。
             </Typography>

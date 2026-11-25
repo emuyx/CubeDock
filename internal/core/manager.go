@@ -162,6 +162,7 @@ func New(dir string, cfg config.Config, tokens []string, logger *log.Logger) (*M
 	m.syncRoomsLocked()
 	m.mu.Unlock()
 	m.persist()
+	go m.keepAliveLoop()
 	return m, nil
 }
 

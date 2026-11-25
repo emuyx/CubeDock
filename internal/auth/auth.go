@@ -31,9 +31,10 @@ type RoomInfo struct {
 
 // Profile is the NetEase game identity behind a stored session.
 type Profile struct {
-	Name  string `json:"name"`
-	UID   string `json:"uid,omitempty"`
-	Level int    `json:"level,omitempty"`
+	Name      string `json:"name"`
+	UID       string `json:"uid,omitempty"`
+	Level     int    `json:"level,omitempty"`
+	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
 // PrepareRoom performs PE authentication and obtains a fresh room transfer
@@ -136,7 +137,7 @@ func LookupProfileFor(ctx context.Context, method netease.AuthMethod, token stri
 		return profile, fmt.Errorf("网易账号验证失败: %w", err)
 	}
 	identity, err := client.Profile(ctx)
-	profile = Profile{Name: identity.Name, UID: identity.UID, Level: identity.Level}
+	profile = Profile{Name: identity.Name, UID: identity.UID, Level: identity.Level, AvatarURL: identity.AvatarURL}
 	if err != nil {
 		// A new account has no game name yet. Return the partial identity so
 		// the console can save the session and offer the naming flow.
@@ -174,7 +175,7 @@ func SetPlayerName(ctx context.Context, method netease.AuthMethod, token, name s
 	for attempt := 0; ; attempt++ {
 		identity, profileErr := client.Profile(ctx)
 		profileName := strings.TrimSpace(identity.Name)
-		profile = Profile{Name: profileName, UID: identity.UID, Level: identity.Level}
+		profile = Profile{Name: profileName, UID: identity.UID, Level: identity.Level, AvatarURL: identity.AvatarURL}
 		if profileErr == nil && profileName == name {
 			return profile, nil
 		}

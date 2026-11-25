@@ -41,6 +41,7 @@ import {
 import { api, assignProfile } from './api.js';
 import { copyText } from './util.js';
 import { useConfirm, useToast } from './App.jsx';
+import AccountAvatar from './AccountAvatar.jsx';
 import PhaseDot from './StatusDot.jsx';
 import AccountLogin from './AccountLogin.jsx';
 import BulkImportDialog from './BulkImportDialog.jsx';
@@ -297,17 +298,23 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
               <Card key={account.index} variant="outlined">
                 <CardContent sx={{ p: 1.6, '&:last-child': { pb: 1.6 } }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                    <Box
+                    <Stack
+                      direction="row"
+                      spacing={1.1}
+                      alignItems="center"
                       sx={{ minWidth: 0, flexGrow: 1, cursor: 'pointer' }}
                       onClick={() => onOpenDashboard?.(account.index)}
                     >
-                      <Typography variant="caption" color="text.secondary">
-                        房间 {account.index + 1}
-                      </Typography>
-                      <Typography fontWeight={750} noWrap>
-                        {account.name || account.email || account.label || '未命名'}
-                      </Typography>
-                    </Box>
+                      <AccountAvatar account={account} size={38} />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          房间 {account.index + 1}
+                        </Typography>
+                        <Typography fontWeight={750} noWrap>
+                          {account.name || account.email || account.label || '未命名'}
+                        </Typography>
+                      </Box>
+                    </Stack>
                     <PhaseDot phase={phase} sx={{ mt: 0.3 }} />
                   </Stack>
 
@@ -460,19 +467,24 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    {account.name ? (
-                      <Tooltip title={account.profile_error ? `上次错误：${account.profile_error}` : account.uid ? `UID ${account.uid}` : ''}>
-                        <Typography variant="body2" fontWeight={650} noWrap sx={{ maxWidth: 180 }}>
-                          {account.name}
-                        </Typography>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip title={account.profile_error || '尚未读取游戏名，可以用右侧「更新登录」重新登录'}>
-                        <Typography variant="body2" color={account.profile_error ? 'error' : 'text.secondary'} noWrap sx={{ maxWidth: 180 }}>
-                          {account.profile_error ? '解析失败' : '未解析'}
-                        </Typography>
-                      </Tooltip>
-                    )}
+                    <Stack direction="row" spacing={0.9} alignItems="center">
+                      <AccountAvatar account={account} size={26} />
+                      <Box sx={{ minWidth: 0 }}>
+                        {account.name ? (
+                          <Tooltip title={account.profile_error ? `上次错误：${account.profile_error}` : account.uid ? `UID ${account.uid}` : ''}>
+                            <Typography variant="body2" fontWeight={650} noWrap sx={{ maxWidth: 180 }}>
+                              {account.name}
+                            </Typography>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip title={account.profile_error || '尚未读取游戏名，可以用右侧「更新登录」重新登录'}>
+                            <Typography variant="body2" color={account.profile_error ? 'error' : 'text.secondary'} noWrap sx={{ maxWidth: 180 }}>
+                              {account.profile_error ? '解析失败' : '未解析'}
+                            </Typography>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    </Stack>
                   </TableCell>
                   <TableCell>
                     <PhaseDot phase={phase} />

@@ -10,7 +10,7 @@ import (
 
 func TestProfileNameMissingReturnsPartialIdentity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"code":0,"entity":{"entity_id":"42","name":"","level":1}}`))
+		_, _ = w.Write([]byte(`{"code":0,"entity":{"entity_id":"42","name":"","level":1,"avatar_image_url":"https://example.invalid/avatar.png"}}`))
 	}))
 	defer server.Close()
 
@@ -23,6 +23,9 @@ func TestProfileNameMissingReturnsPartialIdentity(t *testing.T) {
 	}
 	if profile.UID != "42" || profile.Level != 1 {
 		t.Fatalf("partial profile = %+v", profile)
+	}
+	if profile.AvatarURL != "https://example.invalid/avatar.png" {
+		t.Fatalf("avatar = %q", profile.AvatarURL)
 	}
 }
 

@@ -53,6 +53,8 @@ const state = {
     auto_start: false,
     web_port: 18321,
     debug: false,
+    keep_alive: true,
+    keep_alive_minutes: 30,
   },
   accounts: [
     { email: 'demo@example.com', label: '主号', name: '方块小助手', uid: '10001', level: 12, platform: 'interop', expires_at: future, profile_id: 'default' },
@@ -63,6 +65,7 @@ const state = {
   startedAt: {},
   players: [],
   waitingMembers: [],
+  savedPasswords: {},
   playerSeq: 0,
   friendRequests: [
     { uid: '9007199254740993', name: '想一起玩的小林', apply_time: '1710000000' },
@@ -537,6 +540,13 @@ export function installDemoApi() {
             profile_id: saved.account.profile_id,
           });
         }
+        case 'POST account/password': {
+          const index = Number(body.index);
+          if (!Number.isInteger(index) || index < 0) return failure('账号序号无效');
+          if (String(body.password || '')) state.savedPasswords[index] = String(body.password);
+          else delete state.savedPasswords[index];
+          return json({ ok: true, saved: !!state.savedPasswords[index] });
+        }
         case 'POST account/remove':
           if (state.running.size) return failure('请先停止房间，再移除账号');
           state.accounts.splice(Number(body.index), 1);
@@ -590,6 +600,12 @@ export function installDemoApi() {
           );
           append('控制台', `演示：已请求从房间踢出玩家 ${playerId}`, 'info', index + 1);
           return json({ ok: true, index, player_id: playerId });
+        }
+        case 'GET account/password': {
+          const index = Number(parsed.searchParams.get('index'));
+          if (!Number.isInteger(index)) return failure('账号序号无效');
+          const password = state.savedPasswords[index] || '';
+          return json({ saved: !!password, password });
         }
         case 'GET friends': {
           const index = Number(parsed.searchParams.get('index'));

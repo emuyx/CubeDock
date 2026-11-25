@@ -3,7 +3,9 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Divider,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -16,7 +18,7 @@ import {
 import Typography from './Typography.jsx';
 import Stack from './Stack.jsx';
 import { ContentCopy, Visibility, VisibilityOff } from '@mui/icons-material';
-import { api } from './api.js';
+import { api, getSavedPassword, saveAccountPassword } from './api.js';
 import { useToast } from './App.jsx';
 import { copyText } from './util.js';
 import NameAccountForm from './NameAccountForm.jsx';
@@ -43,6 +45,8 @@ export default function AccountLogin({
   );
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberPassword, setRememberPassword] = useState(false);
+  const [savedPasswordLoaded, setSavedPasswordLoaded] = useState(false);
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -82,6 +86,39 @@ export default function AccountLogin({
     const next = initialProfileId || defaultProfileId || profiles[0]?.id || '';
     if (next) setProfileId(current => current || next);
   }, [initialProfileId, defaultProfileId, profiles]);
+
+  useEffect(() => {
+    let active = true;
+    setSavedPasswordLoaded(false);
+    setPassword('');
+    setRememberPassword(false);
+    if (replaceIndex === null || replaceIndex === undefined) {
+      return undefined;
+    }
+    getSavedPassword(replaceIndex)
+      .then(result => {
+        if (!active || !result?.saved) return;
+        setPassword(result.password || '');
+        setRememberPassword(true);
+        setSavedPasswordLoaded(true);
+      })
+      .catch(() => {
+        /* 没有本地密码或读取失败时继续手输 */
+      });
+    return () => {
+      active = false;
+    };
+  }, [replaceIndex]);
+
+  const persistPassword = async (index, value) => {
+    if (index === null || index === undefined || index < 0) return;
+    try {
+      if (rememberPassword && value) await saveAccountPassword(index, value);
+      else if (replaceIndex !== null) await saveAccountPassword(index, '');
+    } catch {
+      /* 保存密码是可选功能，失败不影响登录 */
+    }
+  };
 
   const clearCaptcha = () => {
     setCaptchaID('');
@@ -128,6 +165,7 @@ export default function AccountLogin({
       setError(is4399 ? '请填写 4399 账号和密码' : '请填写网易邮箱和密码');
       return;
     }
+    const submittedPassword = password;
     requestRef.current = true;
     setBusy(true);
     setError('');
@@ -155,11 +193,13 @@ export default function AccountLogin({
         return;
       }
       if (result.status === 'need_name') {
+        await persistPassword(result.index, submittedPassword);
         setPendingName(result);
         setMessage(result.message || '该账号还没有游戏名');
         setPassword('');
         return;
       }
+      await persistPassword(result.index, submittedPassword);
       clearCaptcha();
       setVerifyURL('');
       setMessage('');
@@ -324,6 +364,27 @@ export default function AccountLogin({
           },
         }}
       />
+      <Box>
+        <FormControlLabel
+          control={
+            <Checkbox
+              size="small"
+              checked={rememberPassword}
+              onChange={event => setRememberPassword(event.target.checked)}
+            />
+          }
+          label={
+            <Typography variant="caption" color="text.secondary">
+              在本机保存密码（Windows 使用 DPAPI，其他平台使用 0600 文件）
+            </Typography>
+          }
+        />
+        {savedPasswordLoaded && (
+          <Typography variant="caption" color="success.main" display="block">
+            已读取本机保存的密码，可以直接登录
+          </Typography>
+        )}
+      </Box>
       {platform === 'mobile_4399' && captchaImage && (
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
@@ -418,7 +479,7 @@ export default function AccountLogin({
       {!verifyURL && message && <Alert severity="warning">{message}</Alert>}
       {error && errorAlert(error)}
       <Typography variant="caption" color="text.secondary">
-        密码只用于换取登录凭证，CubeDock 不会保存密码。
+        默认不保存密码；勾选后仅保存在本机，用于下次更新登录。保存失败不会影响登录。
       </Typography>
     </Stack>
   );

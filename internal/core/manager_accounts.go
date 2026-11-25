@@ -83,6 +83,7 @@ func (m *Manager) ReplaceAccount(index int, token string, meta AccountMeta) erro
 			return fmt.Errorf("这个网易账号已经用于房间 %d，不能重复使用", i+1)
 		}
 	}
+	previous := m.accounts[index]
 	nextTokens := append([]string(nil), m.tokens...)
 	nextTokens[index] = token
 	nextAccounts := append([]accountRecord(nil), m.accounts...)
@@ -91,6 +92,9 @@ func (m *Manager) ReplaceAccount(index int, token string, meta AccountMeta) erro
 		return err
 	}
 	m.tokens, m.accounts = nextTokens, nextAccounts
+	if passwordKey(previous) != passwordKey(nextAccounts[index]) {
+		m.deleteAccountPasswordLocked(previous)
+	}
 	return nil
 }
 
@@ -104,6 +108,7 @@ func (m *Manager) RemoveAccount(index int) error {
 	if index < 0 || index >= len(m.tokens) {
 		return fmt.Errorf("账号序号无效")
 	}
+	removed := m.accounts[index]
 	nextTokens := append([]string(nil), m.tokens[:index]...)
 	nextTokens = append(nextTokens, m.tokens[index+1:]...)
 	nextAccounts := append([]accountRecord(nil), m.accounts[:index]...)
@@ -112,13 +117,18 @@ func (m *Manager) RemoveAccount(index int) error {
 		return err
 	}
 	m.tokens, m.accounts = nextTokens, nextAccounts
+	m.deleteAccountPasswordLocked(removed)
 	return nil
 }
 
 // UpdateAccountProfile updates the resolved game identity or its error.
-func (m *Manager) UpdateAccountProfile(index int, name, uid string, level int, profileErr string) error {
+func (m *Manager) UpdateAccountProfile(index int, name, uid string, level int, avatarURL, profileErr string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.updateAccountProfileLocked(index, name, uid, level, avatarURL, profileErr)
+}
+
+func (m *Manager) updateAccountProfileLocked(index int, name, uid string, level int, avatarURL, profileErr string) error {
 	if index < 0 || index >= len(m.accounts) {
 		return fmt.Errorf("账号序号无效")
 	}
@@ -126,6 +136,7 @@ func (m *Manager) UpdateAccountProfile(index int, name, uid string, level int, p
 	next[index].Name = name
 	next[index].UID = uid
 	next[index].Level = level
+	next[index].AvatarURL = avatarURL
 	next[index].ProfileError = profileErr
 	if profileErr == "" && name != "" {
 		next[index].VerifiedAt = time.Now().Format(time.RFC3339)
@@ -135,6 +146,18 @@ func (m *Manager) UpdateAccountProfile(index int, name, uid string, level int, p
 	}
 	m.accounts = next
 	return nil
+}
+
+// UpdateAccountProfileForToken applies a background profile refresh only if
+// the account at that position still has the same session. This prevents a
+// keepalive result from being written to a different account after a removal.
+func (m *Manager) UpdateAccountProfileForToken(index int, token, name, uid string, level int, avatarURL, profileErr string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if index < 0 || index >= len(m.tokens) || m.tokens[index] != token {
+		return fmt.Errorf("账号已变化")
+	}
+	return m.updateAccountProfileLocked(index, name, uid, level, avatarURL, profileErr)
 }
 
 // AssignAccountProfile changes which profile an account uses. It is refused
@@ -164,7 +187,8 @@ func (m *Manager) AssignAccountProfile(index int, profileID string) error {
 func recordFromMeta(meta AccountMeta) accountRecord {
 	record := accountRecord{
 		Email: meta.Email, Label: meta.Label, Name: meta.Name, UID: meta.UID,
-		Level: meta.Level, Platform: meta.Platform, AuthMethod: meta.AuthMethod,
+		Level: meta.Level, AvatarURL: meta.AvatarURL,
+		Platform: meta.Platform, AuthMethod: meta.AuthMethod,
 		ExpiresAt:    meta.ExpiresAt,
 		ProfileError: meta.ProfileError, VerifiedAt: meta.Verified,
 		ProfileID: meta.ProfileID,

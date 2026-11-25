@@ -20,6 +20,7 @@ type AccountStatus struct {
 	Name           string `json:"name,omitempty"`
 	UID            string `json:"uid,omitempty"`
 	Level          int    `json:"level,omitempty"`
+	AvatarURL      string `json:"avatar_url,omitempty"`
 	Platform       string `json:"platform,omitempty"`    // legacy label
 	AuthMethod     string `json:"auth_method,omitempty"` // interop / mobile_netease / mobile_4399
 	ExpiresAt      string `json:"expires_at,omitempty"`  // access_token 到期时间
@@ -36,6 +37,7 @@ type accountRecord struct {
 	Name         string `json:"name,omitempty"`
 	UID          string `json:"uid,omitempty"`
 	Level        int    `json:"level,omitempty"`
+	AvatarURL    string `json:"avatar_url,omitempty"`
 	Platform     string `json:"platform,omitempty"`
 	AuthMethod   string `json:"auth_method,omitempty"`
 	ExpiresAt    string `json:"expires_at,omitempty"`
@@ -51,6 +53,7 @@ type AccountMeta struct {
 	Name         string
 	UID          string
 	Level        int
+	AvatarURL    string
 	Platform     string
 	AuthMethod   string
 	ExpiresAt    string
@@ -116,7 +119,8 @@ func (m *Manager) accountStatusesLocked() []AccountStatus {
 		status := AccountStatus{
 			Index: index, Email: record.Email, Label: record.Label,
 			Name: record.Name, UID: record.UID, Level: record.Level,
-			Platform: record.Platform, AuthMethod: record.AuthMethod,
+			AvatarURL: record.AvatarURL,
+			Platform:  record.Platform, AuthMethod: record.AuthMethod,
 			ExpiresAt:    record.ExpiresAt,
 			ProfileError: record.ProfileError, VerifiedAt: record.VerifiedAt,
 			ProfileID: record.ProfileID,

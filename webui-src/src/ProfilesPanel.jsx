@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -10,21 +11,24 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   List,
   ListItemButton,
   ListItemText,
   MenuItem,
+  Slider,
   Switch,
   Tab,
   Tabs,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
 } from '@mui/material';
 import Typography from './Typography.jsx';
 import Stack from './Stack.jsx';
 import {
   Add,
+  Casino,
   CloudDownload,
   ContentCopy,
   DeleteOutlined,
@@ -34,6 +38,7 @@ import {
   Tune,
 } from '@mui/icons-material';
 import { getPacks, refreshPacks } from './api.js';
+import { roomTagValues } from './util.js';
 import { useConfigForm } from './configForm.jsx';
 import { useConfirm, useToast } from './App.jsx';
 import HelpTip, { FieldHint } from './HelpTip.jsx';
@@ -54,7 +59,29 @@ function splitLimbo(value) {
 
 const grid = { display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } };
 const ROOM_TAGS = ['生存', '创造', '冒险', '模拟', '动作', '建筑', '竞技', '休闲'];
+const MAX_ROOM_TAGS = 2;
 const BUILT_IN_ROOM_NAME = '来和我一起玩吧！';
+const ROOM_NAME_SUGGESTIONS = [
+  '来和我一起玩吧！',
+  '一起玩生存',
+  '一起做建筑',
+  '自由创造',
+  '探索冒险',
+  '动作游戏爱好者',
+  '精美建筑欣赏',
+  '交个新朋友',
+  '寻找通关搭档',
+  '寻找跑酷达人',
+  '来和我PK吧',
+  '有人来挑战我吗？',
+  '来一场速度比拼！',
+  '轻松休闲，快乐游戏',
+  '一起聊聊天吧',
+];
+
+function randomRoomName() {
+  return ROOM_NAME_SUGGESTIONS[Math.floor(Math.random() * ROOM_NAME_SUGGESTIONS.length)];
+}
 
 export default function ProfilesPanel({ status, active }) {
   const notify = useToast();
@@ -182,15 +209,15 @@ export default function ProfilesPanel({ status, active }) {
   const [limboHost, limboPort] = splitLimbo(profile?.limbo_upstream);
   const updateLimbo = (host, port) =>
     profile && updateProfile(profile.id, 'limbo_upstream', `${host}:${port}`);
-  const roomTags = profile?.room_tags || [];
+  const roomTags = roomTagValues(profile?.room_tags);
   const toggleTag = tag => {
     if (!profile) return;
     if (roomTags.includes(tag)) {
       updateProfile(profile.id, 'room_tags', roomTags.filter(value => value !== tag));
       return;
     }
-    if (roomTags.length >= 3) {
-      notify('房间标签最多选择 3 个', 'warning');
+    if (roomTags.length >= MAX_ROOM_TAGS) {
+      notify(`大厅标签最多选择 ${MAX_ROOM_TAGS} 个`, 'warning');
       return;
     }
     updateProfile(profile.id, 'room_tags', [...roomTags, tag]);
@@ -397,102 +424,169 @@ export default function ProfilesPanel({ status, active }) {
                 )}
 
                 {tab === 1 && (
-                  <Stack spacing={2.2}>
+                  <Stack spacing={2.4}>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={800}>
+                        大厅房间
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        这里只影响网易联机大厅里显示和可加入的房间属性；后端服务器/存档自己的规则不由 CubeDock 控制。
+                      </Typography>
+                    </Box>
+
                     <Box sx={grid}>
-                      <TextField
-                        label="房间名称"
-                        value={profile.room_name || ''}
-                        onChange={event => updateProfile(profile.id, 'room_name', event.target.value)}
-                        disabled={running}
-                        required
-                        fullWidth
-                        inputProps={{ maxLength: 40 }}
-                        slotProps={{
-                          input: {
-                            endAdornment: (
-                              <InputAdornment position="end">
-                                <Tooltip title="复位为内置房间名（自定义名称可能需要 VIP）">
-                                  <span>
-                                    <IconButton
-                                      size="small"
-                                      aria-label="复位为内置房间名"
-                                      edge="end"
-                                      disabled={running || profile.room_name === BUILT_IN_ROOM_NAME}
-                                      onClick={() => updateProfile(profile.id, 'room_name', BUILT_IN_ROOM_NAME)}
-                                    >
-                                      <RestartAlt fontSize="small" />
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
-                              </InputAdornment>
-                            ),
-                          },
-                        }}
-                        helperText={
-                          <FieldHint help="自定义房间名可能需要 VIP；内置名称“来和我一起玩吧！”不需要。">
-                            1–40 个字
-                          </FieldHint>
-                        }
-                      />
+                      <Stack direction="row" spacing={0.5} alignItems="flex-start">
+                        <Autocomplete
+                          freeSolo
+                          options={ROOM_NAME_SUGGESTIONS}
+                          value={profile.room_name || ''}
+                          inputValue={profile.room_name || ''}
+                          onInputChange={(_, value) => updateProfile(profile.id, 'room_name', value)}
+                          disabled={running}
+                          noOptionsText="没有匹配的内置名称，可直接输入"
+                          sx={{ flexGrow: 1, minWidth: 0 }}
+                          renderInput={params => (
+                            <TextField
+                              {...params}
+                              label="房间名称"
+                              required
+                              fullWidth
+                              inputProps={{ ...params.inputProps, maxLength: 40 }}
+                              helperText={
+                                <FieldHint help="普通账号只能选择内置名称；方块俱乐部/VIP 账号可自定义，自定义名称可能被网易拒绝。">
+                                  从下拉栏选择，或直接输入
+                                </FieldHint>
+                              }
+                            />
+                          )}
+                        />
+                        <Tooltip title="随机内置房间名">
+                          <span>
+                            <IconButton
+                              size="small"
+                              aria-label="随机内置房间名"
+                              disabled={running}
+                              onClick={() => updateProfile(profile.id, 'room_name', randomRoomName())}
+                              sx={{ mt: 1 }}
+                            >
+                              <Casino fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="复位为内置房间名（自定义名称可能需要 VIP）">
+                          <span>
+                            <IconButton
+                              size="small"
+                              aria-label="复位为内置房间名"
+                              disabled={running || profile.room_name === BUILT_IN_ROOM_NAME}
+                              onClick={() => updateProfile(profile.id, 'room_name', BUILT_IN_ROOM_NAME)}
+                              sx={{ mt: 1 }}
+                            >
+                              <RestartAlt fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
                       <TextField
                         label="房间密码（可选）"
                         type="password"
                         value={profile.room_password || ''}
-                        onChange={event => updateProfile(profile.id, 'room_password', event.target.value)}
+                        onChange={event =>
+                          updateProfile(profile.id, 'room_password', event.target.value.replace(/\D/g, '').slice(0, 6))
+                        }
                         disabled={running}
                         fullWidth
                         autoComplete="off"
-                        helperText={<FieldHint help="留空表示无密码。密码最多 64 个字符。">留空表示无密码</FieldHint>}
+                        inputProps={{ inputMode: 'numeric', maxLength: 6, pattern: '[0-9]*' }}
+                        helperText={<FieldHint help="网易客户端使用 6 位数字密码；留空表示无密码。">6 位数字</FieldHint>}
                       />
                     </Box>
-                    <Box sx={grid}>
-                      <TextField
-                        label="房间总人数（含 CubeDock）"
-                        type="number"
-                        value={profile.max_players ?? 10}
-                        onChange={event => updateProfile(profile.id, 'max_players', Number(event.target.value))}
-                        disabled={running}
-                        fullWidth
-                        inputProps={{ min: 2, max: 10 }}
-                        helperText={<FieldHint help="网易房间最多 10 人，CubeDock 自己占 1 个名额，所以最多 9 位玩家。">2–10 人</FieldHint>}
-                      />
-                      <TextField
-                        label="房间版本"
-                        value={profile.room_game_version || ''}
-                        onChange={event => updateProfile(profile.id, 'room_game_version', event.target.value)}
-                        disabled={running}
-                        required
-                        fullWidth
-                        helperText={<FieldHint help="一般保持 1.21.130.0。只有网易更新客户端、确认版本变化后才需要改。">当前为 1.21.130.0</FieldHint>}
-                      />
-                    </Box>
-                    <Box sx={grid}>
-                      <TextField
-                        label="掉线重试间隔（秒）"
-                        type="number"
-                        value={profile.retry_seconds ?? 10}
-                        onChange={event => updateProfile(profile.id, 'retry_seconds', Number(event.target.value))}
-                        disabled={running}
-                        fullWidth
-                        inputProps={{ min: 5, max: 300 }}
-                        helperText={<FieldHint help="房间掉线后等待多久重连，默认 10 秒。">5–300 秒</FieldHint>}
-                      />
-                      <TextField
-                        label="准入等级"
-                        type="number"
-                        value={profile.min_level ?? 0}
-                        onChange={event => updateProfile(profile.id, 'min_level', Number(event.target.value))}
-                        disabled={running}
-                        fullWidth
-                        inputProps={{ min: 0, max: 1000 }}
-                        helperText={<FieldHint help="进入房间所需的最低网易等级；0 表示不限制。">0 表示不限制</FieldHint>}
-                      />
-                    </Box>
+
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.8 }}>
-                        房间标签（最多 3 个）
+                      <Typography variant="subtitle2" sx={{ mb: 0.8 }}>
+                        公开性
                       </Typography>
-                      <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
+                      <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={profile.friends_only ? 'friends' : 'all'}
+                        onChange={(_, value) => {
+                          if (value) updateProfile(profile.id, 'friends_only', value === 'friends');
+                        }}
+                        disabled={running}
+                      >
+                        <ToggleButton value="all">所有人</ToggleButton>
+                        <ToggleButton value="friends">好友可见</ToggleButton>
+                      </ToggleButtonGroup>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.6 }}>
+                        仅受邀模式需要协议验证，暂未开放。
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display: 'grid', gap: 2.4, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+                      <Box>
+                        <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+                          <Typography variant="subtitle2">房间总人数（含 CubeDock）</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {profile.max_players ?? 10} 人
+                          </Typography>
+                        </Stack>
+                        <Slider
+                          min={2}
+                          max={10}
+                          step={1}
+                          value={profile.max_players ?? 10}
+                          onChange={(_, value) => updateProfile(profile.id, 'max_players', value)}
+                          disabled={running}
+                          valueLabelDisplay="auto"
+                          marks={[
+                            { value: 2, label: '2' },
+                            { value: 10, label: '10' },
+                          ]}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          网易房间最多 10 人，CubeDock 自己占 1 个名额。
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+                          <Typography variant="subtitle2">准入等级</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {profile.min_level ?? 0}
+                          </Typography>
+                        </Stack>
+                        <Slider
+                          min={0}
+                          max={50}
+                          step={1}
+                          value={Math.min(profile.min_level ?? 0, 50)}
+                          onChange={(_, value) => updateProfile(profile.id, 'min_level', value)}
+                          disabled={running}
+                          valueLabelDisplay="auto"
+                          marks={[
+                            { value: 0, label: '0' },
+                            { value: 50, label: '50' },
+                          ]}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          大厅界面范围 0–50；0 表示不限制。
+                        </Typography>
+                        {(profile.min_level ?? 0) > 50 && (
+                          <Alert severity="warning" sx={{ mt: 1 }}>
+                            当前值为 {profile.min_level}，超出大厅滑块范围；拖动滑块会改为 0–50。
+                          </Alert>
+                        )}
+                      </Box>
+                    </Box>
+
+                    <Box>
+                      <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+                        <Typography variant="subtitle2">大厅标签（最多 {MAX_ROOM_TAGS} 个）</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {roomTags.length}/{MAX_ROOM_TAGS}
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap sx={{ mt: 0.8 }}>
                         {ROOM_TAGS.map((label, tag) => {
                           const selected = roomTags.includes(tag);
                           return (
@@ -503,34 +597,74 @@ export default function ProfilesPanel({ status, active }) {
                               color={selected ? 'primary' : 'default'}
                               variant={selected ? 'filled' : 'outlined'}
                               onClick={() => toggleTag(tag)}
-                              disabled={running || (!selected && roomTags.length >= 3)}
+                              disabled={running || (!selected && roomTags.length >= MAX_ROOM_TAGS)}
                             />
                           );
                         })}
                       </Stack>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.8 }}>
+                        用于联机大厅展示；和 PvP、默认权限等后端规则无关。
+                      </Typography>
+                      {roomTags.length > MAX_ROOM_TAGS && (
+                        <Alert severity="warning" sx={{ mt: 1 }}>
+                          该方案保存了 {roomTags.length} 个标签，超过大厅界面上限，请取消多余的标签。
+                        </Alert>
+                      )}
                     </Box>
-                    <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+
+                    <Divider />
+
+                    <Box>
+                      <Typography variant="subtitle2">大厅标记</Typography>
                       <Stack direction="row" spacing={0.2} alignItems="center">
                         <FormControlLabel
-                          control={<Switch checked={!!profile.friends_only} onChange={event => updateProfile(profile.id, 'friends_only', event.target.checked)} disabled={running} />}
-                          label="仅好友可见"
+                          control={<Switch checked={!!profile.allow_pvp} onChange={event => updateProfile(profile.id, 'allow_pvp', event.target.checked)} disabled={running} />}
+                          label="允许 PvP（大厅标记）"
                         />
-                        <HelpTip title="开启后只有你的网易好友能看到并进入房间。" />
+                        <HelpTip title="只影响网易房间的 PvP 标记；实际 PvP 规则由后端服务器/存档决定。" />
                       </Stack>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        实际 PvP、默认权限、游戏模式、定位栏等由后端服务器或存档决定，CubeDock 不控制。
+                      </Typography>
+                    </Box>
+
+                    <Box>
                       <Stack direction="row" spacing={0.2} alignItems="center">
                         <FormControlLabel
                           control={<Switch checked={!!profile.auto_accept_friends} onChange={event => updateProfile(profile.id, 'auto_accept_friends', event.target.checked)} disabled={running} />}
                           label="自动同意好友申请"
                         />
-                        <HelpTip title="开启「仅好友可见」时会自动跳过，避免陌生人通过好友申请进入房间。" />
+                        <HelpTip title="开启「好友可见」时会自动跳过，避免陌生人通过好友申请进入房间。" />
                       </Stack>
-                      <Stack direction="row" spacing={0.2} alignItems="center">
-                        <FormControlLabel
-                          control={<Switch checked={!!profile.allow_pvp} onChange={event => updateProfile(profile.id, 'allow_pvp', event.target.checked)} disabled={running} />}
-                          label="允许 PvP"
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        高级（一般不用改）
+                      </Typography>
+                      <Box sx={{ ...grid, mt: 1.2 }}>
+                        <TextField
+                          label="房间版本"
+                          value={profile.room_game_version || ''}
+                          onChange={event => updateProfile(profile.id, 'room_game_version', event.target.value)}
+                          disabled={running}
+                          required
+                          fullWidth
+                          helperText={<FieldHint help="一般保持 1.21.130.0。只有网易更新客户端、确认版本变化后才需要改。">当前为 1.21.130.0</FieldHint>}
                         />
-                        <HelpTip title="只影响网易房间的 PvP 标记，实际规则仍由服务器决定。" />
-                      </Stack>
+                        <TextField
+                          label="掉线重试间隔（秒）"
+                          type="number"
+                          value={profile.retry_seconds ?? 10}
+                          onChange={event => updateProfile(profile.id, 'retry_seconds', Number(event.target.value))}
+                          disabled={running}
+                          fullWidth
+                          inputProps={{ min: 5, max: 300 }}
+                          helperText={<FieldHint help="房间掉线后等待多久重连，默认 10 秒。">5–300 秒</FieldHint>}
+                        />
+                      </Box>
                     </Box>
                   </Stack>
                 )}

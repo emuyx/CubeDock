@@ -119,6 +119,24 @@ export function removeStored(key) {
   }
 }
 
+// Room tags are normally a JSON array of 0–7 values. Older configs stored the
+// Go []uint8 field as a base64 string; accept both so an old server/config
+// cannot crash the dashboard.
+export function roomTagValues(value) {
+  const valid = tag => Number.isInteger(tag) && tag >= 0 && tag <= 7;
+  if (Array.isArray(value)) {
+    return [...new Set(value.map(Number).filter(valid))];
+  }
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      return [...new Set([...window.atob(value.trim())].map(char => char.charCodeAt(0)).filter(valid))];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export function timestamp() {
   const now = new Date();
   const pad = value => String(value).padStart(2, '0');

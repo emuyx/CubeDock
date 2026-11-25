@@ -12,8 +12,9 @@ import {
 import Typography from './Typography.jsx';
 import Stack from './Stack.jsx';
 import { Block, PersonOff, Refresh } from '@mui/icons-material';
-import { api, roomKickPlayer } from './api.js';
+import { api, getRoomMembers, kickRoomMember, roomKickPlayer } from './api.js';
 import { useConfirm, useToast } from './App.jsx';
+import LiveDuration from './LiveDuration.jsx';
 import { StatusDot } from './StatusDot.jsx';
 
 const STATE = {
@@ -37,38 +38,64 @@ function formatUptime(seconds) {
   return `${Math.floor(total)} 秒`;
 }
 
-export default function RoomPlayersPanel({ roomIndex, proxy }) {
+function memberName(member) {
+  return member.name || `房间玩家 ${member.room_player_id || member.id}`;
+}
+
+export default function RoomPlayersPanel({ roomIndex, proxy, phase = 'online', autoRefresh = true }) {
   const notify = useToast();
   const confirm = useConfirm();
   const [players, setPlayers] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const running = phase !== 'stopped';
 
   const load = useCallback(async () => {
-    if (!proxy || roomIndex === null || roomIndex === undefined) return;
+    if (!running || roomIndex === null || roomIndex === undefined) return;
     setLoading(true);
     try {
-      const list = await api('players', undefined, 'GET');
-      setPlayers((list || []).filter(player => player.room === roomIndex + 1));
+      const [memberResult, worldList] = await Promise.all([
+        getRoomMembers(roomIndex),
+        proxy ? api('players', undefined, 'GET') : Promise.resolve([]),
+      ]);
+      setMembers(
+        Array.isArray(memberResult) ? memberResult : memberResult?.members || [],
+      );
+      setPlayers(
+        proxy && Array.isArray(worldList)
+          ? worldList.filter(player => player.room === roomIndex + 1)
+          : [],
+      );
       setError('');
     } catch (failure) {
-      setError(failure.message || '读取玩家列表失败');
+      setError(failure.message || '读取房间玩家失败');
     } finally {
       setLoading(false);
     }
-  }, [proxy, roomIndex]);
+  }, [proxy, roomIndex, running]);
 
   useEffect(() => {
-    if (!proxy) {
+    if (!running) {
       setPlayers([]);
+      setMembers([]);
       setError('');
       return undefined;
     }
     load();
+    if (!autoRefresh) return undefined;
     const timer = setInterval(load, 2000);
     return () => clearInterval(timer);
-  }, [load, proxy]);
+  }, [load, running, autoRefresh]);
+
+  const worldIDs = new Set(players.map(player => player.room_player_id).filter(Boolean));
+  const waiting = members.filter(member => !member.in_world && !worldIDs.has(member.room_player_id));
+  const worldFromMembers = members.filter(
+    member => member.in_world && !worldIDs.has(member.room_player_id),
+  );
+  const worldCount = players.length + worldFromMembers.length;
+  const roomCount = members.length;
 
   const kick = async player => {
     const confirmed = await confirm({
@@ -78,7 +105,7 @@ export default function RoomPlayersPanel({ roomIndex, proxy }) {
       severity: 'warning',
     });
     if (!confirmed) return;
-    setBusy(player.id);
+    setBusy(`world-${player.id}`);
     try {
       await api('player/kick', { target: player.id });
       notify(`已请求断开 ${player.name || player.id}`, 'success');
@@ -90,7 +117,7 @@ export default function RoomPlayersPanel({ roomIndex, proxy }) {
     }
   };
 
-  const roomKick = async player => {
+  const roomKickWorld = async player => {
     if (!player.room_player_id) {
       notify('该玩家还没有分配房间玩家 ID，暂时不能从房间踢出', 'warning');
       return;
@@ -102,10 +129,34 @@ export default function RoomPlayersPanel({ roomIndex, proxy }) {
       severity: 'warning',
     });
     if (!confirmed) return;
-    setBusy(player.id);
+    setBusy(`world-${player.id}`);
     try {
       await roomKickPlayer(player.id);
       notify(`已请求从房间踢出 ${player.name || player.id}`, 'success');
+      load();
+    } catch (failure) {
+      notify(failure.message || '房间踢出失败', 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const roomKickMember = async member => {
+    if (!member.room_player_id) {
+      notify('该成员还没有房间玩家 ID', 'warning');
+      return;
+    }
+    const confirmed = await confirm({
+      title: '从房间踢出成员',
+      message: `通过网易房间控制通道踢出 ${memberName(member)}？`,
+      confirmLabel: '房间踢出',
+      severity: 'warning',
+    });
+    if (!confirmed) return;
+    setBusy(`member-${member.id}`);
+    try {
+      await kickRoomMember(roomIndex, member.room_player_id);
+      notify(`已请求从房间踢出 ${memberName(member)}`, 'success');
       load();
     } catch (failure) {
       notify(failure.message || '房间踢出失败', 'error');
@@ -124,51 +175,47 @@ export default function RoomPlayersPanel({ roomIndex, proxy }) {
           spacing={1}
         >
           <Box>
-            <Typography variant="h6">在线玩家</Typography>
+            <Typography variant="h6">房间玩家</Typography>
             <Typography variant="caption" color="text.secondary">
-              仅本房间 · 每 2 秒刷新
+              {running
+                ? `${roomCount} 人在房间 · ${worldCount} 人已进入服务器`
+                : '房间未运行'}
+              {' · '}
+              {autoRefresh ? '每 2 秒刷新' : '自动刷新已暂停'}
             </Typography>
           </Box>
-          {proxy && (
-            <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
-              <Typography variant="caption" color="text.secondary">
-                {players.length} 人
-              </Typography>
-              <Tooltip title="刷新玩家列表">
-                <span>
-                  <IconButton size="small" onClick={load} disabled={loading} aria-label="刷新玩家列表">
-                    {loading ? <CircularProgress size={16} /> : <Refresh fontSize="small" />}
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </Stack>
-          )}
+          <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
+            <Tooltip title="刷新玩家列表">
+              <span>
+                <IconButton size="small" onClick={load} disabled={loading || !running} aria-label="刷新玩家列表">
+                  {loading ? <CircularProgress size={16} /> : <Refresh fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
         </Stack>
 
-        {!proxy ? (
-          <Alert severity="info" sx={{ mt: 1.6 }}>
-            转服模式下玩家由目标服务器管理，CubeDock 无法查看或管理玩家。
-          </Alert>
+        {!running ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+            启动房间后，这里会区分「只加入房间」和「已进入服务器」的玩家。
+          </Typography>
         ) : (
           <Box sx={{ mt: 1 }}>
             {error && <Alert severity="error" sx={{ my: 1 }}>{error}</Alert>}
-            {loading && players.length === 0 && (
-              <Box sx={{ py: 3, display: 'grid', placeItems: 'center' }}>
-                <CircularProgress size={22} />
-              </Box>
-            )}
-            {!loading && players.length === 0 && !error && (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                当前没有在线玩家。
+
+            <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mt: 1.2 }}>
+              <Typography variant="subtitle2" fontWeight={800}>已进入服务器</Typography>
+              <Typography variant="caption" color="text.secondary">{worldCount} 人</Typography>
+            </Stack>
+            {players.length === 0 && worldFromMembers.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 1.2 }}>
+                还没有玩家进入服务器。
               </Typography>
             )}
             {players.map(player => {
               const meta = stateMeta(player.state);
               return (
-                <Box
-                  key={player.id}
-                  sx={{ py: 1.2, borderTop: 1, borderColor: 'divider' }}
-                >
+                <Box key={player.id} sx={{ py: 1.1, borderTop: 1, borderColor: 'divider' }}>
                   <Stack
                     direction={{ xs: 'column', sm: 'row' }}
                     spacing={1}
@@ -178,16 +225,12 @@ export default function RoomPlayersPanel({ roomIndex, proxy }) {
                     <Box sx={{ minWidth: 0 }}>
                       <Stack direction="row" spacing={0.8} alignItems="center">
                         <StatusDot color={meta.color} />
-                        <Typography fontWeight={750} noWrap>
-                          {player.name || player.id}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {meta.label}
-                        </Typography>
+                        <Typography fontWeight={750} noWrap>{player.name || player.id}</Typography>
+                        <Typography variant="caption" color="text.secondary">{meta.label}</Typography>
                       </Stack>
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.2 }}>
-                        在线 {formatUptime(player.uptime_seconds)} · 上行 {player.up_packets ?? 0} 包 /
-                        下行 {player.down_packets ?? 0} 包
+                        在线 {player.joined_at ? <LiveDuration since={player.joined_at} /> : formatUptime(player.uptime_seconds)}
+                        {' · '}上行 {player.up_packets ?? 0} 包 / 下行 {player.down_packets ?? 0} 包
                       </Typography>
                     </Box>
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ flexShrink: 0 }}>
@@ -195,8 +238,8 @@ export default function RoomPlayersPanel({ roomIndex, proxy }) {
                         size="small"
                         color="warning"
                         startIcon={<Block fontSize="small" />}
-                        disabled={!player.room_player_id || busy === player.id}
-                        onClick={() => roomKick(player)}
+                        disabled={!player.room_player_id || busy === `world-${player.id}`}
+                        onClick={() => roomKickWorld(player)}
                       >
                         房间踢出
                       </Button>
@@ -204,7 +247,7 @@ export default function RoomPlayersPanel({ roomIndex, proxy }) {
                         size="small"
                         color="error"
                         startIcon={<PersonOff fontSize="small" />}
-                        disabled={busy === player.id}
+                        disabled={busy === `world-${player.id}`}
                         onClick={() => kick(player)}
                       >
                         断开
@@ -214,6 +257,75 @@ export default function RoomPlayersPanel({ roomIndex, proxy }) {
                 </Box>
               );
             })}
+            {worldFromMembers.map(member => (
+              <Box key={member.id} sx={{ py: 1.1, borderTop: 1, borderColor: 'divider' }}>
+                <Stack direction="row" spacing={0.8} alignItems="center" justifyContent="space-between">
+                  <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
+                    <StatusDot color="success" />
+                    <Typography fontWeight={750} noWrap>{memberName(member)}</Typography>
+                    <Typography variant="caption" color="text.secondary">已进入世界</Typography>
+                  </Stack>
+                  <Button
+                    size="small"
+                    color="warning"
+                    startIcon={<Block fontSize="small" />}
+                    disabled={busy === `member-${member.id}`}
+                    onClick={() => roomKickMember(member)}
+                  >
+                    房间踢出
+                  </Button>
+                </Stack>
+              </Box>
+            ))}
+
+            <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" fontWeight={800}>仅加入房间</Typography>
+              <Typography variant="caption" color="text.secondary">{waiting.length} 人</Typography>
+            </Stack>
+            {waiting.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 1.2 }}>
+                没有停留在房间界面的玩家。
+              </Typography>
+            ) : (
+              waiting.map(member => (
+                <Box key={member.id} sx={{ py: 1.1, borderTop: 1, borderColor: 'divider' }}>
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1}
+                    justifyContent="space-between"
+                    alignItems={{ xs: 'stretch', sm: 'center' }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack direction="row" spacing={0.8} alignItems="center">
+                        <StatusDot color="info" />
+                        <Typography fontWeight={750} noWrap>{memberName(member)}</Typography>
+                        <Typography variant="caption" color="text.secondary">等待进入服务器</Typography>
+                      </Stack>
+                      {member.joined_at && (
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.2 }}>
+                          已在房间 <LiveDuration since={member.joined_at} />
+                        </Typography>
+                      )}
+                    </Box>
+                    <Button
+                      size="small"
+                      color="warning"
+                      startIcon={<Block fontSize="small" />}
+                      disabled={busy === `member-${member.id}`}
+                      onClick={() => roomKickMember(member)}
+                    >
+                      房间踢出
+                    </Button>
+                  </Stack>
+                </Box>
+              ))
+            )}
+
+            {!proxy && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1.4 }}>
+                转服模式下，进入服务器后的玩家由目标服务器管理；这里仍会显示停留在本地房间的玩家。
+              </Typography>
+            )}
           </Box>
         )}
       </CardContent>

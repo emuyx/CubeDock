@@ -224,3 +224,28 @@ func TestDecodeNewShapeMarksNotLegacy(t *testing.T) {
 		t.Fatalf("profiles = %+v", cfg.Profiles)
 	}
 }
+
+func TestRoomTagsAcceptLegacyBase64AndMarshalAsArray(t *testing.T) {
+	var profile Profile
+	if err := json.Unmarshal([]byte(`{"room_tags":"AAI="}`), &profile); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual([]uint8(profile.RoomTags), []uint8{0, 2}) {
+		t.Fatalf("legacy tags = %v", profile.RoomTags)
+	}
+	raw, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"room_tags":[0,2]`) {
+		t.Fatalf("marshaled tags = %s", raw)
+	}
+
+	var arrayProfile Profile
+	if err := json.Unmarshal([]byte(`{"room_tags":[1,3]}`), &arrayProfile); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual([]uint8(arrayProfile.RoomTags), []uint8{1, 3}) {
+		t.Fatalf("array tags = %v", arrayProfile.RoomTags)
+	}
+}

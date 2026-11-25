@@ -75,14 +75,15 @@ func TestManagerAccountLifecycle(t *testing.T) {
 		t.Fatalf("token = %q, %v", token, err)
 	}
 
-	if err := manager.UpdateAccountProfile(1, "Bobby", "2", 4, ""); err != nil {
+	if err := manager.UpdateAccountProfile(1, "Bobby", "2", 4, "https://example.invalid/avatar.png", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := manager.RemoveAccount(0); err != nil {
 		t.Fatal(err)
 	}
 	accounts = manager.Accounts()
-	if len(accounts) != 1 || accounts[0].Name != "Bobby" || accounts[0].Level != 4 {
+	if len(accounts) != 1 || accounts[0].Name != "Bobby" || accounts[0].Level != 4 ||
+		accounts[0].AvatarURL != "https://example.invalid/avatar.png" {
 		t.Fatalf("after remove = %+v", accounts)
 	}
 	if token, err := manager.Token(0); err != nil || token != "token-b" {
@@ -181,5 +182,36 @@ func TestManagerConfigure(t *testing.T) {
 	bad.Profiles[0].Upstream = "bad"
 	if err := manager.Configure(bad); err == nil {
 		t.Fatal("invalid configuration accepted")
+	}
+}
+
+func TestAccountPasswordStorageAndRemoval(t *testing.T) {
+	manager := newTestManager(t)
+	if _, err := manager.AddAccount("token-password", AccountMeta{
+		Email: "password@example.com", Name: "Password", UID: "9001",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.SaveAccountPassword(0, "local-secret"); err != nil {
+		t.Fatal(err)
+	}
+	password, saved, err := manager.AccountPassword(0)
+	if err != nil || !saved || password != "local-secret" {
+		t.Fatalf("password = %q, saved=%v, err=%v", password, saved, err)
+	}
+	if err := manager.SaveAccountPassword(0, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, saved, err := manager.AccountPassword(0); err != nil || saved {
+		t.Fatalf("password should be removed, saved=%v, err=%v", saved, err)
+	}
+	if err := manager.SaveAccountPassword(0, "remove-with-account"); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RemoveAccount(0); err != nil {
+		t.Fatal(err)
+	}
+	if _, saved, err := manager.AccountPassword(0); err == nil || saved {
+		t.Fatalf("removed account password lookup: saved=%v err=%v", saved, err)
 	}
 }

@@ -157,7 +157,7 @@ func (h *Host) createRoom(profile config.Profile, info auth.RoomInfo) error {
 		return fmt.Errorf("房间节点返回了空房间号")
 	}
 	if len(profile.RoomTags) > 0 {
-		if err := h.send(&packet.TanSetTagListRequest{TagList: profile.RoomTags}); err != nil {
+		if err := h.send(&packet.TanSetTagListRequest{TagList: []uint8(profile.RoomTags)}); err != nil {
 			return fmt.Errorf("设置房间标签失败: %w", err)
 		}
 		if h.trace != nil {

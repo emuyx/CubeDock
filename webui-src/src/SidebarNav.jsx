@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material';
 import { copyText } from './util.js';
 import { useToast } from './App.jsx';
+import AccountAvatar from './AccountAvatar.jsx';
 import PhaseDot from './StatusDot.jsx';
 import PlayersDialog from './PlayersDialog.jsx';
 
@@ -127,9 +128,12 @@ export default function SidebarNav({ page, onSelect, status, onOpenAccount }) {
               }}
             >
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
-                <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }}>
-                  {name}
-                </Typography>
+                <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
+                  <AccountAvatar account={account} size={24} />
+                  <Typography variant="body2" fontWeight={700} noWrap sx={{ minWidth: 0 }}>
+                    {name}
+                  </Typography>
+                </Stack>
                 <PhaseDot phase={phase} sx={{ flexShrink: 0 }} />
               </Stack>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.2 }}>

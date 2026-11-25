@@ -7,9 +7,11 @@ import {
   CardContent,
   CircularProgress,
   Divider,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   MenuItem,
+  Switch,
   TextField,
   Tooltip,
 } from '@mui/material';
@@ -25,6 +27,7 @@ import {
   MonitorHeart,
   PersonAdd,
   PlayArrow,
+  QrCode2,
   Refresh,
   RestartAlt,
   Search,
@@ -38,15 +41,22 @@ import {
   getFriendRequests,
   getPacks,
   refreshPacks,
+  refreshProfile,
   restartRoom,
   startRoom,
   stopRoom,
 } from './api.js';
-import { copyText, downloadText, formatDuration, timestamp } from './util.js';
+import { copyText, downloadText, roomTagValues, timestamp } from './util.js';
 import { useToast } from './App.jsx';
+import LiveDuration from './LiveDuration.jsx';
 import NameAccountDialog from './NameAccountDialog.jsx';
+import AccountAvatar from './AccountAvatar.jsx';
+import ShareRoomDialog from './ShareRoomDialog.jsx';
 import PhaseDot, { StatusDot } from './StatusDot.jsx';
 import RoomPlayersPanel from './RoomPlayersPanel.jsx';
+import roomCover from './assets/background.webp';
+
+const ROOM_TAG_LABELS = ['生存', '创造', '冒险', '模拟', '动作', '建筑', '竞技', '休闲'];
 
 const STATUS = {
   ok: { label: '通过', color: 'success' },
@@ -81,6 +91,8 @@ export default function AccountDashboard({
   status,
   accountIndex,
   onChanged,
+  autoRefresh = true,
+  onAutoRefreshChange,
   onBack,
   onOpenProfiles,
 }) {
@@ -93,12 +105,17 @@ export default function AccountDashboard({
     profiles[0];
   const proxy = (room.connection_mode || account?.connection_mode || 'proxy') === 'proxy';
   const transfer = profile?.connection_mode === 'transfer';
+  const roomTagText = roomTagValues(profile?.room_tags)
+    .map(tag => ROOM_TAG_LABELS[tag])
+    .filter(Boolean)
+    .join(' · ');
   const phase = room.phase || 'stopped';
   const busyPhase = phase === 'starting' || phase === 'stopping';
   const needsName = !account?.name && (account?.profile_error || '').includes('缺少游戏名');
   const [busy, setBusy] = useState('');
   const [assigning, setAssigning] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsError, setDiagnosticsError] = useState('');
@@ -288,12 +305,34 @@ export default function AccountDashboard({
             {account?.name || account?.label || `房间 ${accountIndex + 1}`} 的仪表盘
           </Typography>
         </Stack>
-        <Stack direction="row" spacing={1.4} alignItems="center" flexWrap="wrap" useFlexGap>
-          <PhaseDot phase={phase} />
-          {profile && (
-            <Typography variant="caption" color="text.secondary">
-              配置方案 · {profile.name}
-            </Typography>
+        <Stack
+          direction="row"
+          spacing={1.4}
+          alignItems="center"
+          justifyContent="space-between"
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Stack direction="row" spacing={1.4} alignItems="center" flexWrap="wrap" useFlexGap>
+            <PhaseDot phase={phase} />
+            {profile && (
+              <Typography variant="caption" color="text.secondary">
+                配置方案 · {profile.name}
+              </Typography>
+            )}
+          </Stack>
+          {onAutoRefreshChange && (
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  checked={autoRefresh}
+                  onChange={event => onAutoRefreshChange(event.target.checked)}
+                />
+              }
+              label={<Typography variant="caption" color="text.secondary">自动刷新</Typography>}
+              sx={{ m: 0 }}
+            />
           )}
         </Stack>
       </Stack>
@@ -324,7 +363,44 @@ export default function AccountDashboard({
           gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(300px, .8fr)' },
         }}
       >
-        <Card>
+        <Card sx={{ overflow: 'hidden' }}>
+          <Box
+            sx={{
+              px: { xs: 2.2, sm: 3 },
+              py: 2,
+              color: '#fff',
+              backgroundImage: `linear-gradient(120deg, rgba(20,22,37,.35), rgba(20,22,37,.82)), url(${roomCover})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center 35%',
+            }}
+          >
+            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
+              <Stack direction="row" spacing={1.3} alignItems="center" sx={{ minWidth: 0 }}>
+                <AccountAvatar account={account} size={44} />
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography fontWeight={800} noWrap>
+                    {account?.name || '未命名账号'}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,.74)' }} noWrap>
+                    {account?.level ? `Lv.${account.level} · ` : ''}
+                    {profile?.name || '默认配置'}
+                  </Typography>
+                </Box>
+              </Stack>
+              <PhaseDot
+                phase={phase}
+                sx={{
+                  flexShrink: 0,
+                  px: 1,
+                  py: 0.35,
+                  borderRadius: 999,
+                  bgcolor: 'rgba(8,8,24,.38)',
+                  backdropFilter: 'blur(6px)',
+                  '& .MuiTypography-root': { color: 'rgba(255,255,255,.82)' },
+                }}
+              />
+            </Stack>
+          </Box>
           <CardContent sx={{ p: { xs: 2.2, sm: 3 } }}>
             <Stack
               direction={{ xs: 'column', sm: 'row' }}
@@ -348,6 +424,13 @@ export default function AccountDashboard({
                         </IconButton>
                       </span>
                     </Tooltip>
+                    <Tooltip title="分享房间二维码">
+                      <span>
+                        <IconButton size="small" aria-label="分享房间二维码" onClick={() => setShareOpen(true)}>
+                          <QrCode2 />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Stack>
                 ) : (
                   <Typography variant="h5" color="text.disabled" sx={{ mt: 1 }}>
@@ -357,6 +440,21 @@ export default function AccountDashboard({
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
                   {profile?.room_name || '未设置房间名'}
                 </Typography>
+                <Stack direction="row" spacing={1.2} flexWrap="wrap" useFlexGap sx={{ mt: 0.4 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {profile?.friends_only ? '好友可见' : '所有人可见'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {proxy
+                      ? `${room.players ?? 0} / ${profile?.max_players ?? 10} 人`
+                      : '转服模式'}
+                  </Typography>
+                  {roomTagText && (
+                    <Typography variant="caption" color="text.secondary">
+                      {roomTagText}
+                    </Typography>
+                  )}
+                </Stack>
               </Box>
               <Box
                 sx={{
@@ -400,13 +498,13 @@ export default function AccountDashboard({
             <Divider sx={{ my: 2 }} />
             <Stack direction="row" spacing={{ xs: 2.4, sm: 4 }} flexWrap="wrap" useFlexGap rowGap={1.4}>
               <Metric
-                label="在线玩家"
+                label="已进入服务器"
                 value={proxy ? room.players ?? 0 : '—'}
-                hint={proxy ? undefined : '由目标服务器管理'}
+                hint={proxy ? '大厅内等待的玩家见下方' : '由目标服务器管理'}
               />
               <Metric
                 label="在线时间"
-                value={room.connected_at ? formatDuration(room.connected_at) : '—'}
+                value={<LiveDuration since={room.connected_at} />}
                 hint={room.retry_at ? '等待重连' : undefined}
               />
               <Metric label="连接方式" value={transfer ? '转服' : '代理'} />
@@ -458,6 +556,14 @@ export default function AccountDashboard({
                   onClick={() => setNameOpen(true)}
                 >
                   {account?.name ? '修改游戏名' : '设置游戏名'}
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<Refresh />}
+                  disabled={status.running || !!busy}
+                  onClick={() => act('profile', refreshProfile, '账号资料已刷新')}
+                >
+                  刷新资料
                 </Button>
               </Stack>
             </Stack>
@@ -632,7 +738,7 @@ export default function AccountDashboard({
         </Card>
       </Box>
 
-      <RoomPlayersPanel roomIndex={accountIndex} proxy={proxy} />
+      <RoomPlayersPanel roomIndex={accountIndex} proxy={proxy} phase={phase} autoRefresh={autoRefresh} />
 
       <Card>
         <CardContent>
@@ -708,6 +814,14 @@ export default function AccountDashboard({
           setNameOpen(false);
           onChanged?.();
         }}
+      />
+
+      <ShareRoomDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        roomId={room.room_id}
+        ownerUid={account?.uid}
+        roomName={profile?.room_name}
       />
 
     </Stack>

@@ -55,7 +55,11 @@ func (c *Client) fetchProfile(ctx context.Context) (Profile, error) {
 	if result.Code != 0 {
 		return Profile{}, fmt.Errorf("读取网易用户资料失败 (code %d): %s", result.Code, result.Message)
 	}
-	identity := Profile{Name: result.Entity.Name, UID: creds.UserID, Level: result.Entity.Level}
+	avatar := strings.TrimSpace(result.Entity.AvatarImageURL)
+	if avatar == "" {
+		avatar = strings.TrimSpace(result.Entity.HeadImage)
+	}
+	identity := Profile{Name: result.Entity.Name, UID: creds.UserID, Level: result.Entity.Level, AvatarURL: avatar}
 	if identity.Name == "" {
 		return identity, &ProfileNameMissingError{Profile: identity}
 	}

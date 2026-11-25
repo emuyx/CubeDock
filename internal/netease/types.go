@@ -64,9 +64,10 @@ type Credentials struct {
 
 // Profile is the public game identity behind a session.
 type Profile struct {
-	Name  string
-	UID   string
-	Level int
+	Name      string
+	UID       string
+	Level     int
+	AvatarURL string
 }
 
 // TransferServer is one entry in NetEase's transfer-node list.

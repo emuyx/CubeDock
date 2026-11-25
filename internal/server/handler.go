@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -94,6 +95,8 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 	mux.HandleFunc("POST /api/account/profile", h.refreshProfile)
 	mux.HandleFunc("POST /api/account/set-name", h.setAccountName)
 	mux.HandleFunc("POST /api/account/assign-profile", h.assignProfile)
+	mux.HandleFunc("GET /api/account/password", h.accountPassword)
+	mux.HandleFunc("POST /api/account/password", h.saveAccountPassword)
 	mux.Handle("GET /", http.FileServer(http.FS(webui.Root())))
 
 	port := manager.Snapshot().Config.WebPort
@@ -109,7 +112,8 @@ func NewHandler(manager *core.Manager, admin *Admin, runtime RuntimeInfo) http.H
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; "+
-				"style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
+				"style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; "+
+				"img-src 'self' data: https:; frame-ancestors 'none'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -319,7 +323,7 @@ func (h *consoleHandler) saveConfig(w http.ResponseWriter, r *http.Request) {
 func (h *consoleHandler) saveSession(token, platform, authMethod, expiresAt, email, label, profileID, profileErr string, profile auth.Profile, index *int) (int, error) {
 	meta := core.AccountMeta{
 		Email: strings.TrimSpace(email), Label: strings.TrimSpace(label),
-		Name: profile.Name, UID: profile.UID, Level: profile.Level,
+		Name: profile.Name, UID: profile.UID, Level: profile.Level, AvatarURL: profile.AvatarURL,
 		Platform: platform, AuthMethod: authMethod, ExpiresAt: expiresAt,
 		ProfileError: profileErr,
 		ProfileID:    strings.TrimSpace(profileID),
@@ -407,7 +411,8 @@ func (h *consoleHandler) respondSession(w http.ResponseWriter, token, platform, 
 	}
 	result := map[string]any{
 		"ok": true, "index": savedIndex, "name": profile.Name, "uid": profile.UID,
-		"level": profile.Level, "platform": platform, "auth_method": authMethod,
+		"level": profile.Level, "avatar_url": profile.AvatarURL,
+		"platform": platform, "auth_method": authMethod,
 		"expires_at": expiresAt, "profile_id": h.accountProfileID(savedIndex),
 	}
 	if expiresAt == "" {
@@ -727,17 +732,17 @@ func (h *consoleHandler) refreshProfile(w http.ResponseWriter, r *http.Request) 
 	profile, fetchErr := auth.LookupProfileFor(ctx, method, token)
 	if fetchErr != nil {
 		message := redact.Sanitize(fetchErr.Error(), token)
-		_ = h.manager.UpdateAccountProfile(body.Index, "", "", 0, message)
+		_ = h.manager.UpdateAccountProfile(body.Index, "", "", 0, "", message)
 		h.manager.Record("账号", fmt.Sprintf("房间 %d 游戏名解析失败：%s", body.Index+1, message))
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.UpdateAccountProfile(body.Index, profile.Name, profile.UID, profile.Level, ""); err != nil {
+	if err := h.manager.UpdateAccountProfile(body.Index, profile.Name, profile.UID, profile.Level, profile.AvatarURL, ""); err != nil {
 		http.Error(w, "保存账号资料失败", http.StatusInternalServerError)
 		return
 	}
 	h.manager.Record("账号", fmt.Sprintf("房间 %d 游戏名解析成功：%s（UID %s）", body.Index+1, profile.Name, profile.UID))
-	respond(w, map[string]any{"ok": true, "name": profile.Name, "uid": profile.UID, "level": profile.Level})
+	respond(w, map[string]any{"ok": true, "name": profile.Name, "uid": profile.UID, "level": profile.Level, "avatar_url": profile.AvatarURL})
 }
 
 // setAccountName sets the game name for a new account that has no name yet.
@@ -787,15 +792,55 @@ func (h *consoleHandler) setAccountName(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.UpdateAccountProfile(body.Index, profile.Name, profile.UID, profile.Level, ""); err != nil {
+	if err := h.manager.UpdateAccountProfile(body.Index, profile.Name, profile.UID, profile.Level, profile.AvatarURL, ""); err != nil {
 		http.Error(w, "保存账号资料失败", http.StatusInternalServerError)
 		return
 	}
 	h.manager.Record("账号", fmt.Sprintf("房间 %d 已设置游戏名：%s", body.Index+1, profile.Name))
 	respond(w, map[string]any{
 		"ok": true, "index": body.Index, "name": profile.Name,
-		"uid": profile.UID, "level": profile.Level,
+		"uid": profile.UID, "level": profile.Level, "avatar_url": profile.AvatarURL,
 	})
+}
+
+func (h *consoleHandler) accountPassword(w http.ResponseWriter, r *http.Request) {
+	if !loopbackRequest(r) {
+		http.Error(w, "本地保存的密码仅允许本机控制台读取", http.StatusForbidden)
+		return
+	}
+	index, err := strconv.Atoi(r.URL.Query().Get("index"))
+	if err != nil || index < 0 {
+		http.Error(w, "账号序号无效", http.StatusBadRequest)
+		return
+	}
+	password, saved, err := h.manager.AccountPassword(index)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	respond(w, map[string]any{"saved": saved, "password": password})
+}
+
+func (h *consoleHandler) saveAccountPassword(w http.ResponseWriter, r *http.Request) {
+	if !loopbackRequest(r) {
+		http.Error(w, "本地保存的密码仅允许本机控制台写入", http.StatusForbidden)
+		return
+	}
+	var body struct {
+		Index    int    `json:"index"`
+		Password string `json:"password"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil || body.Index < 0 {
+		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	if err := h.manager.SaveAccountPassword(body.Index, body.Password); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	respond(w, map[string]any{"ok": true, "saved": body.Password != ""})
 }
 
 func (h *consoleHandler) accountProfileID(index int) string {

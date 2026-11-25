@@ -37,6 +37,9 @@ export const stopRoom = index => api('room/stop', { index });
 export const restartRoom = index => api('room/restart', { index });
 export const assignProfile = (index, profileId) =>
   api('account/assign-profile', { index, profile_id: profileId });
+export const refreshProfile = index => api('account/profile', { index });
+export const getSavedPassword = index => api(`account/password?index=${encodeURIComponent(index)}`, undefined, 'GET');
+export const saveAccountPassword = (index, password) => api('account/password', { index, password });
 
 export const getPacks = profileId =>
   api(`packs${profileId ? `?profile_id=${encodeURIComponent(profileId)}` : ''}`, undefined, 'GET');

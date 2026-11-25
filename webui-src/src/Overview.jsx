@@ -9,10 +9,13 @@ import {
 } from '@mui/material';
 import Typography from './Typography.jsx';
 import Stack from './Stack.jsx';
-import { ContentCopy, PlayArrow, Stop } from '@mui/icons-material';
+import { ContentCopy, PlayArrow, QrCode2, Stop } from '@mui/icons-material';
 import { api } from './api.js';
-import { copyText, formatDuration } from './util.js';
+import { copyText } from './util.js';
 import { useToast } from './App.jsx';
+import AccountAvatar from './AccountAvatar.jsx';
+import LiveDuration from './LiveDuration.jsx';
+import ShareRoomDialog from './ShareRoomDialog.jsx';
 import PhaseDot from './StatusDot.jsx';
 
 function Metric({ label, value, hint }) {
@@ -36,8 +39,12 @@ function Metric({ label, value, hint }) {
 export default function Overview({ status, onChanged, onOpenSetup, onOpenAccount }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
+  const [share, setShare] = useState(null);
   const accounts = status.accounts || [];
   const rooms = status.rooms || [];
+  const profiles = status.config?.profiles || [];
+  const profileOf = index =>
+    profiles.find(profile => profile.id === (accounts[index]?.profile_id || profiles[0]?.id)) || profiles[0];
   const activeRooms = rooms
     .map((room, index) => ({ room, index }))
     .filter(({ room }) => room.phase && room.phase !== 'stopped');
@@ -173,7 +180,7 @@ export default function Overview({ status, onChanged, onOpenSetup, onOpenAccount
           <Metric label="账号" value={accounts.length} hint={`${activeRooms.length} 个房间运行中`} />
           <Metric
             label="在线时间"
-            value={status.running ? formatDuration(status.connected_at) : '—'}
+            value={<LiveDuration since={status.running ? status.connected_at : ''} />}
             hint={status.retry_at ? '等待自动重连' : undefined}
           />
         </Stack>
@@ -201,6 +208,7 @@ export default function Overview({ status, onChanged, onOpenSetup, onOpenAccount
                 >
                   <Box sx={{ minWidth: 0 }}>
                     <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <AccountAvatar account={accounts[index]} size={28} />
                       <PhaseDot phase={room.phase} />
                       <Typography fontWeight={750} noWrap>
                         房间 {index + 1}
@@ -234,15 +242,44 @@ export default function Overview({ status, onChanged, onOpenSetup, onOpenAccount
                       </Typography>
                     </Stack>
                   </Box>
-                  <Button size="small" onClick={() => onOpenAccount?.(index)}>
-                    仪表盘
-                  </Button>
+                  <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
+                    <Tooltip title="分享房间二维码">
+                      <span>
+                        <IconButton
+                          size="small"
+                          aria-label="分享房间二维码"
+                          title="分享房间二维码"
+                          disabled={!room.room_id || !accounts[index]?.uid}
+                          onClick={() =>
+                            setShare({
+                              roomId: room.room_id,
+                              ownerUid: accounts[index]?.uid,
+                              roomName: profileOf(index)?.room_name,
+                            })
+                          }
+                        >
+                          <QrCode2 fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Button size="small" onClick={() => onOpenAccount?.(index)}>
+                      仪表盘
+                    </Button>
+                  </Stack>
                 </Stack>
               </Box>
             ))}
           </Box>
         </Box>
       )}
+
+      <ShareRoomDialog
+        open={!!share}
+        onClose={() => setShare(null)}
+        roomId={share?.roomId}
+        ownerUid={share?.ownerUid}
+        roomName={share?.roomName}
+      />
     </Stack>
   );
 }

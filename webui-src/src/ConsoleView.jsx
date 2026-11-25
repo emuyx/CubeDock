@@ -89,6 +89,7 @@ export default function ConsoleView({ mode, toggleMode, background, toggleBackgr
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [setupActive, setSetupActive] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -101,6 +102,7 @@ export default function ConsoleView({ mode, toggleMode, background, toggleBackgr
   }, []);
 
   useEffect(() => {
+    if (!autoRefresh) return undefined;
     let active = true;
     let timer;
     const tick = async () => {
@@ -112,7 +114,11 @@ export default function ConsoleView({ mode, toggleMode, background, toggleBackgr
       active = false;
       clearTimeout(timer);
     };
-  }, [load]);
+  }, [load, autoRefresh]);
+
+  useEffect(() => {
+    if (accountIndex === null) setAutoRefresh(true);
+  }, [accountIndex]);
 
   useEffect(() => {
     if (!status) return;
@@ -301,6 +307,8 @@ export default function ConsoleView({ mode, toggleMode, background, toggleBackgr
                     status={status}
                     accountIndex={accountIndex}
                     onChanged={refresh}
+                    autoRefresh={autoRefresh}
+                    onAutoRefreshChange={setAutoRefresh}
                     onBack={() => setAccountIndex(null)}
                     onOpenProfiles={() => {
                       setAccountIndex(null);

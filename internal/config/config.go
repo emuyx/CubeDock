@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -37,6 +38,48 @@ const (
 
 var profileIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
+// RoomTags is the profile's NetEase room-tag list. It marshals as a JSON array
+// of numbers; older configs stored the []uint8 field as a base64 string, which
+// UnmarshalJSON still accepts so existing files migrate on the next save.
+type RoomTags []uint8
+
+func (t RoomTags) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return []byte("null"), nil
+	}
+	out := make([]int, len(t))
+	for index, tag := range t {
+		out[index] = int(tag)
+	}
+	return json.Marshal(out)
+}
+
+func (t *RoomTags) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if bytes.Equal(trimmed, []byte("null")) {
+		*t = nil
+		return nil
+	}
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		var values []uint8
+		if err := json.Unmarshal(trimmed, &values); err != nil {
+			return err
+		}
+		*t = values
+		return nil
+	}
+	var encoded string
+	if err := json.Unmarshal(trimmed, &encoded); err != nil {
+		return err
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return fmt.Errorf("房间标签格式无效: %w", err)
+	}
+	*t = append((*t)[:0], raw...)
+	return nil
+}
+
 // Profile is one named set of upstream, limbo and room settings.
 type Profile struct {
 	ID                 string  `json:"id"`
@@ -53,7 +96,7 @@ type Profile struct {
 	RoomName           string  `json:"room_name"`
 	RoomGameVersion    string  `json:"room_game_version"`
 	RoomPassword       string  `json:"room_password"`
-	RoomTags           []uint8 `json:"room_tags,omitempty"`
+	RoomTags           RoomTags `json:"room_tags,omitempty"`
 	MinLevel           uint32  `json:"min_level"`
 	MaxPlayers         int     `json:"max_players"`
 	FriendsOnly        bool    `json:"friends_only"`
@@ -65,11 +108,13 @@ type Profile struct {
 // Config is the persisted non-secret configuration. Account credentials and
 // device keys live in separately protected files.
 type Config struct {
-	Profiles  []Profile `json:"profiles"`
-	LimboPath string    `json:"limbo_path,omitempty"`
-	AutoStart bool      `json:"auto_start"`
-	WebPort   int       `json:"web_port"`
-	Debug     bool      `json:"debug"`
+	Profiles         []Profile `json:"profiles"`
+	LimboPath        string    `json:"limbo_path,omitempty"`
+	AutoStart        bool      `json:"auto_start"`
+	WebPort          int       `json:"web_port"`
+	Debug            bool      `json:"debug"`
+	KeepAlive        bool      `json:"keep_alive"`
+	KeepAliveMinutes int       `json:"keep_alive_minutes,omitempty"`
 }
 
 // DefaultProfile returns the profile used by a fresh installation.
@@ -97,8 +142,10 @@ func DefaultProfile() Profile {
 // Defaults returns a usable configuration for a fresh data directory.
 func Defaults() Config {
 	return Config{
-		Profiles: []Profile{DefaultProfile()},
-		WebPort:  18321,
+		Profiles:         []Profile{DefaultProfile()},
+		WebPort:          18321,
+		KeepAlive:        true,
+		KeepAliveMinutes: 30,
 	}
 }
 
@@ -176,6 +223,18 @@ func (c *Config) Normalize() bool {
 	}
 	if c.WebPort == 0 {
 		c.WebPort = 18321
+		changed = true
+	}
+	if c.KeepAliveMinutes == 0 {
+		c.KeepAliveMinutes = 30
+		changed = true
+	}
+	if c.KeepAliveMinutes < 5 {
+		c.KeepAliveMinutes = 5
+		changed = true
+	}
+	if c.KeepAliveMinutes > 1440 {
+		c.KeepAliveMinutes = 1440
 		changed = true
 	}
 	return changed
