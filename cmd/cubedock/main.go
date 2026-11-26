@@ -239,6 +239,7 @@ func run() error {
 			LocalURL:      localURL,
 			LANURLs:       lanURLs,
 			OpenURL:       openBrowser,
+			CreateAdmin:   admin.CompleteSetup,
 		})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "终端控制台不可用：", err)

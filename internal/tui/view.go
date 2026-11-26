@@ -10,6 +10,7 @@ import (
 
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/core"
+	"github.com/emuyx/cubedock/internal/netease"
 )
 
 const minWidth = 34
@@ -114,30 +115,49 @@ func (m Model) contentView(info screenLayout) []string {
 	if info.framed {
 		lines = append(lines, m.frameView(info, pageLines)...)
 	} else {
-		lines = append(lines, fitLines(pageLines, info.contentArea.W, frameHeight)...)
+		visible, _, _ := windowLines(pageLines, frameHeight, m.contentOffset)
+		lines = append(lines, fitLines(visible, info.contentArea.W, frameHeight)...)
 	}
 	return fitLines(lines, info.contentArea.W, info.contentArea.H)
 }
 
 func (m Model) pageLines(info screenLayout) []string {
 	if m.modal != modalNone {
-		return scrollLines(m.importView(info.content.W, info.content.H), m.contentOffset, info.content.H)
+		switch m.modal {
+		case modalLogin:
+			return m.loginView(info.content.W)
+		case modalName:
+			return m.nameView(info.content.W)
+		case modalAdmin:
+			return m.adminView(info.content.W)
+		case modalRestore:
+			return m.restoreView(info.content.W)
+		case modalProfileTags:
+			return m.tagsView(info.content.W)
+		case modalProfileRoomName:
+			return m.roomNameView(info.content.W)
+		default:
+			return m.importView(info.content.W, info.content.H)
+		}
 	}
 	switch m.page {
 	case pageHome:
-		return scrollLines(m.homeView(info.content.W), m.contentOffset, info.content.H)
+		return m.homeView(info.content.W)
 	case pageAccounts:
 		return m.roomsView(info)
 	case pageProfiles:
-		return scrollLines(m.profilesView(info.content.W), m.contentOffset, info.content.H)
+		if m.profileEditing {
+			return m.profileFormView(info.content.W)
+		}
+		return m.profilesView(info.content.W)
 	case pageLogs:
 		return m.logsView(info.content.W, info.content.H)
 	case pageDiagnostics:
-		return scrollLines(m.diagnosticsView(info.content.W), m.contentOffset, info.content.H)
+		return m.diagnosticsView(info.content.W)
 	case pageSettings:
-		return scrollLines(m.settingsView(info.content.W), m.contentOffset, info.content.H)
+		return m.settingsView(info.content.W)
 	case pageFAQ:
-		return scrollLines(m.helpView(info.content.W), m.contentOffset, info.content.H)
+		return m.helpView(info.content.W)
 	default:
 		return nil
 	}
@@ -186,8 +206,27 @@ func (m Model) frameView(info screenLayout, content []string) []string {
 		return content
 	}
 	title := pageLabel(m.page)
-	if m.modal != modalNone {
+	switch m.modal {
+	case modalImportSauth:
 		title = "添加账号 · Sauth"
+	case modalLogin:
+		title = "登录网易账号"
+	case modalName:
+		title = "设置游戏名"
+	case modalAdmin:
+		title = "初始化管理员"
+	case modalRestore:
+		title = "恢复配置"
+	case modalProfileTags:
+		title = "大厅标签"
+	case modalProfileRoomName:
+		title = "房间名称"
+	}
+	if m.profileEditing {
+		title = "配置方案 · 编辑"
+		if m.profileDirty {
+			title += " *"
+		}
 	}
 	border := frameBorderStyle
 	if m.focus == focusContent {
@@ -201,17 +240,29 @@ func (m Model) frameView(info screenLayout, content []string) []string {
 	if fill < 0 {
 		fill = 0
 	}
+	window, offset, maxOffset := windowLines(content, info.content.H, m.contentOffset)
+	window = fitLines(window, info.content.W, info.content.H)
+	thumbStart, thumbSize := scrollbarThumb(len(content), info.content.H, offset, maxOffset)
 	lines := []string{
 		border.Render("╭") + frameTitleStyle.Render(label) + border.Render(strings.Repeat("─", fill)+"╮"),
 	}
-	for _, line := range fitLines(content, info.content.W, info.content.H) {
-		lines = append(lines, border.Render("│")+line+border.Render("│"))
+	for index, line := range window {
+		right := "│"
+		style := border
+		if maxOffset > 0 && index >= thumbStart && index < thumbStart+thumbSize {
+			right = "┃"
+			style = frameTitleStyle
+		}
+		lines = append(lines, border.Render("│")+line+style.Render(right))
 	}
 	lines = append(lines, border.Render("╰"+strings.Repeat("─", maxInt(0, info.frame.W-2))+"╯"))
 	return lines
 }
 
-func scrollLines(lines []string, offset, height int) []string {
+func windowLines(lines []string, height, offset int) ([]string, int, int) {
+	if height < 1 {
+		height = 1
+	}
 	maxOffset := len(lines) - height
 	if maxOffset < 0 {
 		maxOffset = 0
@@ -222,11 +273,33 @@ func scrollLines(lines []string, offset, height int) []string {
 	if offset > maxOffset {
 		offset = maxOffset
 	}
-	lines = lines[offset:]
-	if len(lines) > height {
-		lines = lines[:height]
+	end := offset + height
+	if end > len(lines) {
+		end = len(lines)
 	}
-	return lines
+	return lines[offset:end], offset, maxOffset
+}
+
+func scrollbarThumb(total, height, offset, maxOffset int) (int, int) {
+	if maxOffset <= 0 || total <= height {
+		return 0, 0
+	}
+	thumbSize := height * height / total
+	if thumbSize < 1 {
+		thumbSize = 1
+	}
+	if thumbSize > height {
+		thumbSize = height
+	}
+	span := height - thumbSize
+	if span < 0 {
+		span = 0
+	}
+	thumbStart := 0
+	if maxOffset > 0 {
+		thumbStart = offset * span / maxOffset
+	}
+	return thumbStart, thumbSize
 }
 
 func (m Model) tinyView() string {
@@ -267,6 +340,15 @@ func (m Model) headerView() string {
 	return strings.Join(lines, "\n")
 }
 
+func (m Model) spinner() string {
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	return frames[m.frame%len(frames)]
+}
+
+func (m Model) busyLabel(label string) string {
+	return infoStyle.Render(m.spinner() + " " + label)
+}
+
 func (m Model) statusLine(width int) string {
 	phase := m.status.Phase
 	if phase == "" {
@@ -282,7 +364,7 @@ func (m Model) statusLine(width int) string {
 		dimStyle.Render(fmt.Sprintf("%d 个房间 · %d 位玩家", activeRoomCount(m.status), m.status.Players)),
 	}
 	if m.busy {
-		parts = append(parts, infoStyle.Render("处理中…"))
+		parts = append(parts, m.busyLabel("处理中"))
 	}
 	if m.options.AdminName != "" && width >= 110 {
 		parts = append(parts, dimStyle.Render("管理员 "+m.options.AdminName))
@@ -307,27 +389,72 @@ func (m Model) footerView() string {
 		}
 		lines = append(lines, truncate(accentStyle.Render(text), width))
 	} else if m.busy {
-		lines = append(lines, infoStyle.Render("处理中…"))
+		lines = append(lines, m.busyLabel("处理中"))
 	}
 	lines = append(lines, truncate(dimStyle.Render(m.keyHints(width)), width))
 	return strings.Join(lines, "\n")
 }
 
 func (m Model) keyHints(width int) string {
-	if m.modal != modalNone {
+	switch m.modal {
+	case modalImportSauth:
 		if width >= 60 {
 			return "Enter 导入  Esc 取消  直接粘贴 sauth/session JSON"
 		}
 		return "Enter 导入  Esc 取消"
+	case modalLogin:
+		if width >= 70 {
+			return "Tab/↑↓ 切换字段  ←→ 切换平台  Enter 登录  Esc 取消"
+		}
+		return "Tab 字段  ←→ 平台  Enter 登录  Esc"
+	case modalName:
+		if width >= 60 {
+			return "Enter 保存游戏名  Esc 跳过（稍后可用 WebUI 设置）"
+		}
+		return "Enter 保存  Esc 跳过"
+	case modalAdmin:
+		if width >= 60 {
+			return "Tab/↑↓ 切换字段  Enter 创建管理员  Esc 稍后"
+		}
+		return "Tab 字段  Enter 创建  Esc 稍后"
+	case modalRestore:
+		if width >= 60 {
+			return "Enter 恢复配置  Esc 取消  相对路径按数据目录解析"
+		}
+		return "Enter 恢复  Esc 取消"
 	}
 	suffix := ""
+	if m.modal == modalProfileTags {
+		if width >= 60 {
+			return "↑↓ 选择  Space 切换  Enter/Esc 完成"
+		}
+		return "↑↓ Space Enter"
+	}
+	if m.modal == modalProfileRoomName {
+		if width >= 60 {
+			return "↑↓ 选择内置房间名  Enter 使用  Esc 取消"
+		}
+		return "↑↓ Enter Esc"
+	}
+	if m.profileEditing {
+		if width >= 90 {
+			return "↑↓ 字段  Enter 编辑/切换  Ctrl+S 保存  Esc 取消  PgUp/PgDn 滚动"
+		}
+		return "↑↓ 字段 Enter 编辑 Ctrl+S 保存 Esc"
+	}
 	switch m.page {
+	case pageProfiles:
+		suffix = "  Enter 编辑"
 	case pageAccounts:
 		suffix = "  s/x/r 操作"
 	case pageLogs:
 		suffix = "  f 筛选"
 	case pageDiagnostics:
 		suffix = "  Enter/R 诊断"
+	case pageSettings:
+		if m.options.SetupRequired {
+			suffix = "  a 初始化管理员"
+		}
 	}
 	switch {
 	case width >= 120:
@@ -546,6 +673,122 @@ func (m Model) logsView(width, height int) []string {
 	return lines
 }
 
+func (m Model) loginView(width int) []string {
+	platformLabel := "互通版"
+	if m.loginPlatform == string(netease.AuthMobileNetEase) {
+		platformLabel = "网易手游"
+	}
+	platformText := "平台: " + platformLabel
+	if m.loginField == 2 {
+		if m.loginPlatform == string(netease.AuthMobileNetEase) {
+			platformText = "平台: 互通版 [网易手游]"
+		} else {
+			platformText = "平台: [互通版] 网易手游"
+		}
+	}
+	lines := []string{
+		textStyle.Render("使用网易邮箱和密码登录；互通版或网易手游。"),
+		dimStyle.Render("4399 账号/图形验证码请使用 WebUI。"),
+		dimStyle.Render(truncate("配置方案: "+m.defaultProfileLabel(), width)),
+		dimStyle.Render(""),
+		fieldLine("邮箱", m.loginEmail, m.loginEmailCursor, false, m.loginField == 0, width),
+		fieldLine("密码", m.loginPassword, m.loginPasswordCursor, true, m.loginField == 1, width),
+		textStyle.Render(truncate(platformText, width)),
+		dimStyle.Render("Tab/↑↓ 切换字段，←→ 切换平台，Enter 登录"),
+	}
+	if m.modalBusy {
+		lines = append(lines, m.busyLabel("正在登录并验证网易账号"))
+	}
+	if m.loginVerifyNote != "" || m.loginVerifyURL != "" {
+		lines = append(lines, warnStyle.Render(truncate(m.loginVerifyNote, width)))
+		if m.loginVerifyURL != "" {
+			for _, line := range wrapDisplay(m.loginVerifyURL, maxInt(1, width-2)) {
+				lines = append(lines, linkStyle.Render(truncate(line, width)))
+			}
+			lines = append(lines, dimStyle.Render("Ctrl+O 打开验证链接；完成后再次按 Enter。"))
+		}
+	}
+	if m.modalErr != "" {
+		lines = append(lines, errorStyle.Render(truncate(m.modalErr, width)))
+	}
+	return lines
+}
+
+func (m Model) restoreView(width int) []string {
+	lines := []string{
+		textStyle.Render("从 CubeDock 配置备份恢复方案和全局设置。"),
+		dimStyle.Render("不恢复网易登录凭证；房间必须已停止。"),
+		dimStyle.Render("相对路径按数据目录解析，例如 cubedock-backup-20260101-120000.json。"),
+		dimStyle.Render(""),
+		fieldLine("备份路径", m.input, m.inputCursor, false, true, width),
+		dimStyle.Render("Enter 恢复，Esc 取消。"),
+	}
+	if m.modalBusy {
+		lines = append(lines, m.busyLabel("正在读取并恢复配置"))
+	}
+	if m.modalErr != "" {
+		lines = append(lines, errorStyle.Render(truncate(m.modalErr, width)))
+	}
+	return lines
+}
+
+func (m Model) adminView(width int) []string {
+	lines := []string{
+		textStyle.Render("创建本机管理员账号，用于登录 WebUI 和终端控制台。"),
+		dimStyle.Render("管理员密码只保存在本机 admin.json；初始化只允许在本机完成。"),
+		dimStyle.Render(""),
+		fieldLine("管理员账号", m.adminUser, m.adminUserCursor, false, m.adminField == 0, width),
+		fieldLine("密码", m.adminPassword, m.adminPasswordCursor, true, m.adminField == 1, width),
+		fieldLine("确认密码", m.adminConfirm, m.adminConfirmCursor, true, m.adminField == 2, width),
+		dimStyle.Render("密码 8–72 字节；Tab/↑↓ 切换字段，Enter 创建。"),
+	}
+	if m.modalBusy {
+		lines = append(lines, m.busyLabel("正在创建管理员"))
+	}
+	if m.modalErr != "" {
+		lines = append(lines, errorStyle.Render(truncate(m.modalErr, width)))
+	}
+	if m.options.AdminName != "" && !m.options.SetupRequired {
+		lines = append(lines, dimStyle.Render("当前管理员: "+m.options.AdminName))
+	}
+	return lines
+}
+
+func (m Model) nameView(width int) []string {
+	lines := []string{
+		textStyle.Render("账号已添加，但网易还没有返回游戏名。"),
+		dimStyle.Render("游戏名长度 3–12 个字符；中文按 1.5 个字符计算。"),
+		dimStyle.Render(""),
+		fieldLine("游戏名", m.nameInput, m.nameCursor, false, true, width),
+		dimStyle.Render("Enter 保存，Esc 跳过（稍后可用 WebUI 设置）。"),
+	}
+	if m.modalBusy {
+		lines = append(lines, m.busyLabel("正在保存游戏名"))
+	}
+	if m.modalErr != "" {
+		lines = append(lines, errorStyle.Render(truncate(m.modalErr, width)))
+	}
+	return lines
+}
+
+func fieldLine(label string, value []rune, cursor int, masked, active bool, width int) string {
+	cursor = clampInt(cursor, 0, len(value))
+	display := append([]rune(nil), value...)
+	if masked {
+		for index := range display {
+			display[index] = '*'
+		}
+	}
+	if active {
+		marked := make([]rune, 0, len(display)+1)
+		marked = append(marked, display[:cursor]...)
+		marked = append(marked, '▌')
+		marked = append(marked, display[cursor:]...)
+		display = marked
+	}
+	return textStyle.Render(truncate(label+": "+string(display), width))
+}
+
 func (m Model) importView(width, height int) []string {
 	lines := []string{
 		textStyle.Render("粘贴 sauth/session JSON（互通版 / 网易手游 / 4399）："),
@@ -554,7 +797,7 @@ func (m Model) importView(width, height int) []string {
 		dimStyle.Render(""),
 	}
 	if m.modalBusy {
-		lines = append(lines, infoStyle.Render("正在验证会话并添加账号…"))
+		lines = append(lines, m.busyLabel("正在验证会话并添加账号"))
 	}
 	if m.modalErr != "" {
 		lines = append(lines, errorStyle.Render(truncate(m.modalErr, width)))
@@ -726,19 +969,30 @@ func (m Model) profilesView(width int) []string {
 		lines = append(lines, dimStyle.Render("还没有配置方案，请打开 WebUI 添加。"))
 		return lines
 	}
-	for _, profile := range profiles {
+	for index, profile := range profiles {
 		count := m.accountsUsingProfile(profile.ID)
-		line := fmt.Sprintf("● %s（%s）· %s · %d 个账号",
-			profile.Name, profile.ID, connectionLabel(profile.ConnectionMode), count)
-		lines = append(lines, textStyle.Render(truncate(line, width)))
+		marker := "  "
+		if index == m.profileIndex {
+			marker = "▌ "
+		}
+		line := fmt.Sprintf("%s● %s（%s）· %s · %d 个账号",
+			marker, profile.Name, profile.ID, connectionLabel(profile.ConnectionMode), count)
+		line = padRightPlain(truncate(line, width), width)
+		if index == m.profileIndex {
+			lines = append(lines, selectedRowStyle.Render(line))
+		} else {
+			lines = append(lines, textStyle.Render(line))
+		}
 		lines = append(lines, dimStyle.Render(truncate("  "+profile.Upstream, width)))
 	}
+	lines = append(lines, dimStyle.Render(""))
+	lines = append(lines, dimStyle.Render("Enter 编辑当前方案；工具栏可新增/复制/删除。"))
 	return lines
 }
 
 func (m Model) diagnosticsView(width int) []string {
 	if m.diagnosticsBusy {
-		return []string{infoStyle.Render("正在运行诊断…"), dimStyle.Render("诊断不会登录网易账号。")}
+		return []string{m.busyLabel("正在运行诊断"), dimStyle.Render("诊断不会登录网易账号。")}
 	}
 	if len(m.diagnostics) == 0 {
 		return []string{
@@ -812,8 +1066,12 @@ func (m Model) settingsView(width int) []string {
 	}
 	lines = append(lines, textStyle.Render(truncate("管理员: "+admin, width)))
 	if m.options.SetupRequired {
-		lines = append(lines, warnStyle.Render("管理员尚未初始化，请打开 WebUI 创建。"))
+		lines = append(lines, warnStyle.Render("管理员尚未初始化：按 a 在 TUI 创建，或打开 WebUI 创建。"))
 	}
+	if m.lastBackup != "" {
+		lines = append(lines, dimStyle.Render(truncate("最近备份: "+m.lastBackup, width)))
+	}
+	lines = append(lines, dimStyle.Render("配置备份为 JSON；恢复只应用配置，不恢复网易登录凭证。"))
 	return lines
 }
 

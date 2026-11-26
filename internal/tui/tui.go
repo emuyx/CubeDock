@@ -33,6 +33,10 @@ type Options struct {
 	// startup path when -headless is not set.
 	OpenURL func(string)
 
+	// CreateAdmin is the first-run administrator callback. It is only usable
+	// while SetupRequired is true.
+	CreateAdmin func(username, password string) error
+
 	// Output is optional and mainly useful for tests.
 	Output io.Writer
 }

@@ -88,13 +88,23 @@ type toolbarItem struct {
 }
 
 const (
-	specialWebUI       = "webui"
-	specialDebug       = "debug"
-	specialDiagnostics = "diagnostics"
-	specialImport      = "import"
+	specialWebUI         = "webui"
+	specialDebug         = "debug"
+	specialDiagnostics   = "diagnostics"
+	specialImport        = "import"
+	specialLogin         = "login"
+	specialBackup        = "backup"
+	specialRestore       = "restore"
+	specialProfileEdit   = "profile-edit"
+	specialProfileNew    = "profile-new"
+	specialProfileDup    = "profile-duplicate"
+	specialProfileDel    = "profile-delete"
+	specialProfileSave   = "profile-save"
+	specialProfileCancel = "profile-cancel"
 )
 
 var accountToolbar = []toolbarItem{
+	{Label: "登录", Special: specialLogin},
 	{Label: "导入", Special: specialImport},
 	{Label: "启动", Action: actionStart},
 	{Label: "停止", Action: actionStop},
@@ -113,6 +123,26 @@ var homeToolbar = []toolbarItem{
 
 var diagnosticsToolbar = []toolbarItem{
 	{Label: "运行诊断", Special: specialDiagnostics},
+	{Label: "WebUI", Special: specialWebUI},
+}
+
+var profileToolbar = []toolbarItem{
+	{Label: "编辑", Special: specialProfileEdit},
+	{Label: "新增", Special: specialProfileNew},
+	{Label: "复制", Special: specialProfileDup},
+	{Label: "删除", Special: specialProfileDel},
+	{Label: "WebUI", Special: specialWebUI},
+}
+
+var profileEditToolbar = []toolbarItem{
+	{Label: "保存", Special: specialProfileSave},
+	{Label: "取消", Special: specialProfileCancel},
+	{Label: "WebUI", Special: specialWebUI},
+}
+
+var settingsToolbar = []toolbarItem{
+	{Label: "备份", Special: specialBackup},
+	{Label: "恢复", Special: specialRestore},
 	{Label: "WebUI", Special: specialWebUI},
 }
 
@@ -136,14 +166,16 @@ type screenLayout struct {
 	toolbarRects []rect
 	toolbarRows  int
 
-	frameY       int
-	framed       bool
-	frame        rect
-	content      rect
-	roomRows     []rect
-	roomRowIndex []int
-	listArea     rect
-	logArea      rect
+	frameY            int
+	framed            bool
+	frame             rect
+	content           rect
+	roomRows          []rect
+	roomRowIndex      []int
+	profileFields     []rect
+	profileFieldIndex []int
+	listArea          rect
+	logArea           rect
 }
 
 func (m Model) layoutInfo() screenLayout {
@@ -176,7 +208,7 @@ func (m Model) layoutInfo() screenLayout {
 		info.contentArea = rect{X: 0, Y: info.bodyY + info.navArea.H, W: width, H: info.bodyH - info.navArea.H}
 	}
 
-	info.toolbar = toolbarItemsFor(m.page)
+	info.toolbar = m.toolbarItems()
 	if m.modal != modalNone {
 		info.toolbar = nil
 	}
@@ -218,6 +250,24 @@ func (m Model) layoutInfo() screenLayout {
 	}
 	if m.page == pageLogs {
 		info.logArea = info.content
+	}
+	if m.page == pageProfiles && m.profileEditing && info.content.W > 0 && info.content.H > 0 {
+		_, indices := m.profileFormLines(info.content.W)
+		offset := m.contentOffset
+		maxOffset := len(indices) - info.content.H
+		if maxOffset < 0 {
+			maxOffset = 0
+		}
+		offset = clampInt(offset, 0, maxOffset)
+		for field, lineIndex := range indices {
+			if lineIndex < offset || lineIndex >= offset+info.content.H {
+				continue
+			}
+			info.profileFields = append(info.profileFields, rect{
+				X: info.content.X, Y: info.content.Y + lineIndex - offset, W: info.content.W, H: 1,
+			})
+			info.profileFieldIndex = append(info.profileFieldIndex, field)
+		}
 	}
 	return info
 }
@@ -277,14 +327,21 @@ func navRows(rects []rect, y int) int {
 	return rows
 }
 
-func toolbarItemsFor(page pageKind) []toolbarItem {
-	switch page {
+func (m Model) toolbarItems() []toolbarItem {
+	switch m.page {
 	case pageAccounts:
 		return accountToolbar
 	case pageHome:
 		return homeToolbar
 	case pageDiagnostics:
 		return diagnosticsToolbar
+	case pageSettings:
+		return settingsToolbar
+	case pageProfiles:
+		if m.profileEditing {
+			return profileEditToolbar
+		}
+		return profileToolbar
 	default:
 		return nil
 	}
@@ -311,7 +368,7 @@ func layoutToolbar(items []toolbarItem, startX, startY, width int) ([]rect, int)
 }
 
 func (m *Model) clampActionIndex() {
-	items := toolbarItemsFor(m.page)
+	items := m.toolbarItems()
 	if len(items) == 0 {
 		m.actionIndex = 0
 		return
@@ -329,7 +386,7 @@ func (m Model) focusAreas() []focusArea {
 		return []focusArea{focusContent}
 	}
 	areas := []focusArea{focusNav}
-	if len(toolbarItemsFor(m.page)) > 0 {
+	if len(m.toolbarItems()) > 0 {
 		areas = append(areas, focusActions)
 	}
 	areas = append(areas, focusContent)
@@ -385,6 +442,9 @@ func (m *Model) cyclePage(step int) {
 }
 
 func (m *Model) setPage(page pageKind) {
+	if m.profileEditing {
+		m.cancelProfileEdit()
+	}
 	m.page = page
 	m.focus = focusNav
 	m.actionIndex = 0
