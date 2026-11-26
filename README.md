@@ -15,7 +15,7 @@
 [项目主页](https://emuyx.github.io/CubeDock/) · [使用文档](https://emuyx.github.io/CubeDock/docs.html) · [界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) · [Issues](https://github.com/emuyx/CubeDock/issues)
 
 > 当前稳定版是 **v0.3.2**，去 [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的包就好。
-> `main` 是开发版 **v0.4.4-dev**，会有一些还没正式发布的新登录方式，偶尔也可能不太稳定。
+> `main` 是开发版 **v0.4.4-dev**，带有终端字符控制台（TUI）等还没正式发布的改动，偶尔也可能不太稳定。
 > 想尝鲜的话，普通用户也可以直接去 [GitHub Actions 的测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) 下载 artifacts，解压方式和稳定版一样；只是不保证稳定，长期用还是推荐 Releases。
 
 ## 它适合谁
@@ -34,7 +34,7 @@
 3. 浏览器打开控制台（一般会自动打开，默认 `http://127.0.0.1:18321/`），第一次会让你创建管理员密码。
 4. 按页面向导填服务器地址、登录网易账号、启动房间。手机在网易版 Minecraft 的「本地联机」里搜索房间号就能进。
 
-启动后，交互式终端会直接显示字符版控制台（TUI），顶部就是 WebUI 地址；浏览器控制台同时可用，两个界面操作的是同一套房间。TUI 的页面结构与 WebUI 对齐：主页、账号与房间、配置方案、控制台、诊断、全局设置、常见问题；宽屏左侧导航，窄屏顶部多行导航并使用完整页面名，工具栏自动换行展示全部按钮。支持鼠标点击导航/房间/按钮（带悬停高亮），也可以 `Tab` 切换焦点、`↑↓` 选择、`←→` 切换页面或选项、`Enter` 执行；`s/x/r` 仍是启动/停止/重连快捷键，`o` 打开 WebUI，`?` 常见问题，`q` 退出。窗口大小变化会自动重排，Termux 建议横屏或调小字号；重定向输出或 `TERM=dumb` 时会自动回退为普通文本输出。账号页工具栏「登录」支持互通版/网易手游邮箱密码登录，「导入」支持粘贴 Sauth/session JSON；新号可在 TUI 内起名。首次启动可直接在 TUI 创建管理员；全局设置页可备份/恢复配置；配置方案页支持新增/复制/编辑/删除，包含连接、房间、标签、转服/资源包等字段。4399 图形验证码目前仍用 WebUI。页面和弹窗有滚动条、PgUp/PgDn 滚动、忙碌动画。
+> 开发版在终端里启动时会直接显示字符版控制台（TUI），浏览器控制台仍然可以同时使用，两边操作的是同一套房间。完整的页面、按键和操作步骤在[使用文档的终端控制台部分](https://emuyx.github.io/CubeDock/docs.html#tui)；没把握的话，先用网页控制台就好 (｡•ᴗ•｡)
 
 更细的步骤在 [使用文档](https://emuyx.github.io/CubeDock/docs.html)。第一次用不用着急，慢慢来 (｡•ᴗ•｡)
 

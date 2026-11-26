@@ -116,6 +116,7 @@
           <a href="#overview">概览</a>
           <a href="#requirements">运行要求</a>
           <a href="#install">安装与首次启动</a>
+          <a href="#tui">终端控制台（TUI）</a>
           <a href="#concepts">方案、账号与房间</a>
           <a href="#profiles">配置方案</a>
           <a href="#accounts">账号与登录</a>
@@ -172,7 +173,8 @@
           </p>
           <div class="doc-callout doc-note">
             <strong>版本提示：</strong>本文档对应当前稳定版 v0.3.2；下载按钮指向 Releases。
-            <code>main</code> 分支另有开发版 v0.4.4-dev，包含尚未正式发布的手游密码直登等改动。
+            <code>main</code> 分支另有开发版 v0.4.4-dev，包含尚未正式发布的 TUI、多登录方式
+            和手游直登等改动。
             普通用户也可以从
             <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">GitHub Actions 的测试版构建</a>
             下载 artifacts，解压方式与稳定版相同；只是可能不稳定，长期使用仍推荐 Releases。
@@ -226,19 +228,69 @@
             <code>logs/</code>。
             Windows 使用 DPAPI，其他平台使用 0600 权限；不要提交或分享这些文件。
           </div>
+        </section>
+
+        <section id="tui" class="doc-section reveal">
+          <h2>终端控制台（TUI）</h2>
+          <p>
+            从 <code>main</code> 构建的开发版在交互式终端里启动时，会直接显示字符版控制台；
+            浏览器控制台仍然可以同时使用，两边操作同一套房间。v0.3.2 稳定版没有 TUI。
+          </p>
+          <p>
+            宽屏左侧是页面导航，窄屏改为顶部多行导航；操作按钮放在各页面内容区，
+            账号页底部固定「登录 / 导入 / 批量 / 管理」。账号页支持搜索、筛选、排序，
+            宽屏侧栏还会逐个列出账号，点击可以直接打开对应仪表盘。
+          </p>
+          <p>
+            登录支持互通版、网易手游和 4399。4399 需要图形验证码时，图片会保存到数据目录
+            并显示完整路径，用 <code>Ctrl+O</code> 打开后输入验证码再提交。账号管理可以
+            刷新资料、重新登录、改名（随机中文名 / 英文+数字名）、换方案和删除，也可以
+            打开玩家、房间成员、好友面板和单账号仪表盘。
+          </p>
+          <p>
+            配置方案页可以新增、复制、编辑、删除，并查看/拉取资源包；全局设置可以编辑并
+            修改管理员密码；日志页支持按房间筛选、搜索、导出和控制台命令。首次启动也可以
+            直接在 TUI 创建管理员；全局设置页可以备份/恢复配置。仪表盘里的
+            <code>s/x/r</code> 启停/重连，<code>d</code> 诊断，<code>u</code> 刷新资料，
+            <code>n</code> 起名，<code>p/m/f</code> 玩家/成员/好友。
+          </p>
+          <h3>常用按键</h3>
+          <table class="doc-table">
+            <thead>
+              <tr><th>按键</th><th>作用</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>1</code>–<code>7</code></td><td>直接切换页面</td></tr>
+              <tr><td><code>Tab</code> / <code>Shift+Tab</code></td><td>在导航、按钮和内容之间移动焦点</td></tr>
+              <tr><td><code>↑↓</code> / <code>j</code> <code>k</code></td><td>选择或滚动</td></tr>
+              <tr><td><code>←→</code></td><td>切换页面或选项</td></tr>
+              <tr><td><code>Enter</code></td><td>执行、编辑或切换</td></tr>
+              <tr><td><code>PgUp</code> / <code>PgDn</code></td><td>页面/弹窗翻页</td></tr>
+              <tr><td><code>s</code> / <code>x</code> / <code>r</code></td><td>启动 / 停止 / 重连</td></tr>
+              <tr><td><code>S</code> / <code>X</code></td><td>全部启动 / 全部停止</td></tr>
+              <tr><td><code>m</code></td><td>账号管理（账号页）</td></tr>
+              <tr><td><code>/</code></td><td>搜索（账号页 / 日志页）</td></tr>
+              <tr><td><code>f</code></td><td>筛选（账号 / 日志）</td></tr>
+              <tr><td><code>v</code></td><td>排序（账号页）</td></tr>
+              <tr><td><code>i</code></td><td>控制台命令输入（日志页）</td></tr>
+              <tr><td><code>e</code></td><td>导出日志（日志页）</td></tr>
+              <tr><td><code>Ctrl+O</code></td><td>打开 1351/安全验证链接或 4399 验证码图片</td></tr>
+              <tr><td><code>Ctrl+L</code></td><td>选择内置房间名（配置方案房间名称）</td></tr>
+              <tr><td><code>Ctrl+S</code></td><td>保存配置方案或全局设置</td></tr>
+              <tr><td><code>o</code></td><td>打开 WebUI</td></tr>
+              <tr><td><code>?</code></td><td>常见问题</td></tr>
+              <tr><td><code>q</code></td><td>退出（需要确认）</td></tr>
+              <tr><td><code>Ctrl+C</code></td><td>立即退出</td></tr>
+            </tbody>
+          </table>
+          <p>
+            鼠标可以点击导航、房间/方案行、按钮、字段和弹窗控件，悬停高亮，滚轮滚动；
+            全部操作也都可以用键盘完成。窗口过窄/过矮时边框会自动收起，建议至少 34×10；
+            Termux 建议横屏或调小字号。
+          </p>
           <div class="doc-callout doc-note">
-            <strong>终端控制台（main 开发版）：</strong>从 <code>main</code> 构建的版本会在
-            交互式终端里直接显示字符控制台，顶部有 WebUI 地址；TUI 和网页控制台同时可用。
-            页面结构对齐 WebUI：主页、账号与房间、配置方案、控制台、诊断、全局设置、
-            常见问题；宽屏左侧导航，窄屏顶部多行导航并使用完整页面名，工具栏自动换行。
-            支持鼠标点击、悬停和滚轮，也可以
-            <code>Tab</code> 切换焦点、方向键选择、<code>Enter</code> 执行；按 <code>?</code>
-            查看帮助。窗口大小变化会自动重排，安卓 Termux 建议横屏或调小字号。账号页
-            「登录」支持互通版/网易手游邮箱密码，「导入」支持粘贴 Sauth/session JSON，
-            新号可在 TUI 内起名；首次启动可直接创建管理员，全局设置页可备份/恢复配置；
-            配置方案页可新增/复制/编辑/删除，含连接、房间、标签和转服/资源包字段。
-            页面/弹窗支持滚动条与 PgUp/PgDn 滚动。4399 图形验证码目前仍用 WebUI。
-            v0.3.2 稳定版没有 TUI。
+            <strong>回退：</strong>重定向输出、<code>TERM=dumb</code> 或终端控制台启动失败时，
+            会自动回退为普通文本 banner；需要 TUI 时请在真实交互式终端里启动。
           </div>
         </section>
 
