@@ -1499,6 +1499,7 @@ func (m Model) defaultProfileLabel() string {
 }
 
 func wrapDisplay(text string, width int) []string {
+	text = sanitizeMultilineText(text)
 	if width < 1 {
 		width = 1
 	}
@@ -1932,6 +1933,7 @@ func truncate(text string, width int) string {
 	if width <= 0 {
 		return ""
 	}
+	text = sanitizeTerminalText(text)
 	if lipgloss.Width(text) <= width {
 		return text
 	}

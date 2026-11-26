@@ -23,7 +23,7 @@ func sampleModel() Model {
 	profile.Name = "默认配置"
 	return Model{
 		options: Options{
-			Version:   "v0.4.3-dev",
+			Version:   "v0.4.4-dev",
 			AdminName: "admin",
 			LocalURL:  "http://127.0.0.1:18321/",
 			LANURLs:   []string{"http://192.168.1.10:18321/"},
@@ -811,7 +811,7 @@ func TestLoginResultVerifyAndNameFlow(t *testing.T) {
 func TestAdminSetupModal(t *testing.T) {
 	createdUser, createdPass := "", ""
 	model := newModel(Options{
-		Version:       "v0.4.3-dev",
+		Version:       "v0.4.4-dev",
 		LocalURL:      "http://127.0.0.1:18321/",
 		SetupRequired: true,
 		CreateAdmin: func(username, password string) error {
@@ -911,7 +911,7 @@ func TestAdminRestoreViewFitsSizes(t *testing.T) {
 		{34, 10}, {45, 20}, {80, 24}, {100, 30}, {200, 60},
 	} {
 		admin := newModel(Options{
-			Version: "v0.4.3-dev", LocalURL: "http://127.0.0.1:18321/",
+			Version: "v0.4.4-dev", LocalURL: "http://127.0.0.1:18321/",
 			SetupRequired: true,
 			CreateAdmin:   func(string, string) error { return nil },
 		})
@@ -1602,7 +1602,7 @@ func TestSettingsSaveRejectsExternalChange(t *testing.T) {
 func TestAdminPasswordChange(t *testing.T) {
 	var got [2]string
 	model := newModel(Options{
-		Version:        "v0.4.3-dev",
+		Version:        "v0.4.4-dev",
 		LocalURL:       "http://127.0.0.1:18321/",
 		AdminName:      "admin",
 		ChangePassword: func(current, next string) error { got = [2]string{current, next}; return nil },
@@ -1864,7 +1864,7 @@ func TestLogSearchAndExport(t *testing.T) {
 
 func TestLogin4399CaptchaDisplay(t *testing.T) {
 	manager := profileTestManager(t)
-	model := newModel(Options{Version: "v0.4.3-dev", LocalURL: "http://127.0.0.1:18321/"})
+	model := newModel(Options{Version: "v0.4.4-dev", LocalURL: "http://127.0.0.1:18321/"})
 	model.manager = manager
 	model.status.Running = false
 	model.width, model.height = 100, 30
@@ -2208,5 +2208,26 @@ func TestCtrlLOpensRoomNameChooser(t *testing.T) {
 	model = next.(Model)
 	if model.modal != modalProfileRoomName {
 		t.Fatalf("Ctrl+L while editing modal = %v", model.modal)
+	}
+}
+
+func TestTerminalTextSanitized(t *testing.T) {
+	styled := "\x1b[31mred\x1b[0m"
+	if got := sanitizeTerminalText(styled); got != styled {
+		t.Fatalf("SGR sequence was stripped: %q", got)
+	}
+	malicious := "name\x1b]52;c;Zm9v\x07\x1b[2J"
+	if got := sanitizeTerminalText(malicious); got != "name" {
+		t.Fatalf("terminal escape survived: %q", got)
+	}
+	if got := sanitizeTerminalText("a‮b"); got != "ab" {
+		t.Fatalf("bidi override survived: %q", got)
+	}
+	lines := wrapDisplay("a\x1b[31mb\nc", 10)
+	if len(lines) != 2 || strings.Contains(lines[0], "\x1b") {
+		t.Fatalf("multiline sanitize = %#v", lines)
+	}
+	if got := truncate("bad\x1b]0;title\x07name", 20); strings.Contains(got, "\x1b]") {
+		t.Fatalf("truncate kept escape: %q", got)
 	}
 }

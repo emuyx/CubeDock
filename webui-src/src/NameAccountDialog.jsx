@@ -13,6 +13,7 @@ import NameAccountForm from './NameAccountForm.jsx';
 export default function NameAccountDialog({
   open,
   index,
+  account = null,
   initialName = '',
   rename = false,
   onClose,
@@ -28,6 +29,7 @@ export default function NameAccountDialog({
           <NameAccountForm
             key={`${index}-${initialName}`}
             index={index}
+            account={account}
             initialName={initialName}
             mode={rename ? 'rename' : 'name'}
             compact

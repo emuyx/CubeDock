@@ -492,6 +492,7 @@ func (m *Manager) SetDebug(enabled bool) error {
 		return err
 	}
 	m.cfg = next
+	m.configRevision++
 	m.mu.Unlock()
 	if enabled {
 		m.emit("系统", "Debug 模式已开启")

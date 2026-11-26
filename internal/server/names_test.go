@@ -5,7 +5,26 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/emuyx/cubedock/internal/core"
 )
+
+func TestSetAccountNameRejectsStaleIdentity(t *testing.T) {
+	handler := newConsoleTestHandler(t)
+	if _, err := handler.manager.AddAccount("name-token", core.AccountMeta{
+		Name: "Alice", Email: "a@example.com", UID: "1",
+		AuthMethod: "interop", Platform: "interop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/account/set-name",
+		strings.NewReader(`{"index":0,"name":"ValidName","uid":"2","email":"b@example.com"}`))
+	recorder := httptest.NewRecorder()
+	handler.setAccountName(recorder, request)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("stale identity status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+}
 
 func TestSetAccountNameValidation(t *testing.T) {
 	handler := newConsoleTestHandler(t)

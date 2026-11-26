@@ -15,6 +15,7 @@ import {
 
 export default function NameAccountForm({
   index,
+  account = null,
   initialName = '',
   mode = 'name',
   onDone,
@@ -43,7 +44,12 @@ export default function NameAccountForm({
     setBusy(true);
     setError('');
     try {
-      const result = await api('account/set-name', { index, name: trimmed });
+      const result = await api('account/set-name', {
+        index,
+        name: trimmed,
+        uid: account?.uid || '',
+        email: account?.email || '',
+      });
       notify(`${rename ? '游戏名已修改' : '游戏名已设置'}：${result.name}`, 'success');
       onDone?.(result);
     } catch (failure) {

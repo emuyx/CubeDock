@@ -822,6 +822,8 @@ func (h *consoleHandler) setAccountName(w http.ResponseWriter, r *http.Request) 
 	var body struct {
 		Index int    `json:"index"`
 		Name  string `json:"name"`
+		UID   string `json:"uid"`
+		Email string `json:"email"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
@@ -836,6 +838,10 @@ func (h *consoleHandler) setAccountName(w http.ResponseWriter, r *http.Request) 
 	name := strings.TrimSpace(body.Name)
 	if body.Index < 0 || name == "" {
 		http.Error(w, "请指定账号序号和游戏名", http.StatusBadRequest)
+		return
+	}
+	if err := h.validateAccount(body.Index, body.UID, body.Email); err != nil {
+		h.accountError(w, err)
 		return
 	}
 	accounts := h.manager.Accounts()

@@ -303,6 +303,7 @@ type Model struct {
 	nameIndex         int
 	nameToken         string
 	nameMethod        string
+	nameFingerprint   string
 	nameInput         []rune
 	nameCursor        int
 	nameRename        bool
@@ -469,6 +470,13 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		index := m.nameIndex
+		if m.nameFingerprint != "" {
+			live := m.manager.Accounts()
+			if index < 0 || index >= len(live) || accountIdentity(live[index]) != m.nameFingerprint {
+				m.modalErr = "账号列表已变化（可能由 WebUI 操作），请关闭后重新打开"
+				return m, nil
+			}
+		}
 		if err := m.manager.UpdateAccountProfile(index, message.profile.Name, message.profile.UID,
 			message.profile.Level, message.profile.AvatarURL, ""); err != nil {
 			m.modalErr = "保存账号资料失败：" + err.Error()
@@ -2746,6 +2754,13 @@ func (m *Model) openNameModal(index int, token, method string) {
 	m.nameIndex = index
 	m.nameToken = token
 	m.nameMethod = method
+	m.nameFingerprint = ""
+	if m.manager != nil {
+		accounts := m.manager.Accounts()
+		if index >= 0 && index < len(accounts) {
+			m.nameFingerprint = accountIdentity(accounts[index])
+		}
+	}
 	m.nameRename = false
 	m.nameInput = nil
 	m.nameCursor = 0

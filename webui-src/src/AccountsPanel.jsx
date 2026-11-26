@@ -663,6 +663,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
       <NameAccountDialog
         open={nameIndex !== null}
         index={nameIndex}
+        account={nameIndex !== null ? accounts[nameIndex] || null : null}
         initialName={nameIndex !== null ? accounts[nameIndex]?.name || '' : ''}
         rename={nameIndex !== null && !!accounts[nameIndex]?.name}
         onClose={() => setNameIndex(null)}

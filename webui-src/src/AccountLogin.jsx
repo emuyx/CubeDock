@@ -548,6 +548,7 @@ export default function AccountLogin({
         </Alert>
         <NameAccountForm
           index={pendingName.index}
+          account={{ uid: pendingName.uid || '', email }}
           compact={compact}
           onDone={result => {
             const merged = { ...pendingName, ...result, status: 'named' };

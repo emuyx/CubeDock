@@ -222,6 +222,20 @@ func TestConfigureRevisionRejectsStaleWrites(t *testing.T) {
 	}
 }
 
+func TestSetDebugBumpsConfigRevision(t *testing.T) {
+	manager := newTestManager(t)
+	before := manager.Snapshot().ConfigRevision
+	if err := manager.SetDebug(true); err != nil {
+		t.Fatal(err)
+	}
+	if got := manager.Snapshot().ConfigRevision; got != before+1 {
+		t.Fatalf("revision = %d, want %d", got, before+1)
+	}
+	if !manager.Snapshot().Config.Debug {
+		t.Fatal("debug flag not persisted")
+	}
+}
+
 func TestAccountPasswordStorageAndRemoval(t *testing.T) {
 	manager := newTestManager(t)
 	if _, err := manager.AddAccount("token-password", AccountMeta{

@@ -15,7 +15,7 @@
 [项目主页](https://emuyx.github.io/CubeDock/) · [使用文档](https://emuyx.github.io/CubeDock/docs.html) · [界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) · [Issues](https://github.com/emuyx/CubeDock/issues)
 
 > 当前稳定版是 **v0.3.2**，去 [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的包就好。
-> `main` 是开发版 **v0.4.3-dev**，会有一些还没正式发布的新登录方式，偶尔也可能不太稳定。
+> `main` 是开发版 **v0.4.4-dev**，会有一些还没正式发布的新登录方式，偶尔也可能不太稳定。
 > 想尝鲜的话，普通用户也可以直接去 [GitHub Actions 的测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) 下载 artifacts，解压方式和稳定版一样；只是不保证稳定，长期用还是推荐 Releases。
 
 ## 它适合谁
