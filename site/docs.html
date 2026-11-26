@@ -111,7 +111,7 @@
         <button class="docs-drawer-close" type="button" aria-label="关闭目录">×</button>
         <span class="eyebrow">DOCUMENTATION</span>
         <h2>使用文档</h2>
-        <p class="docs-version">v0.3.2 · 当前稳定版</p>
+        <p class="docs-version">v0.4.5 · 当前稳定版</p>
         <nav>
           <a href="#overview">概览</a>
           <a href="#requirements">运行要求</a>
@@ -167,14 +167,13 @@
             <li><strong>转服模式</strong>：玩家先进入本地 limbo 虚空世界，预加载资源包并显示表单，再直连目标服务器。</li>
           </ul>
           <p>
-            当前版本还提供多配置方案、每账号独立房间 runtime、账号头像、房间卡片与网易大厅二维码、
+            当前版本还提供终端控制台（TUI）、多配置方案、每账号独立房间 runtime、账号头像、房间卡片与网易大厅二维码、
             玩家列表区分（已进服务器 / 仅加入房间）、自动刷新开关、空闲账号保活、可选本地保存密码、
             房间侧踢人、房间标签、准入等级、网易房间成员列表、手动好友申请和第一方认证链。
           </p>
           <div class="doc-callout doc-note">
-            <strong>版本提示：</strong>本文档对应当前稳定版 v0.3.2；下载按钮指向 Releases。
-            <code>main</code> 分支另有开发版 v0.4.4-dev，包含尚未正式发布的 TUI、多登录方式
-            和手游直登等改动。
+            <strong>版本提示：</strong>本文档对应当前稳定版 v0.4.5；下载按钮指向 Releases。
+            TUI、网易手游、4399 手游和账号起名等功能均已包含在 v0.4.5 稳定版中。
             普通用户也可以从
             <a href="https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain" target="_blank" rel="noreferrer">GitHub Actions 的测试版构建</a>
             下载 artifacts，解压方式与稳定版相同；只是可能不稳定，长期使用仍推荐 Releases。
@@ -233,8 +232,8 @@
         <section id="tui" class="doc-section reveal">
           <h2>终端控制台（TUI）</h2>
           <p>
-            从 <code>main</code> 构建的开发版在交互式终端里启动时，会直接显示字符版控制台；
-            浏览器控制台仍然可以同时使用，两边操作同一套房间。v0.3.2 稳定版没有 TUI。
+            从 v0.4.5 起，在交互式终端里启动时会直接显示字符版控制台；
+            浏览器控制台仍然可以同时使用，两边操作同一套房间。
           </p>
           <p>
             宽屏左侧是页面导航，窄屏改为顶部多行导航；操作按钮放在各页面内容区，
@@ -403,8 +402,7 @@
           <div class="doc-callout doc-note">
             <strong>网易手游：</strong>已提供邮箱/密码直登，会注册新设备并使用
             <code>/devices</code> 返回的 device key 加密登录参数；已真机验证通过
-            登录、开房、进服。也支持导入手游 <code>sauth_json</code>；
-            该功能属于 <code>main</code> 分支 v0.4.4-dev，尚未正式发布。抓取到的
+            登录、开房、进服。也支持导入手游 <code>sauth_json</code>。抓取到的
             <code>sauth_json</code> 应来自真实手游认证请求；不要使用
             <code>unisdk_login_json</code> 单独导入，因为它缺少 <code>sessionid</code> 等字段。
           </div>
@@ -412,15 +410,14 @@
             <strong>4399 手游：</strong>使用 4399 账号/密码通过 4399 开放平台 OAuth
             换取 NetEase 会话；已真机验证通过登录、开房、进服。也支持导入 4399
             手游 <code>sauth_json</code>（<code>platform=ad</code> /
-            <code>app_channel=4399com</code>）。该功能属于 <code>main</code> 分支
-            v0.4.4-dev，尚未正式发布。Java/PC 经典版渠道暂不在近期计划中。
+            <code>app_channel=4399com</code>）。Java/PC 经典版渠道暂不在近期计划中。
           </div>
           <div class="doc-callout doc-note">
             <strong>新号起名 / 改名：</strong>新号登录后若网易返回“缺少游戏名”，
             账号会先保存并自动弹取名界面，不会阻止登录。可以直接手动输入，也可以
             使用随机中文名或随机英文+数字名；游戏名需为 3–12 个字符（中文按 1.5
             个字符计算）。网易限制改名后 30 天内不能再次修改，限制期内的错误会
-            原样显示。该功能属于 <code>main</code> 分支 v0.4.4-dev，尚未正式发布。
+            原样显示。
           </div>
           <div class="doc-callout doc-warn">
             <strong>1351 安全验证：</strong>登录时若提示需要安全验证，点击页面上的「打开网易验证页面」
@@ -647,6 +644,7 @@
               <tr><td>房间侧踢人 / 标签 / 准入等级</td><td>✅ 实机验证（踢人依赖 dockerB）</td></tr>
               <tr><td>网易房间成员列表</td><td>✅ 实机验证</td></tr>
               <tr><td>手动同意好友申请</td><td>✅ 实机验证</td></tr>
+              <tr><td>终端控制台（TUI）</td><td>✅ 本地测试与 Windows 冒烟；真实终端/输入法待复测</td></tr>
               <tr><td>房间玩家区分 / 自动刷新 / 走秒 / 头像 / 二维码 / 保活 / 本地密码</td><td>✅ 本地测试与 demo 验证</td></tr>
               <tr><td>网易手游会话导入（PE/资料）</td><td>✅ 真实抓包 + 本地端到端探针；同一 sauth 链路已真机开房/进服</td></tr>
               <tr><td>网易手游邮箱/密码直登</td><td>✅ 真机验证：登录 / 开房 / 进服</td></tr>

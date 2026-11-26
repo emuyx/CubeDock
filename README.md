@@ -14,8 +14,8 @@
 
 [项目主页](https://emuyx.github.io/CubeDock/) · [使用文档](https://emuyx.github.io/CubeDock/docs.html) · [界面演示](https://emuyx.github.io/CubeDock/demo.html) · [下载](https://github.com/emuyx/CubeDock/releases/latest) · [测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) · [Issues](https://github.com/emuyx/CubeDock/issues)
 
-> 当前稳定版是 **v0.3.2**，去 [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的包就好。
-> `main` 是开发版 **v0.4.4-dev**，带有终端字符控制台（TUI）等还没正式发布的改动，偶尔也可能不太稳定。
+> 当前稳定版是 **v0.4.5**，去 [Releases](https://github.com/emuyx/CubeDock/releases/latest) 下载对应系统的包就好。
+> `main` 分支跟随最新发布版本；后续开发改动会先出现在测试版构建里，偶尔也可能不太稳定。
 > 想尝鲜的话，普通用户也可以直接去 [GitHub Actions 的测试版构建](https://github.com/emuyx/CubeDock/actions/workflows/release.yml?query=branch%3Amain) 下载 artifacts，解压方式和稳定版一样；只是不保证稳定，长期用还是推荐 Releases。
 
 ## 它适合谁
@@ -34,7 +34,7 @@
 3. 浏览器打开控制台（一般会自动打开，默认 `http://127.0.0.1:18321/`），第一次会让你创建管理员密码。
 4. 按页面向导填服务器地址、登录网易账号、启动房间。手机在网易版 Minecraft 的「本地联机」里搜索房间号就能进。
 
-> 开发版在终端里启动时会直接显示字符版控制台（TUI），浏览器控制台仍然可以同时使用，两边操作的是同一套房间。完整的页面、按键和操作步骤在[使用文档的终端控制台部分](https://emuyx.github.io/CubeDock/docs.html#tui)；没把握的话，先用网页控制台就好 (｡•ᴗ•｡)
+> 在交互式终端里启动时会直接显示字符版控制台（TUI），浏览器控制台仍然可以同时使用，两边操作的是同一套房间。完整的页面、按键和操作步骤在[使用文档的终端控制台部分](https://emuyx.github.io/CubeDock/docs.html#tui)；没把握的话，先用网页控制台就好 (｡•ᴗ•｡)
 
 更细的步骤在 [使用文档](https://emuyx.github.io/CubeDock/docs.html)。第一次用不用着急，慢慢来 (｡•ᴗ•｡)
 
@@ -104,6 +104,7 @@ Windows 一键构建：`.\scripts\build.ps1`。站点文件在 `site/`，`docs.h
 | 多账号 / 多房间并发 | ✅ 多个真实 4399 账号同时开房 45 秒，0 掉线 |
 | 互通版 / 网易手游 / 4399 手游登录 | ✅ 真机验证登录、开房、进服 |
 | 配置方案 + 账号仪表盘 + 房间管理 | ✅ 实机验证 |
+| 终端控制台（TUI） | ✅ 本地测试与 Windows 冒烟；真实终端/输入法待复测 |
 | 房间玩家区分 / 自动刷新 / 头像 / 二维码 / 保活 / 本地密码 | ✅ 本地测试与 demo 验证 |
 | 加密 / 动态资源包 | 🚧 暂不支持 |
 | Linux WSL2（test/vet/race/构建/运行时冒烟） | ✅ 通过 |

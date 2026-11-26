@@ -27,5 +27,7 @@
   "limbo_path": "",
   "auto_start": false,
   "web_port": 18321,
-  "debug": false
+  "debug": false,
+  "keep_alive": true,
+  "keep_alive_minutes": 30
 }
