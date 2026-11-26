@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -182,6 +183,42 @@ func TestManagerConfigure(t *testing.T) {
 	bad.Profiles[0].Upstream = "bad"
 	if err := manager.Configure(bad); err == nil {
 		t.Fatal("invalid configuration accepted")
+	}
+}
+
+func TestConfigureRevisionRejectsStaleWrites(t *testing.T) {
+	manager := newTestManager(t)
+	base := manager.Snapshot().ConfigRevision
+
+	first := manager.Snapshot().Config.Clone()
+	first.Profiles[0].RoomName = "第一次修改"
+	if err := manager.ConfigureIfRevision(first, base); err != nil {
+		t.Fatal(err)
+	}
+	if got := manager.Snapshot().ConfigRevision; got != base+1 {
+		t.Fatalf("revision = %d, want %d", got, base+1)
+	}
+
+	stale := manager.Snapshot().Config.Clone()
+	stale.Profiles[0].RoomName = "过期覆盖"
+	if err := manager.ConfigureIfRevision(stale, base); !errors.Is(err, ErrConfigChanged) {
+		t.Fatalf("stale configure error = %v, want ErrConfigChanged", err)
+	}
+	if got := manager.Snapshot().Config.Profiles[0].RoomName; got != "第一次修改" {
+		t.Fatalf("stale write changed config: %q", got)
+	}
+
+	current := manager.Snapshot()
+	if _, err := manager.ConfigureForRestoreIfRevision(current.Config.Clone(), base); !errors.Is(err, ErrConfigChanged) {
+		t.Fatalf("stale restore error = %v, want ErrConfigChanged", err)
+	}
+	restored := current.Config.Clone()
+	restored.Profiles[0].RoomName = "恢复名称"
+	if _, err := manager.ConfigureForRestoreIfRevision(restored, current.ConfigRevision); err != nil {
+		t.Fatal(err)
+	}
+	if got := manager.Snapshot().ConfigRevision; got != current.ConfigRevision+1 {
+		t.Fatalf("restore revision = %d, want %d", got, current.ConfigRevision+1)
 	}
 }
 

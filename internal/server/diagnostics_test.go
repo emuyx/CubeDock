@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,57 @@ func newDiagnosticsTestManager(t *testing.T) *core.Manager {
 		t.Fatal(err)
 	}
 	return manager
+}
+
+func TestSaveConfigRevisionConflict(t *testing.T) {
+	manager := newDiagnosticsTestManager(t)
+	handler := &consoleHandler{manager: manager}
+	snapshot := manager.Snapshot()
+	save := func(revision uint64) *httptest.ResponseRecorder {
+		payload, err := json.Marshal(map[string]any{
+			"config": snapshot.Config, "revision": revision,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		recorder := httptest.NewRecorder()
+		handler.saveConfig(recorder, httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(payload)))
+		return recorder
+	}
+	if recorder := save(snapshot.ConfigRevision - 1); recorder.Code != http.StatusConflict {
+		t.Fatalf("stale revision status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if recorder := save(snapshot.ConfigRevision); recorder.Code != http.StatusOK {
+		t.Fatalf("current revision status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestRoomActionRejectsStaleAccountIdentity(t *testing.T) {
+	manager := newDiagnosticsTestManager(t)
+	if _, err := manager.AddAccount("token-a", core.AccountMeta{
+		Name: "Alice", Email: "a@example.com", UID: "1", AuthMethod: "interop", Platform: "interop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handler := &consoleHandler{manager: manager}
+	called := false
+	action := func(int) error { called = true; return nil }
+
+	stale := httptest.NewRequest(http.MethodPost, "/api/room/start",
+		strings.NewReader(`{"index":0,"uid":"2","email":"b@example.com"}`))
+	staleRecorder := httptest.NewRecorder()
+	handler.roomAction(staleRecorder, stale, action)
+	if staleRecorder.Code != http.StatusConflict || called {
+		t.Fatalf("stale identity status = %d, called = %v", staleRecorder.Code, called)
+	}
+
+	fresh := httptest.NewRequest(http.MethodPost, "/api/room/start",
+		strings.NewReader(`{"index":0,"uid":"1","email":"a@example.com"}`))
+	freshRecorder := httptest.NewRecorder()
+	handler.roomAction(freshRecorder, fresh, action)
+	if freshRecorder.Code != http.StatusOK || !called {
+		t.Fatalf("fresh identity status = %d, called = %v", freshRecorder.Code, called)
+	}
 }
 
 func TestDiagnosticsEndpoint(t *testing.T) {

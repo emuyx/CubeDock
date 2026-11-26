@@ -53,16 +53,21 @@ export function ConfigFormProvider({ status, onChanged, children }) {
   const [externalChanged, setExternalChanged] = useState(false);
   const signature = useMemo(() => JSON.stringify(status.config || {}), [status.config]);
   const [seenSignature, setSeenSignature] = useState(() => signature);
+  // The revision must be the one seen when this draft started. Using the live
+  // revision would silently accept an external edit made while the form is
+  // dirty and overwrite it.
+  const [seenRevision, setSeenRevision] = useState(() => status.config_revision);
 
   useEffect(() => {
     if (!dirty && status.config) {
       setForm(JSON.parse(JSON.stringify(status.config)));
       setSeenSignature(signature);
+      setSeenRevision(status.config_revision);
       setExternalChanged(false);
     } else if (dirty) {
       setExternalChanged(signature !== seenSignature);
     }
-  }, [signature, dirty, seenSignature]);
+  }, [signature, dirty, seenSignature, status.config_revision]);
 
   const update = (field, value) => {
     setForm(current => ({ ...current, [field]: value }));
@@ -117,7 +122,15 @@ export function ConfigFormProvider({ status, onChanged, children }) {
     setError('');
     try {
       // Debug is toggled live from the console page; keep the server's value.
-      await api('config', { config: { ...form, debug: !!status.config?.debug } });
+      // The revision makes a concurrent TUI save fail instead of being
+      // silently overwritten.
+      const result = await api('config', {
+        config: { ...form, debug: !!status.config?.debug },
+        revision: seenRevision,
+      });
+      if (typeof result?.config_revision === 'number') {
+        setSeenRevision(result.config_revision);
+      }
       notify('设置已保存', 'success');
       setDirty(false);
       setExternalChanged(false);
@@ -136,6 +149,7 @@ export function ConfigFormProvider({ status, onChanged, children }) {
     setForm(JSON.parse(JSON.stringify(status.config)));
     setDirty(false);
     setSeenSignature(signature);
+    setSeenRevision(status.config_revision);
     setExternalChanged(false);
     setError('');
   };

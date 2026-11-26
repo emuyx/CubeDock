@@ -93,6 +93,7 @@ const (
 	specialDiagnostics   = "diagnostics"
 	specialImport        = "import"
 	specialLogin         = "login"
+	specialAccountManage = "account-manage"
 	specialBackup        = "backup"
 	specialRestore       = "restore"
 	specialProfileEdit   = "profile-edit"
@@ -101,11 +102,17 @@ const (
 	specialProfileDel    = "profile-delete"
 	specialProfileSave   = "profile-save"
 	specialProfileCancel = "profile-cancel"
+	specialPacks         = "packs"
+	specialSettingsEdit  = "settings-edit"
+	specialAdminPassword = "admin-password"
+	specialBulk          = "bulk"
 )
 
 var accountToolbar = []toolbarItem{
 	{Label: "登录", Special: specialLogin},
 	{Label: "导入", Special: specialImport},
+	{Label: "批量", Special: specialBulk},
+	{Label: "管理", Special: specialAccountManage},
 	{Label: "启动", Action: actionStart},
 	{Label: "停止", Action: actionStop},
 	{Label: "重连", Action: actionRestart},
@@ -131,6 +138,7 @@ var profileToolbar = []toolbarItem{
 	{Label: "新增", Special: specialProfileNew},
 	{Label: "复制", Special: specialProfileDup},
 	{Label: "删除", Special: specialProfileDel},
+	{Label: "资源包", Special: specialPacks},
 	{Label: "WebUI", Special: specialWebUI},
 }
 
@@ -141,8 +149,10 @@ var profileEditToolbar = []toolbarItem{
 }
 
 var settingsToolbar = []toolbarItem{
+	{Label: "编辑", Special: specialSettingsEdit},
 	{Label: "备份", Special: specialBackup},
 	{Label: "恢复", Special: specialRestore},
+	{Label: "密码", Special: specialAdminPassword},
 	{Label: "WebUI", Special: specialWebUI},
 }
 
@@ -161,7 +171,10 @@ type screenLayout struct {
 	navArea     rect
 	contentArea rect
 
-	toolbarY     int
+	// Per-account shortcuts under the page list in the wide sidebar.
+	accountRects    []rect
+	accountRowIndex []int
+
 	toolbar      []toolbarItem
 	toolbarRects []rect
 	toolbarRows  int
@@ -176,6 +189,11 @@ type screenLayout struct {
 	profileFieldIndex []int
 	listArea          rect
 	logArea           rect
+
+	// pageLines/pageHits are rendered once here so View() and hit testing use
+	// exactly the same content.
+	pageLines []string
+	pageHits  []pageHit
 }
 
 func (m Model) layoutInfo() screenLayout {
@@ -203,25 +221,14 @@ func (m Model) layoutInfo() screenLayout {
 				X: 0, Y: info.bodyY + index, W: info.navWidth, H: 1,
 			})
 		}
+		info.accountRects, info.accountRowIndex = m.sidebarAccountRects(info)
 	} else {
 		info.navLabels, info.navRects, info.navArea = m.topNavLayout(width, info.bodyY)
 		info.contentArea = rect{X: 0, Y: info.bodyY + info.navArea.H, W: width, H: info.bodyH - info.navArea.H}
 	}
 
-	info.toolbar = m.toolbarItems()
-	if m.modal != modalNone {
-		info.toolbar = nil
-	}
-	if len(info.toolbar) > 0 && info.contentArea.H >= 3 {
-		info.toolbarY = info.contentArea.Y
-		info.toolbarRects, info.toolbarRows = layoutToolbar(info.toolbar, info.contentArea.X, info.toolbarY, info.contentArea.W)
-	}
-
 	info.frameY = info.contentArea.Y
-	if len(info.toolbarRects) > 0 {
-		info.frameY += maxInt(1, info.toolbarRows)
-	}
-	frameH := info.contentArea.Y + info.contentArea.H - info.frameY
+	frameH := info.contentArea.H
 	if frameH < 1 {
 		frameH = 1
 	}
@@ -235,41 +242,81 @@ func (m Model) layoutInfo() screenLayout {
 	info.listArea = info.content
 
 	if m.page == pageAccounts && info.content.W > 0 && info.content.H > 0 {
+		top := info.content.Y + accountControlsRows
+		avail := info.content.H - accountControlsRows - m.accountActionBarRows(info.content.W)
+		if avail < 1 {
+			avail = 1
+		}
+		visibleCount := len(m.visibleAccountIndexes())
 		if roomsWide(info.content.W) {
 			leftWidth := clampInt(info.content.W/3, 24, 38)
 			rightWidth := info.content.W - leftWidth - 3
 			if rightWidth >= 24 {
-				info.listArea = rect{X: info.content.X, Y: info.content.Y, W: leftWidth, H: info.content.H}
-				info.roomRows, info.roomRowIndex = m.roomRowHitboxes(info.content.X, info.content.Y, leftWidth, info.content.H)
+				info.listArea = rect{X: info.content.X, Y: top, W: leftWidth, H: avail}
+				info.roomRows, info.roomRowIndex = m.roomRowHitboxes(info.content.X, top, leftWidth, avail)
 			}
 		} else {
-			listHeight := compactListHeight(len(m.status.Accounts), info.content.H)
-			info.listArea = rect{X: info.content.X, Y: info.content.Y, W: info.content.W, H: listHeight}
-			info.roomRows, info.roomRowIndex = m.roomRowHitboxes(info.content.X, info.content.Y, info.content.W, listHeight)
+			listHeight := compactListHeight(visibleCount, avail)
+			info.listArea = rect{X: info.content.X, Y: top, W: info.content.W, H: listHeight}
+			info.roomRows, info.roomRowIndex = m.roomRowHitboxes(info.content.X, top, info.content.W, listHeight)
 		}
 	}
 	if m.page == pageLogs {
 		info.logArea = info.content
 	}
-	if m.page == pageProfiles && m.profileEditing && info.content.W > 0 && info.content.H > 0 {
-		_, indices := m.profileFormLines(info.content.W)
-		offset := m.contentOffset
-		maxOffset := len(indices) - info.content.H
-		if maxOffset < 0 {
-			maxOffset = 0
-		}
-		offset = clampInt(offset, 0, maxOffset)
-		for field, lineIndex := range indices {
-			if lineIndex < offset || lineIndex >= offset+info.content.H {
-				continue
+
+	// Render the page once, then map its local hitboxes into screen coordinates.
+	info.pageLines, info.pageHits = m.buildPage(info)
+	offset := 0
+	if info.content.H > 0 && len(info.pageLines) > info.content.H {
+		_, offset, _ = windowLines(info.pageLines, info.content.H, m.contentOffset)
+	}
+	info.pageHits = screenHits(info.pageHits, info.content, offset)
+
+	// Compatibility views derived from the same hitboxes.
+	info.toolbar = m.toolbarItems()
+	if m.modal != modalNone {
+		info.toolbar = nil
+	}
+	if len(info.toolbar) > 0 {
+		info.toolbarRects = make([]rect, len(info.toolbar))
+		rows := make(map[int]struct{})
+		for _, hit := range info.pageHits {
+			if hit.kind == hitToolbar && hit.index >= 0 && hit.index < len(info.toolbarRects) {
+				info.toolbarRects[hit.index] = hit.rect
+				rows[hit.rect.Y] = struct{}{}
 			}
-			info.profileFields = append(info.profileFields, rect{
-				X: info.content.X, Y: info.content.Y + lineIndex - offset, W: info.content.W, H: 1,
-			})
-			info.profileFieldIndex = append(info.profileFieldIndex, field)
+		}
+		info.toolbarRows = len(rows)
+		if info.toolbarRows < 1 {
+			info.toolbarRows = 1
+		}
+	}
+	if m.page == pageProfiles && m.profileEditing {
+		for _, hit := range info.pageHits {
+			if hit.kind == hitProfileField {
+				info.profileFields = append(info.profileFields, hit.rect)
+				info.profileFieldIndex = append(info.profileFieldIndex, hit.index)
+			}
 		}
 	}
 	return info
+}
+
+// screenHits translates page-local hitboxes to screen coordinates and drops
+// the ones scrolled out of the content view.
+func screenHits(hits []pageHit, content rect, offset int) []pageHit {
+	out := make([]pageHit, 0, len(hits))
+	for _, hit := range hits {
+		y := content.Y + hit.Y - offset
+		if y < content.Y || y >= content.Y+content.H {
+			continue
+		}
+		hit.Y = y
+		hit.X = content.X + hit.X
+		out = append(out, hit)
+	}
+	return out
 }
 
 func (m Model) topNavLayout(width, y int) ([]string, []rect, rect) {
@@ -345,26 +392,6 @@ func (m Model) toolbarItems() []toolbarItem {
 	default:
 		return nil
 	}
-}
-
-func layoutToolbar(items []toolbarItem, startX, startY, width int) ([]rect, int) {
-	rects := make([]rect, 0, len(items))
-	x, y := startX, startY
-	rows := 1
-	for index, item := range items {
-		buttonWidth := lipgloss.Width(" " + item.Label + " ")
-		if x > startX && x+buttonWidth > startX+width {
-			y++
-			x = startX
-			rows++
-		}
-		rects = append(rects, rect{X: x, Y: y, W: buttonWidth, H: 1})
-		x += buttonWidth
-		if index < len(items)-1 {
-			x++
-		}
-	}
-	return rects, rows
 }
 
 func (m *Model) clampActionIndex() {
@@ -445,6 +472,13 @@ func (m *Model) setPage(page pageKind) {
 	if m.profileEditing {
 		m.cancelProfileEdit()
 	}
+	if page != pageLogs {
+		m.consoleMode = false
+		m.logSearch = false
+	}
+	if page != pageAccounts {
+		m.accountSearch = false
+	}
 	m.page = page
 	m.focus = focusNav
 	m.actionIndex = 0
@@ -474,19 +508,57 @@ func compactListHeight(accounts, contentHeight int) int {
 	return height
 }
 
-// roomRowHitboxes returns the clickable rows and their account indexes. The
-// list follows the selection when there are more accounts than visible rows.
+const sidebarAccountHeaderRows = 2 // blank line + "我的房间" heading
+
+// sidebarAccountRects returns the per-account dashboard shortcuts below the
+// page list. The list shows as many accounts as fit and reserves one row for an
+// overflow counter when there are more.
+func (m Model) sidebarAccountRects(info screenLayout) ([]rect, []int) {
+	if len(m.status.Accounts) == 0 {
+		return nil, nil
+	}
+	start := info.bodyY + len(pageOrder) + sidebarAccountHeaderRows
+	available := info.bodyY + info.bodyH - start
+	if available <= 0 {
+		return nil, nil
+	}
+	rows := len(m.status.Accounts)
+	if rows > available {
+		rows = available - 1
+	}
+	if rows < 0 {
+		rows = 0
+	}
+	rects := make([]rect, 0, rows)
+	indexes := make([]int, 0, rows)
+	for row := 0; row < rows; row++ {
+		rects = append(rects, rect{X: 0, Y: start + row, W: info.navWidth, H: 1})
+		indexes = append(indexes, row)
+	}
+	return rects, indexes
+}
+
+// roomRowHitboxes returns the clickable rows and their original account
+// indexes. The list follows the selection when there are more visible accounts
+// than rows, and respects the current search/filter/sort order.
 func (m Model) roomRowHitboxes(x, y, width, visible int) ([]rect, []int) {
-	accounts := len(m.status.Accounts)
-	if visible <= 0 || accounts == 0 {
+	visibleAccounts := m.visibleAccountIndexes()
+	if visible <= 0 || len(visibleAccounts) == 0 {
 		return nil, nil
 	}
 	selected := m.selectedIndex()
-	offset := 0
-	if selected >= visible {
-		offset = selected - visible + 1
+	selectedPos := 0
+	for position, index := range visibleAccounts {
+		if index == selected {
+			selectedPos = position
+			break
+		}
 	}
-	if maxOffset := accounts - visible; offset > maxOffset {
+	offset := 0
+	if selectedPos >= visible {
+		offset = selectedPos - visible + 1
+	}
+	if maxOffset := len(visibleAccounts) - visible; offset > maxOffset {
 		offset = maxOffset
 	}
 	if offset < 0 {
@@ -494,9 +566,9 @@ func (m Model) roomRowHitboxes(x, y, width, visible int) ([]rect, []int) {
 	}
 	rows := make([]rect, 0, visible)
 	indexes := make([]int, 0, visible)
-	for row := 0; row < visible && offset+row < accounts; row++ {
+	for row := 0; row < visible && offset+row < len(visibleAccounts); row++ {
 		rows = append(rows, rect{X: x, Y: y + row, W: width, H: 1})
-		indexes = append(indexes, offset+row)
+		indexes = append(indexes, visibleAccounts[offset+row])
 	}
 	return rows, indexes
 }

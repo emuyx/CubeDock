@@ -163,9 +163,13 @@ export default function AccountDashboard({
 
   const changeProfile = async event => {
     const next = event.target.value;
+    if (!account) {
+      notify('账号列表已变化，请刷新页面', 'warning');
+      return;
+    }
     setAssigning(true);
     try {
-      await assignProfile(accountIndex, next);
+      await assignProfile(accountIndex, next, account);
       notify('已切换配置方案', 'success');
       onChanged?.();
     } catch (failure) {
@@ -176,9 +180,13 @@ export default function AccountDashboard({
   };
 
   const act = async (kind, action, message) => {
+    if (!account) {
+      notify('账号列表已变化，请刷新页面', 'warning');
+      return;
+    }
     setBusy(kind);
     try {
-      await action(accountIndex);
+      await action(accountIndex, account);
       notify(message, 'success');
       onChanged?.();
     } catch (failure) {

@@ -62,19 +62,28 @@ var (
 	frameFocusStyle = lipgloss.NewStyle().
 			Foreground(terminalColor("#2d7d6c", "#8fe3d2")).Bold(true)
 	frameTitleStyle = lipgloss.NewStyle().
-			Foreground(terminalColor("#6d5bb8", "#c6b4ff")).Bold(true)
+			Foreground(terminalColor("#6d5bb8", "#c6b4ff")).
+			Background(terminalColor("#f3e3ee", "#2b2e46")).Bold(true)
 	buttonStyle = lipgloss.NewStyle().
 			Foreground(terminalColor("#3a2b3a", "#f4f1fb")).
-			Background(terminalColor("#f3e3ee", "#2b2e46"))
+			Background(terminalColor("#ead9ea", "#30344e"))
 	buttonHoverStyle = lipgloss.NewStyle().
-				Foreground(terminalColor("#3a2b3a", "#f4f1fb")).
-				Background(terminalColor("#e7d4e7", "#343852")).Bold(true)
+				Foreground(terminalColor("#2b1621", "#ffffff")).
+				Background(terminalColor("#dec3dd", "#3d4262")).Bold(true)
 	buttonFocusStyle = lipgloss.NewStyle().
 				Foreground(terminalColor("#ffffff", "#102924")).
 				Background(terminalColor("#c95d86", "#8fe3d2")).Bold(true)
 	rowHoverStyle = lipgloss.NewStyle().
 			Foreground(terminalColor("#3a2b3a", "#f4f1fb")).
 			Background(terminalColor("#f7edf3", "#24263a"))
+	rowAltStyle = lipgloss.NewStyle().
+			Foreground(terminalColor("#3a2b3a", "#f4f1fb")).
+			Background(terminalColor("#faf3f8", "#202234"))
+	fieldActiveStyle = lipgloss.NewStyle().
+				Foreground(terminalColor("#2b1621", "#ffffff")).
+				Background(terminalColor("#e7d4e7", "#343852")).Bold(true)
+	sectionStyle = lipgloss.NewStyle().
+			Foreground(terminalColor("#9e3e63", "#c6b4ff")).Bold(true)
 	navStyle = lipgloss.NewStyle().
 			Foreground(terminalColor("#7c6b7f", "#b3b0c8"))
 	navActiveStyle = lipgloss.NewStyle().

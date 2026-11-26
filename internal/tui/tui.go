@@ -37,6 +37,10 @@ type Options struct {
 	// while SetupRequired is true.
 	CreateAdmin func(username, password string) error
 
+	// ChangePassword verifies the current administrator password and stores a
+	// new one. It invalidates WebUI sessions.
+	ChangePassword func(current, next string) error
+
 	// Output is optional and mainly useful for tests.
 	Output io.Writer
 }

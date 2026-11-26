@@ -224,14 +224,55 @@ func (h *consoleHandler) restartRoom(w http.ResponseWriter, r *http.Request) {
 	h.roomAction(w, r, h.manager.RestartAccount)
 }
 
+// errAccountChanged protects index-based account actions when another UI
+// removed or reordered accounts between the snapshot and the click.
+var errAccountChanged = errors.New("账号列表已变化，请刷新页面后重试")
+
+func (h *consoleHandler) validateAccount(index int, uid, email string) error {
+	if uid == "" && email == "" {
+		return nil
+	}
+	accounts := h.manager.Accounts()
+	if index < 0 || index >= len(accounts) {
+		return errAccountChanged
+	}
+	account := accounts[index]
+	// UID is stable across re-login; email is the fallback for accounts whose
+	// profile has not been resolved yet.
+	if uid != "" {
+		if account.UID != uid {
+			return errAccountChanged
+		}
+		return nil
+	}
+	if account.Email != email {
+		return errAccountChanged
+	}
+	return nil
+}
+
+func (h *consoleHandler) accountError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errAccountChanged) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusBadRequest)
+}
+
 func (h *consoleHandler) roomAction(w http.ResponseWriter, r *http.Request, action func(int) error) {
 	var body struct {
-		Index int `json:"index"`
+		Index int    `json:"index"`
+		UID   string `json:"uid"`
+		Email string `json:"email"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&body) != nil {
 		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	if err := h.validateAccount(body.Index, body.UID, body.Email); err != nil {
+		h.accountError(w, err)
 		return
 	}
 	if err := action(body.Index); err != nil {
@@ -245,11 +286,17 @@ func (h *consoleHandler) assignProfile(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Index     int    `json:"index"`
 		ProfileID string `json:"profile_id"`
+		UID       string `json:"uid"`
+		Email     string `json:"email"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&body) != nil {
 		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	if err := h.validateAccount(body.Index, body.UID, body.Email); err != nil {
+		h.accountError(w, err)
 		return
 	}
 	if err := h.manager.AssignAccountProfile(body.Index, body.ProfileID); err != nil {
@@ -302,7 +349,8 @@ func (h *consoleHandler) exit(w http.ResponseWriter, _ *http.Request) {
 
 func (h *consoleHandler) saveConfig(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Config config.Config `json:"config"`
+		Config   config.Config `json:"config"`
+		Revision *uint64       `json:"revision"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256*1024))
 	decoder.DisallowUnknownFields()
@@ -310,11 +358,21 @@ func (h *consoleHandler) saveConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "配置 JSON 无效", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.Configure(body.Config); err != nil {
+	var err error
+	if body.Revision != nil {
+		err = h.manager.ConfigureIfRevision(body.Config, *body.Revision)
+	} else {
+		err = h.manager.Configure(body.Config)
+	}
+	if errors.Is(err, core.ErrConfigChanged) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	respond(w, map[string]bool{"ok": true})
+	respond(w, map[string]any{"ok": true, "config_revision": h.manager.Snapshot().ConfigRevision})
 }
 
 // saveSession stores one verified session and its account metadata. index
@@ -682,12 +740,18 @@ func (h *consoleHandler) login4399(w http.ResponseWriter, r *http.Request) {
 
 func (h *consoleHandler) removeAccount(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Index int `json:"index"`
+		Index int    `json:"index"`
+		UID   string `json:"uid"`
+		Email string `json:"email"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&body) != nil {
 		http.Error(w, "请求数据无效", http.StatusBadRequest)
+		return
+	}
+	if err := h.validateAccount(body.Index, body.UID, body.Email); err != nil {
+		h.accountError(w, err)
 		return
 	}
 	if err := h.manager.RemoveAccount(body.Index); err != nil {
@@ -700,7 +764,9 @@ func (h *consoleHandler) removeAccount(w http.ResponseWriter, r *http.Request) {
 
 func (h *consoleHandler) refreshProfile(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Index int `json:"index"`
+		Index int    `json:"index"`
+		UID   string `json:"uid"`
+		Email string `json:"email"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
@@ -710,6 +776,10 @@ func (h *consoleHandler) refreshProfile(w http.ResponseWriter, r *http.Request) 
 	}
 	if h.manager.Snapshot().Running {
 		http.Error(w, "请先停止房间，再验证账号", http.StatusBadRequest)
+		return
+	}
+	if err := h.validateAccount(body.Index, body.UID, body.Email); err != nil {
+		h.accountError(w, err)
 		return
 	}
 	token, err := h.manager.Token(body.Index)

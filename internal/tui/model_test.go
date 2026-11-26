@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,6 +12,9 @@ import (
 
 	"github.com/emuyx/cubedock/internal/config"
 	"github.com/emuyx/cubedock/internal/core"
+	"github.com/emuyx/cubedock/internal/friends"
+	"github.com/emuyx/cubedock/internal/m4399login"
+	"github.com/emuyx/cubedock/internal/netease"
 )
 
 func sampleModel() Model {
@@ -344,8 +348,8 @@ func TestSidebarToolbarHitboxAlignment(t *testing.T) {
 	if info.navRects[0].X != 0 || info.navRects[0].W != info.navWidth {
 		t.Fatalf("sidebar nav rect = %+v, want x=0 w=%d", info.navRects[0], info.navWidth)
 	}
-	if info.toolbarRects[0].X != info.contentArea.X {
-		t.Fatalf("toolbar starts at x=%d, want content x=%d", info.toolbarRects[0].X, info.contentArea.X)
+	if info.toolbarRects[0].X != info.content.X {
+		t.Fatalf("toolbar starts at x=%d, want page content x=%d", info.toolbarRects[0].X, info.content.X)
 	}
 	for _, nav := range info.navRects {
 		for _, button := range info.toolbarRects {
@@ -356,39 +360,204 @@ func TestSidebarToolbarHitboxAlignment(t *testing.T) {
 	}
 }
 
-func TestMouseUsesVisualToolbarX(t *testing.T) {
+func TestInPageToolbarHitboxesMatchLabels(t *testing.T) {
 	model := sampleModel()
 	model.width, model.height = 100, 30
 	model.page = pageAccounts
-	opened := ""
-	model.options.OpenURL = func(url string) { opened = url }
 	info := model.layoutInfo()
-	webIndex := -1
+	seen := 0
 	for index, item := range info.toolbar {
-		if item.Special == specialWebUI {
-			webIndex = index
+		area := info.toolbarRects[index]
+		if area.W == 0 {
+			continue
+		}
+		if !info.content.Contains(area.X, area.Y) || area.X+area.W > info.content.X+info.content.W {
+			t.Fatalf("button %q outside content: %+v", item.Label, area)
+		}
+		want := buttonWidth(item.Label)
+		if area.W != want {
+			t.Fatalf("button %q width=%d, want %d", item.Label, area.W, want)
+		}
+		seen++
+	}
+	if seen != len(accountToolbar) {
+		t.Fatalf("visible buttons = %d, want %d", seen, len(accountToolbar))
+	}
+}
+
+func TestAccountsEmptyStateKeepsLoginAndImport(t *testing.T) {
+	for _, size := range []struct{ width, height int }{{100, 30}, {45, 24}} {
+		model := sampleModel()
+		model.status.Accounts = nil
+		model.status.Rooms = nil
+		model.status.Running = false
+		model.width, model.height = size.width, size.height
+		model.page = pageAccounts
+		info := model.layoutInfo()
+		seen := map[string]bool{}
+		for index, item := range info.toolbar {
+			if item.Special == specialLogin || item.Special == specialImport {
+				seen[item.Special] = info.toolbarRects[index].W > 0
+			}
+		}
+		if !seen[specialLogin] || !seen[specialImport] {
+			t.Fatalf("%dx%d: login/import buttons missing with no accounts: %v", size.width, size.height, seen)
+		}
+
+		loginIndex := -1
+		for index, item := range info.toolbar {
+			if item.Special == specialLogin {
+				loginIndex = index
+				break
+			}
+		}
+		button := info.toolbarRects[loginIndex]
+		next, _ := model.Update(tea.MouseMsg{
+			X: button.X + 1, Y: button.Y,
+			Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+		})
+		model = next.(Model)
+		if model.modal != modalLogin {
+			t.Fatalf("%dx%d: clicking login with no accounts opened modal %v", size.width, size.height, model.modal)
+		}
+	}
+}
+
+func TestProfileRowClickSelects(t *testing.T) {
+	model := sampleModel()
+	model.status.Config.Profiles = append(model.status.Config.Profiles, config.Profile{
+		ID: "second", Name: "第二套", ConnectionMode: config.ConnectionProxy,
+	})
+	model.width, model.height = 100, 30
+	model.page = pageProfiles
+	info := model.layoutInfo()
+	var row pageHit
+	found := false
+	for _, hit := range info.pageHits {
+		if hit.kind == hitProfileSelect && hit.index == 1 {
+			row, found = hit, true
 			break
 		}
 	}
-	if webIndex < 0 {
-		t.Fatal("WebUI toolbar item missing")
-	}
-	row := info.toolbarRects[webIndex].Y
-	visualX := info.contentArea.X
-	for index := 0; index < webIndex; index++ {
-		if info.toolbarRects[index].Y != row {
-			visualX = info.contentArea.X
-			continue
-		}
-		visualX += lipgloss.Width(" "+info.toolbar[index].Label+" ") + 1
+	if !found {
+		t.Fatal("second profile row is not clickable")
 	}
 	next, _ := model.Update(tea.MouseMsg{
-		X: visualX + 1, Y: row,
+		X: row.X + 1, Y: row.Y,
 		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
 	})
 	model = next.(Model)
-	if opened != model.options.LocalURL {
-		t.Fatalf("click at visual WebUI x=%d did not open WebUI (opened=%q)", visualX, opened)
+	if model.profileIndex != 1 || model.focus != focusContent {
+		t.Fatalf("profile index/focus = %d/%v", model.profileIndex, model.focus)
+	}
+}
+
+func TestHomeRoomClickJumpsToAccounts(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageHome
+	info := model.layoutInfo()
+	var row pageHit
+	found := false
+	for _, hit := range info.pageHits {
+		if hit.kind == hitJumpRoom {
+			row, found = hit, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("running room row is not clickable")
+	}
+	next, _ := model.Update(tea.MouseMsg{
+		X: row.X + 1, Y: row.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+	})
+	model = next.(Model)
+	if model.page != pageAccounts || model.selected != row.index {
+		t.Fatalf("page/selected = %v/%d, want accounts/%d", model.page, model.selected, row.index)
+	}
+}
+
+func TestLogFilterClickable(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageLogs
+	info := model.layoutInfo()
+	var filter pageHit
+	found := false
+	for _, hit := range info.pageHits {
+		if hit.kind == hitToggleLogFilter {
+			filter, found = hit, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("log filter is not clickable")
+	}
+	next, _ := model.Update(tea.MouseMsg{
+		X: filter.X + 1, Y: filter.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+	})
+	model = next.(Model)
+	if !model.logWatch {
+		t.Fatal("clicking the filter should enable room-only logs")
+	}
+}
+
+func TestModalCancelButtonClickable(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	model.status.Running = false
+	model.openLoginModal()
+	info := model.layoutInfo()
+	var cancel pageHit
+	found := false
+	for _, hit := range info.pageHits {
+		if hit.kind == hitModalCancel {
+			cancel, found = hit, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("login modal cancel button is not clickable")
+	}
+	next, _ := model.Update(tea.MouseMsg{
+		X: cancel.X + 1, Y: cancel.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+	})
+	model = next.(Model)
+	if model.modal != modalNone {
+		t.Fatalf("modal = %v, want none", model.modal)
+	}
+}
+
+func TestTagRowClickable(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageProfiles
+	model.status.Running = false
+	model.openProfileEditor()
+	model.openTagsModal()
+	info := model.layoutInfo()
+	var tag pageHit
+	found := false
+	for _, hit := range info.pageHits {
+		if hit.kind == hitTagToggle && hit.index == 0 {
+			tag, found = hit, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("tag row is not clickable")
+	}
+	next, _ := model.Update(tea.MouseMsg{
+		X: tag.X + 1, Y: tag.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+	})
+	model = next.(Model)
+	if len(model.profileDraft.RoomTags) != 1 || model.profileDraft.RoomTags[0] != 0 {
+		t.Fatalf("tags = %v, want [0]", model.profileDraft.RoomTags)
 	}
 }
 
@@ -968,6 +1137,9 @@ func TestProfileFieldMouseSelection(t *testing.T) {
 	if model.profileField != info.profileFieldIndex[2] {
 		t.Fatalf("profile field = %d, want %d", model.profileField, info.profileFieldIndex[2])
 	}
+	if !model.profileFieldEdit {
+		t.Fatal("clicking a text field should start editing")
+	}
 }
 
 func TestProfileScrollbarAndScroll(t *testing.T) {
@@ -1032,5 +1204,1009 @@ func TestRoomNameSelector(t *testing.T) {
 	model = next.(Model)
 	if model.modal != modalNone || model.profileDraft.RoomName == "" {
 		t.Fatalf("room name selection failed (modal=%v name=%q)", model.modal, model.profileDraft.RoomName)
+	}
+}
+
+func accountTestManager(t *testing.T) *core.Manager {
+	t.Helper()
+	manager := profileTestManager(t)
+	if _, err := manager.AddAccount("test-token-1", core.AccountMeta{
+		Name: "Alice", Email: "alice@example.com",
+		AuthMethod: "interop", Platform: "interop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return manager
+}
+
+func assertViewFits(t *testing.T, model Model, width, height int) {
+	t.Helper()
+	lines := strings.Split(model.View(), "\n")
+	if len(lines) != height {
+		t.Fatalf("%dx%d: height = %d", width, height, len(lines))
+	}
+	for _, line := range lines {
+		if lipgloss.Width(line) > width {
+			t.Fatalf("%dx%d: line width = %d: %q", width, height, lipgloss.Width(line), line)
+		}
+	}
+}
+
+func TestAccountActionsReloginPrefill(t *testing.T) {
+	manager := accountTestManager(t)
+	if err := manager.SaveAccountPassword(0, "secret"); err != nil {
+		t.Fatal(err)
+	}
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	model.openAccountActions()
+	if model.modal != modalAccountActions {
+		t.Fatalf("modal = %v, want account actions", model.modal)
+	}
+	info := model.layoutInfo()
+	var relogin pageHit
+	found := false
+	for _, hit := range info.pageHits {
+		if hit.kind == hitAccountRelogin {
+			relogin, found = hit, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("re-login action is not clickable")
+	}
+	next, _ := model.Update(tea.MouseMsg{
+		X: relogin.X + 1, Y: relogin.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+	})
+	model = next.(Model)
+	if model.modal != modalLogin || !model.loginReplace || model.loginReplaceIndex != 0 {
+		t.Fatalf("modal/replace = %v/%v/%d", model.modal, model.loginReplace, model.loginReplaceIndex)
+	}
+	if got := string(model.loginEmail); got != "alice@example.com" {
+		t.Fatalf("email = %q", got)
+	}
+	if got := string(model.loginPassword); got != "secret" || !model.loginRemember {
+		t.Fatalf("saved password not loaded: %q remember=%v", got, model.loginRemember)
+	}
+}
+
+func TestAccountDeleteRequiresTwoClicks(t *testing.T) {
+	manager := accountTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	model.openAccountActions()
+
+	next, cmd := model.activateAccountAction(hitAccountDelete)
+	model = next.(Model)
+	if cmd != nil || !model.accountDeleteArmed {
+		t.Fatalf("first delete click should only arm (cmd=%v armed=%v)", cmd, model.accountDeleteArmed)
+	}
+	next, cmd = model.activateAccountAction(hitAccountDelete)
+	model = next.(Model)
+	if cmd == nil {
+		t.Fatal("second delete click returned no command")
+	}
+	model = applyMsg(model, cmd())
+	if model.modal != modalNone {
+		t.Fatalf("modal = %v after delete", model.modal)
+	}
+	if got := len(manager.Accounts()); got != 0 {
+		t.Fatalf("accounts = %d, want 0", got)
+	}
+}
+
+func TestAssignProfileFromAccountActions(t *testing.T) {
+	manager := accountTestManager(t)
+	cfg := manager.Snapshot().Config.Clone()
+	second := cfg.Profiles[0]
+	second.ID = "second"
+	second.Name = "第二套"
+	cfg.Profiles = append(cfg.Profiles, second)
+	if err := manager.Configure(cfg); err != nil {
+		t.Fatal(err)
+	}
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	model.selected = 0
+	model.openAccountActions()
+	model.openAssignProfile(0)
+	if model.modal != modalAssignProfile {
+		t.Fatalf("modal = %v, want assign profile", model.modal)
+	}
+	next, cmd := model.applyAssignProfile(1)
+	model = next.(Model)
+	if cmd == nil {
+		t.Fatal("assign profile returned no refresh command")
+	}
+	model = applyMsg(model, cmd())
+	if got := manager.Snapshot().Accounts[0].ProfileID; got != "second" {
+		t.Fatalf("profile = %q, want second", got)
+	}
+}
+
+func TestConsoleCommandInput(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.width, model.height = 100, 30
+	model.page = pageLogs
+	model.focus = focusContent
+
+	info := model.layoutInfo()
+	var input pageHit
+	found := false
+	for _, hit := range info.pageHits {
+		if hit.kind == hitConsoleInput {
+			input, found = hit, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("console input is not clickable")
+	}
+	next, _ := model.Update(tea.MouseMsg{
+		X: input.X + 1, Y: input.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+	})
+	model = next.(Model)
+	if !model.consoleMode {
+		t.Fatal("clicking the input line should enter console mode")
+	}
+
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("help")})
+	model = next.(Model)
+	next, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = next.(Model)
+	if cmd == nil {
+		t.Fatal("console submit returned no command")
+	}
+	model = applyMsg(model, cmd())
+	if model.consoleBusy {
+		t.Fatal("console should not stay busy after the result")
+	}
+	var transcript strings.Builder
+	for _, line := range model.consoleTranscript {
+		transcript.WriteString(line.text)
+		transcript.WriteByte('\n')
+	}
+	if !strings.Contains(transcript.String(), "kick") {
+		t.Fatalf("help output missing from transcript: %q", transcript.String())
+	}
+
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyUp})
+	model = next.(Model)
+	if got := string(model.consoleInput); got != "help" {
+		t.Fatalf("history input = %q, want help", got)
+	}
+}
+
+func TestFocusedFrameUsesDoubleBorder(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageHome
+	model.focus = focusNav
+	if strings.Contains(model.View(), "╔") {
+		t.Fatal("unfocused frame should use the light border")
+	}
+	model.focus = focusContent
+	if !strings.Contains(model.View(), "╔") {
+		t.Fatal("focused frame should use the beveled border")
+	}
+}
+
+func TestNewModalsFitSizes(t *testing.T) {
+	for _, size := range []struct{ width, height int }{
+		{34, 10}, {45, 20}, {80, 24}, {100, 30}, {200, 60},
+	} {
+		manager := accountTestManager(t)
+		model := sampleModel()
+		model.manager = manager
+		model.status = manager.Snapshot()
+		model.status.Running = false
+		model.width, model.height = size.width, size.height
+		model.page = pageAccounts
+		model.openAccountActions()
+		assertViewFits(t, model, size.width, size.height)
+
+		model.openAssignProfile(0)
+		assertViewFits(t, model, size.width, size.height)
+
+		model.modal = modalNone
+		model.page = pageLogs
+		model.consoleMode = true
+		model.consoleInput = []rune("help")
+		model.consoleCursor = len(model.consoleInput)
+		assertViewFits(t, model, size.width, size.height)
+	}
+}
+
+func TestProfileSaveRejectsExternalConfigChange(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.page = pageProfiles
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.width, model.height = 100, 30
+	model.openProfileEditor()
+
+	external := manager.Snapshot().Config.Clone()
+	external.Profiles[0].RoomName = "WebUI 修改"
+	if err := manager.Configure(external); err != nil {
+		t.Fatal(err)
+	}
+
+	model.profileDraft.Name = "TUI 修改"
+	next, _ := model.saveProfile()
+	model = next.(Model)
+	if model.profileError == "" || !strings.Contains(model.profileError, "配置已在") {
+		t.Fatalf("save conflict not reported: %q", model.profileError)
+	}
+	if !model.profileEditing {
+		t.Fatal("editor should stay open after a conflict")
+	}
+	if got := manager.Snapshot().Config.Profiles[0].RoomName; got != "WebUI 修改" {
+		t.Fatalf("external change was overwritten: %q", got)
+	}
+}
+
+func TestAccountActionDetectsShiftedList(t *testing.T) {
+	manager := profileTestManager(t)
+	if _, err := manager.AddAccount("token-a", core.AccountMeta{
+		Name: "Alice", Email: "a@example.com", UID: "1", AuthMethod: "interop", Platform: "interop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddAccount("token-b", core.AccountMeta{
+		Name: "Bob", Email: "b@example.com", UID: "2", AuthMethod: "interop", Platform: "interop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.selected = 0
+	model.width, model.height = 100, 30
+	model.openAccountActions()
+	if model.accountFingerprint == "" {
+		t.Fatal("missing account fingerprint")
+	}
+	if err := manager.RemoveAccount(0); err != nil {
+		t.Fatal(err)
+	}
+
+	next, cmd := model.activateAccountAction(hitAccountRefresh)
+	model = next.(Model)
+	if cmd != nil || !strings.Contains(model.modalErr, "变化") {
+		t.Fatalf("shifted account not rejected: err=%q cmd=%v", model.modalErr, cmd)
+	}
+
+	model.selected = 0
+	next, _ = model.action(actionStart)
+	model = next.(Model)
+	if model.busy {
+		t.Fatal("room action started on a shifted account list")
+	}
+	if !strings.Contains(model.notice, "变化") {
+		t.Fatalf("room action notice = %q", model.notice)
+	}
+}
+
+func TestInteractionModalsFit(t *testing.T) {
+	for _, size := range []struct{ width, height int }{
+		{45, 20}, {100, 30}, {200, 60},
+	} {
+		manager := accountTestManager(t)
+		model := sampleModel()
+		model.manager = manager
+		model.status = manager.Snapshot()
+		model.status.Running = false
+		model.selected = 0
+		model.width, model.height = size.width, size.height
+		model.page = pageAccounts
+		model.openAccountActions()
+
+		model.openPlayers()
+		assertViewFits(t, model, size.width, size.height)
+
+		next, _ := model.openRoomMembers()
+		model = next.(Model)
+		assertViewFits(t, model, size.width, size.height)
+
+		model.modal = modalFriends
+		model.friendRequests = []friends.Request{{UID: 42, Name: "Bob", ApplyTime: "12:00:00"}}
+		model.friendsBusy = false
+		assertViewFits(t, model, size.width, size.height)
+
+		model.modal = modalPlayerTransfer
+		model.transferTarget = "player-1"
+		model.transferAddress = []rune("127.0.0.1:19132")
+		model.transferCursor = len(model.transferAddress)
+		assertViewFits(t, model, size.width, size.height)
+
+		model.page = pageProfiles
+		model.profileIndex = 0
+		model.status.Config.Profiles[0].ConnectionMode = config.ConnectionTransfer
+		model.openResourcePacks()
+		if model.modal != modalResourcePacks {
+			t.Fatalf("%dx%d: packs modal = %v", size.width, size.height, model.modal)
+		}
+		model.packs.Packs = []core.ResourcePack{{File: "a.mcpack", Name: "A", Version: "1", Size: 2048}}
+		assertViewFits(t, model, size.width, size.height)
+	}
+}
+
+func TestSettingsEditorSave(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.page = pageSettings
+	model.width, model.height = 100, 30
+	model.openSettingsEditor()
+	model.settingsDraft.AutoStart = true
+	model.settingsDraft.KeepAliveMinutes = 45
+	next, cmd := model.saveSettings()
+	model = next.(Model)
+	if model.settingsError != "" || cmd == nil {
+		t.Fatalf("save settings error=%q cmd=%v", model.settingsError, cmd)
+	}
+	model = applyMsg(model, cmd())
+	cfg := manager.Snapshot().Config
+	if !cfg.AutoStart || cfg.KeepAliveMinutes != 45 {
+		t.Fatalf("settings not saved: auto_start=%v minutes=%d", cfg.AutoStart, cfg.KeepAliveMinutes)
+	}
+}
+
+func TestSettingsSaveRejectsExternalChange(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.page = pageSettings
+	model.width, model.height = 100, 30
+	model.openSettingsEditor()
+
+	external := manager.Snapshot().Config.Clone()
+	external.Profiles[0].RoomName = "WebUI 修改"
+	if err := manager.Configure(external); err != nil {
+		t.Fatal(err)
+	}
+	model.settingsDraft.AutoStart = true
+	next, _ := model.saveSettings()
+	model = next.(Model)
+	if !strings.Contains(model.settingsError, "配置已在") {
+		t.Fatalf("conflict not reported: %q", model.settingsError)
+	}
+	if manager.Snapshot().Config.AutoStart {
+		t.Fatal("conflicting settings save was applied")
+	}
+}
+
+func TestAdminPasswordChange(t *testing.T) {
+	var got [2]string
+	model := newModel(Options{
+		Version:        "v0.4.3-dev",
+		LocalURL:       "http://127.0.0.1:18321/",
+		AdminName:      "admin",
+		ChangePassword: func(current, next string) error { got = [2]string{current, next}; return nil },
+	})
+	model.width, model.height = 100, 30
+	model.openAdminPasswordModal()
+	if model.modal != modalAdminPassword {
+		t.Fatalf("modal = %v", model.modal)
+	}
+	model.pwdCurrent = []rune("old-password")
+	model.pwdNext = []rune("new-password")
+	model.pwdConfirm = []rune("mismatch")
+	next, _ := model.submitAdminPassword()
+	model = next.(Model)
+	if model.modalErr == "" || model.modal != modalAdminPassword {
+		t.Fatal("password mismatch should be rejected")
+	}
+	model.pwdConfirm = []rune("new-password")
+	next, cmd := model.submitAdminPassword()
+	model = next.(Model)
+	if cmd == nil {
+		t.Fatal("password change returned no command")
+	}
+	model = applyMsg(model, cmd())
+	if model.modal != modalNone {
+		t.Fatalf("modal = %v after password change", model.modal)
+	}
+	if got != [2]string{"old-password", "new-password"} {
+		t.Fatalf("callback = %#v", got)
+	}
+}
+
+func TestBulkImportValidationAndFailure(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.page = pageAccounts
+	model.width, model.height = 100, 30
+
+	model.openBulkImport()
+	next, _ := model.startBulkImport()
+	model = next.(Model)
+	if model.modalErr == "" {
+		t.Fatal("empty bulk import should be rejected")
+	}
+
+	model.input = []rune("not a session")
+	model.inputCursor = len(model.input)
+	next, cmd := model.startBulkImport()
+	model = next.(Model)
+	if cmd == nil {
+		t.Fatal("bulk import returned no command")
+	}
+	model = applyMsg(model, cmd())
+	if model.modalBusy {
+		t.Fatal("bulk import should finish after one invalid line")
+	}
+	if len(model.bulkResults) != 1 || model.bulkResults[0].status != "error" {
+		t.Fatalf("bulk results = %#v", model.bulkResults)
+	}
+	if !strings.Contains(model.bulkNotice, "失败 1") {
+		t.Fatalf("bulk notice = %q", model.bulkNotice)
+	}
+}
+
+func TestAccountSearchFilterSort(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	model.selected = 0
+
+	next, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	model = next.(Model)
+	if !model.accountSearch {
+		t.Fatal("/ should enter account search")
+	}
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("alice")})
+	model = next.(Model)
+	if visible := model.visibleAccountIndexes(); len(visible) != 1 || visible[0] != 0 {
+		t.Fatalf("search visible = %v", visible)
+	}
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = next.(Model)
+	if model.accountSearch {
+		t.Fatal("Esc should leave account search")
+	}
+
+	model.accountQuery = []rune("zzz")
+	model.normalizeAccountSelection()
+	if !model.searchFilteredEmpty() || model.selected != -1 {
+		t.Fatalf("empty search state: filtered=%v selected=%d", model.searchFilteredEmpty(), model.selected)
+	}
+
+	model.accountQuery = nil
+	model.accountFilter = "online"
+	model.normalizeAccountSelection()
+	if visible := model.visibleAccountIndexes(); len(visible) != 1 || visible[0] != 0 {
+		t.Fatalf("online visible = %v", visible)
+	}
+
+	model.accountFilter = "all"
+	model.status.Accounts[0].Name = "Zoe"
+	model.status.Accounts[1].Name = "Amy"
+	model.accountSort = "name"
+	if visible := model.visibleAccountIndexes(); len(visible) != 2 || visible[0] != 1 || visible[1] != 0 {
+		t.Fatalf("name-sorted visible = %v", visible)
+	}
+
+	model.accountSort = ""
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	model = next.(Model)
+	if model.accountFilterMode() != "online" {
+		t.Fatalf("f filter = %q", model.accountFilterMode())
+	}
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	model = next.(Model)
+	if model.accountSortMode() != "name" {
+		t.Fatalf("v sort = %q", model.accountSortMode())
+	}
+}
+
+func TestDashboardOpensAndFits(t *testing.T) {
+	for _, size := range []struct{ width, height int }{
+		{45, 20}, {100, 30}, {200, 60},
+	} {
+		manager := accountTestManager(t)
+		model := sampleModel()
+		model.manager = manager
+		model.status = manager.Snapshot()
+		model.status.Running = false
+		model.selected = 0
+		model.width, model.height = size.width, size.height
+		model.page = pageAccounts
+		model.status.Events = []core.Event{
+			{Time: "12:00:00", Source: "房间 1", Level: "info", Message: "房间已上线", Room: 1},
+			{Time: "12:00:01", Source: "房间 2", Level: "warning", Message: "其他房间", Room: 2},
+		}
+		model.openSelectedDashboard()
+		if model.modal != modalAccountDashboard || model.accountActionIndex != 0 {
+			t.Fatalf("%dx%d: dashboard modal=%v index=%d", size.width, size.height, model.modal, model.accountActionIndex)
+		}
+		assertViewFits(t, model, size.width, size.height)
+	}
+}
+
+func TestSettingsAndPasswordModalsFit(t *testing.T) {
+	for _, size := range []struct{ width, height int }{
+		{34, 10}, {45, 20}, {100, 30}, {200, 60},
+	} {
+		manager := profileTestManager(t)
+		model := sampleModel()
+		model.manager = manager
+		model.status = manager.Snapshot()
+		model.status.Running = false
+		model.width, model.height = size.width, size.height
+		model.page = pageSettings
+		model.openSettingsEditor()
+		assertViewFits(t, model, size.width, size.height)
+
+		model.options.ChangePassword = func(string, string) error { return nil }
+		model.openAdminPasswordModal()
+		assertViewFits(t, model, size.width, size.height)
+
+		model.openBulkImport()
+		model.input = []rune(`{"sauth_json":"x"}`)
+		model.inputCursor = len(model.input)
+		assertViewFits(t, model, size.width, size.height)
+	}
+}
+
+func TestSidebarAccountEntries(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageHome
+	info := model.layoutInfo()
+	if len(info.accountRects) != 2 || len(info.accountRowIndex) != 2 {
+		t.Fatalf("sidebar account entries = %d/%d", len(info.accountRects), len(info.accountRowIndex))
+	}
+	row := info.accountRects[1]
+	next, _ := model.Update(tea.MouseMsg{
+		X: row.X + 1, Y: row.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+	})
+	model = next.(Model)
+	if model.modal != modalAccountDashboard || model.accountActionIndex != 1 {
+		t.Fatalf("dashboard modal/index = %v/%d", model.modal, model.accountActionIndex)
+	}
+
+	profilesIndex := 0
+	for index, page := range pageOrder {
+		if page == pageProfiles {
+			profilesIndex = index
+			break
+		}
+	}
+	nav := model.layoutInfo().navRects[profilesIndex]
+	next, _ = model.Update(tea.MouseMsg{
+		X: nav.X + 1, Y: nav.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+	})
+	model = next.(Model)
+	if model.modal != modalNone || model.page != pageProfiles {
+		t.Fatalf("nav click while dashboard open: modal=%v page=%v", model.modal, model.page)
+	}
+}
+
+func TestLogSearchAndExport(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.width, model.height = 100, 30
+	model.page = pageLogs
+	model.consoleTranscript = []consoleLine{
+		{time: "12:00:00", level: "info", text: "hello world"},
+		{time: "12:00:01", level: "info", text: "other line"},
+	}
+
+	next, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	model = next.(Model)
+	if !model.logSearch {
+		t.Fatal("/ should enter log search")
+	}
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("hello")})
+	model = next.(Model)
+	lines := model.combinedLogs()
+	if len(lines) != 1 || !strings.Contains(lines[0].text, "hello world") {
+		t.Fatalf("filtered logs = %#v", lines)
+	}
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model = next.(Model)
+	if model.logSearch {
+		t.Fatal("Esc should leave log search")
+	}
+
+	model.exportLogs()
+	entries, err := os.ReadDir(manager.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var exported string
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "cubedock-logs-") && strings.HasSuffix(entry.Name(), ".txt") {
+			exported = filepath.Join(manager.Dir(), entry.Name())
+		}
+	}
+	if exported == "" {
+		t.Fatal("log export file not found")
+	}
+	raw, err := os.ReadFile(exported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "hello world") || strings.Contains(string(raw), "other line") {
+		t.Fatalf("export content = %q", raw)
+	}
+}
+
+func TestLogin4399CaptchaDisplay(t *testing.T) {
+	manager := profileTestManager(t)
+	model := newModel(Options{Version: "v0.4.3-dev", LocalURL: "http://127.0.0.1:18321/"})
+	model.manager = manager
+	model.status.Running = false
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	model.openLoginModal()
+	model.setLoginPlatform(string(netease.AuthMobile4399))
+	model.loginCaptchaID = "captcha-1"
+	model.loginCaptchaPath = filepath.Join(manager.Dir(), "captcha.png")
+	model.loginCaptchaNote = "请输入图形验证码；图片已保存，Ctrl+O 打开"
+	model.loginCaptchaInput = []rune("abcd")
+	model.loginCaptchaCursor = len(model.loginCaptchaInput)
+	model.loginField = 4
+	if model.loginFieldCount() != 5 {
+		t.Fatalf("login field count = %d", model.loginFieldCount())
+	}
+	view := model.View()
+	if !strings.Contains(view, "4399") || !strings.Contains(view, "验证码") {
+		t.Fatalf("4399 captcha UI missing: %q", view)
+	}
+	assertViewFits(t, model, model.width, model.height)
+}
+
+func TestSaveCaptchaImage(t *testing.T) {
+	manager := profileTestManager(t)
+	captcha := &m4399login.CaptchaRequired{
+		CaptchaID: "id-1", Image: []byte{1, 2, 3, 4}, ImageType: "image/png",
+	}
+	path, note := saveCaptchaImage(manager, captcha)
+	if path == "" || !strings.Contains(note, "已保存") {
+		t.Fatalf("captcha path/note = %q/%q", path, note)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 4 {
+		t.Fatalf("captcha bytes = %d", len(raw))
+	}
+}
+
+func TestLogsFitWithSearch(t *testing.T) {
+	for _, size := range []struct{ width, height int }{
+		{34, 10}, {45, 20}, {100, 30}, {200, 60},
+	} {
+		model := sampleModel()
+		model.width, model.height = size.width, size.height
+		model.page = pageLogs
+		model.logSearch = true
+		model.logQuery = []rune("一段比较长的日志搜索词")
+		model.logQueryCursor = len(model.logQuery)
+		model.consoleTranscript = []consoleLine{
+			{time: "12:00:00", level: "info", text: "一段比较长的日志搜索词 命中"},
+		}
+		assertViewFits(t, model, size.width, size.height)
+	}
+}
+
+func TestInputBoxesAndStatusChips(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	view := model.View()
+	if !strings.Contains(view, "● 在线 1") || !strings.Contains(view, "× 异常 1") {
+		t.Fatalf("account status chips missing: %q", view)
+	}
+
+	model.status.Running = false
+	model.width, model.height = 45, 20
+	model.openLoginModal()
+	model.loginEmail = []rune("alice@example.com")
+	model.loginEmailCursor = len(model.loginEmail)
+	model.loginPassword = []rune("secret")
+	model.loginPasswordCursor = len(model.loginPassword)
+	model.loginField = 1
+	view = model.View()
+	if !strings.Contains(view, "╭─ 登录信息") {
+		t.Fatalf("login input box missing: %q", view)
+	}
+	if !strings.Contains(view, "保存密码到本机") || !strings.Contains(view, "取消") {
+		t.Fatalf("narrow login controls clipped: %q", view)
+	}
+}
+
+func TestNarrowModalsKeepActionsVisible(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.width, model.height = 45, 20
+
+	model.page = pageSettings
+	model.openSettingsEditor()
+	view := model.View()
+	if !strings.Contains(view, "保存") || !strings.Contains(view, "取消") {
+		t.Fatalf("settings actions clipped at 45x20: %q", view)
+	}
+
+	model.options.ChangePassword = func(string, string) error { return nil }
+	model.openAdminPasswordModal()
+	view = model.View()
+	if !strings.Contains(view, "保存") || !strings.Contains(view, "取消") {
+		t.Fatalf("password actions clipped at 45x20: %q", view)
+	}
+
+	model.page = pageAccounts
+	model.openImportModal()
+	model.input = []rune(`{"sauth_json":"x"}`)
+	model.inputCursor = len(model.input)
+	view = model.View()
+	if !strings.Contains(view, "导入") || !strings.Contains(view, "取消") {
+		t.Fatalf("import actions clipped at 45x20: %q", view)
+	}
+
+	model.modal = modalNone
+	model.openBulkImport()
+	model.input = []rune(`{"sauth_json":"x"}`)
+	model.inputCursor = len(model.input)
+	view = model.View()
+	if !strings.Contains(view, "开始导入") || !strings.Contains(view, "关闭") {
+		t.Fatalf("bulk actions clipped at 45x20: %q", view)
+	}
+}
+
+func TestDashboardChildModalReturnsToDashboard(t *testing.T) {
+	manager := accountTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.selected = 0
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	model.openSelectedDashboard()
+	if model.modal != modalAccountDashboard {
+		t.Fatalf("dashboard modal = %v", model.modal)
+	}
+
+	next, _ := model.activateAccountAction(hitPlayersOpen)
+	model = next.(Model)
+	if model.modal != modalPlayers {
+		t.Fatalf("players modal = %v", model.modal)
+	}
+	model.cancelModal()
+	if model.modal != modalAccountDashboard {
+		t.Fatalf("players close returned to %v, want dashboard", model.modal)
+	}
+
+	next, _ = model.activateAccountAction(hitAccountName)
+	model = next.(Model)
+	if model.modal != modalName {
+		t.Fatalf("name modal = %v", model.modal)
+	}
+	model.cancelModal()
+	if model.modal != modalAccountDashboard {
+		t.Fatalf("name close returned to %v, want dashboard", model.modal)
+	}
+
+	next, _ = model.activateAccountAction(hitAccountAssign)
+	model = next.(Model)
+	if model.modal != modalAssignProfile {
+		t.Fatalf("assign modal = %v", model.modal)
+	}
+	model.cancelModal()
+	if model.modal != modalAccountDashboard {
+		t.Fatalf("assign close returned to %v, want dashboard", model.modal)
+	}
+
+	next, _ = model.activateAccountAction(hitAccountRelogin)
+	model = next.(Model)
+	if model.modal != modalLogin {
+		t.Fatalf("login modal = %v", model.modal)
+	}
+	model.cancelModal()
+	if model.modal != modalAccountDashboard {
+		t.Fatalf("login close returned to %v, want dashboard", model.modal)
+	}
+}
+
+func TestResourcePacksRequireTransfer(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.page = pageProfiles
+	model.profileIndex = 0
+	model.openResourcePacks()
+	if model.modal == modalResourcePacks {
+		t.Fatal("proxy profile should not open the resource pack modal")
+	}
+	if !strings.Contains(model.notice, "转服") {
+		t.Fatalf("proxy resource pack notice = %q", model.notice)
+	}
+
+	model.status.Config.Profiles[0].ConnectionMode = config.ConnectionTransfer
+	model.openResourcePacks()
+	if model.modal != modalResourcePacks {
+		t.Fatalf("transfer profile packs modal = %v", model.modal)
+	}
+}
+
+func TestAccountActionBarAtBottom(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	info := model.layoutInfo()
+	login := toolbarIndexSpecial(info.toolbar, specialLogin)
+	start := toolbarIndexAction(info.toolbar, actionStart)
+	if login < 0 || start < 0 {
+		t.Fatalf("login/start index = %d/%d", login, start)
+	}
+	if info.toolbarRects[login].W == 0 || info.toolbarRects[start].W == 0 {
+		t.Fatal("bottom action bar or room actions not laid out")
+	}
+	if info.toolbarRects[login].Y <= info.toolbarRects[start].Y {
+		t.Fatalf("global account actions at y=%d should be below room actions at y=%d",
+			info.toolbarRects[login].Y, info.toolbarRects[start].Y)
+	}
+	for _, special := range []string{specialLogin, specialImport, specialBulk, specialAccountManage} {
+		index := toolbarIndexSpecial(info.toolbar, special)
+		if index < 0 || info.toolbarRects[index].W == 0 {
+			t.Fatalf("bottom action %q missing", special)
+		}
+	}
+}
+
+func TestNameModalRenameMode(t *testing.T) {
+	manager := accountTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.selected = 0
+	model.width, model.height = 100, 30
+	model.page = pageAccounts
+	model.openAccountActions()
+	next, _ := model.activateAccountAction(hitAccountName)
+	model = next.(Model)
+	if model.modal != modalName || !model.nameRename {
+		t.Fatalf("modal/rename = %v/%v", model.modal, model.nameRename)
+	}
+	if got := string(model.nameInput); got != "Alice" {
+		t.Fatalf("rename prefill = %q", got)
+	}
+	view := model.View()
+	if strings.Contains(view, "还没有返回游戏名") {
+		t.Fatalf("rename view still says the account has no name: %q", view)
+	}
+	if !strings.Contains(view, "修改已有游戏名") || !strings.Contains(view, "保存新游戏名") || !strings.Contains(view, "取消") {
+		t.Fatalf("rename controls missing: %q", view)
+	}
+	model.cancelModal()
+	if model.modal != modalAccountActions {
+		t.Fatalf("rename cancel returned to %v", model.modal)
+	}
+}
+
+func TestRandomNamesValid(t *testing.T) {
+	for attempt := 0; attempt < 200; attempt++ {
+		if name := randomChineseName(); !validPlayerName(name) {
+			t.Fatalf("invalid Chinese name %q", name)
+		}
+		if name := randomEnglishName(); !validPlayerName(name) {
+			t.Fatalf("invalid English name %q", name)
+		}
+	}
+	chinese, english := makeNameSuggestions(3)
+	if len(chinese) != 3 || len(english) != 3 {
+		t.Fatalf("suggestions = %d/%d", len(chinese), len(english))
+	}
+}
+
+func TestNameSuggestionsClickable(t *testing.T) {
+	model := sampleModel()
+	model.width, model.height = 100, 30
+	model.openNameModal(0, "token", "interop")
+	model.nameSuggestionsCN = []string{"星海旅人"}
+	model.nameSuggestionsEN = []string{"PixelFox42"}
+	info := model.layoutInfo()
+	var candidateCN, candidateEN pageHit
+	hasCN, hasEN := false, false
+	for _, hit := range info.pageHits {
+		switch hit.kind {
+		case hitNameCandidateCN:
+			candidateCN, hasCN = hit, true
+		case hitNameCandidateEN:
+			candidateEN, hasEN = hit, true
+		}
+	}
+	if !hasCN || !hasEN {
+		t.Fatal("name candidates are not clickable")
+	}
+	next, _ := model.Update(tea.MouseMsg{X: candidateCN.X + 1, Y: candidateCN.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	model = next.(Model)
+	if got := string(model.nameInput); got != "星海旅人" {
+		t.Fatalf("Chinese candidate click = %q", got)
+	}
+	next, _ = model.Update(tea.MouseMsg{X: candidateEN.X + 1, Y: candidateEN.Y,
+		Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	model = next.(Model)
+	if got := string(model.nameInput); got != "PixelFox42" {
+		t.Fatalf("English candidate click = %q", got)
+	}
+}
+
+func TestCtrlLOpensRoomNameChooser(t *testing.T) {
+	manager := profileTestManager(t)
+	model := sampleModel()
+	model.manager = manager
+	model.status = manager.Snapshot()
+	model.status.Running = false
+	model.width, model.height = 100, 30
+	model.page = pageProfiles
+	model.openProfileEditor()
+	roomNameField := -1
+	for index, spec := range model.profileFields() {
+		if spec.Key == "room_name" {
+			roomNameField = index
+			break
+		}
+	}
+	if roomNameField < 0 {
+		t.Fatal("room name field not found")
+	}
+	model.profileField = roomNameField
+
+	next, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	model = next.(Model)
+	if model.modal != modalProfileRoomName {
+		t.Fatalf("Ctrl+L modal = %v", model.modal)
+	}
+	model.cancelModal()
+
+	// It must also work while the text field is being edited.
+	model.profileField = roomNameField
+	model.profileFieldEdit = true
+	model.profileBuffer = []rune("custom name")
+	next, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	model = next.(Model)
+	if model.modal != modalProfileRoomName {
+		t.Fatalf("Ctrl+L while editing modal = %v", model.modal)
 	}
 }

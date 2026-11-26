@@ -60,7 +60,7 @@ export default function SettingsForm({ status, onChanged }) {
     try {
       const parsed = JSON.parse(await file.text());
       if (!parsed?.config) throw new Error('这个文件不是 CubeDock 的配置备份');
-      const result = await restoreConfig(parsed.config);
+      const result = await restoreConfig(parsed.config, status.config_revision);
       discard?.();
       onChanged?.();
       notify(

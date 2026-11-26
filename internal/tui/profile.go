@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/emuyx/cubedock/internal/config"
+	"github.com/emuyx/cubedock/internal/core"
 )
 
 type profileFieldKind int
@@ -269,7 +271,11 @@ func (m Model) profileFieldLine(spec profileFieldSpec, index, width int) string 
 	default:
 		body = marker + label + value
 	}
-	return textStyle.Render(truncate(body, width))
+	plain := truncate(body, width)
+	if focused && m.profileFieldEdit {
+		return fieldActiveStyle.Render(padRightPlain(plain, width))
+	}
+	return textStyle.Render(plain)
 }
 
 func sliderText(value, min, max, width int) string {
@@ -294,7 +300,7 @@ func (m Model) profileFormLines(width int) ([]string, []int) {
 			if group != "" {
 				lines = append(lines, "")
 			}
-			lines = append(lines, panelTitleStyle.Render(spec.Group))
+			lines = append(lines, sectionTitle(spec.Group))
 			group = spec.Group
 		}
 		indices[index] = len(lines)
@@ -306,13 +312,28 @@ func (m Model) profileFormLines(width int) ([]string, []int) {
 	if m.profileError != "" {
 		lines = append(lines, errorStyle.Render(truncate(m.profileError, width)))
 	}
-	lines = append(lines, dimStyle.Render("↑↓ 字段  Enter 编辑/切换  Ctrl+S 保存  Esc 取消"))
+	if m.profileRevision != m.status.ConfigRevision {
+		lines = append(lines, warnStyle.Render(truncate(
+			"配置已在 WebUI/其他界面修改；保存会被拒绝，请取消后重新打开", width)))
+	}
 	return lines, indices
 }
 
-func (m Model) profileFormView(width int) []string {
-	lines, _ := m.profileFormLines(width)
-	return lines
+func (m Model) profileFormInto(b *pageBuilder) {
+	lines, indices := m.profileFormLines(b.width)
+	for _, line := range lines {
+		b.add(line)
+	}
+	for field, lineIndex := range indices {
+		b.hit(lineIndex, 0, b.width, hitProfileField, field)
+	}
+	b.blank()
+	items := m.toolbarItems()
+	b.buttonFlow("",
+		toolbarIndexSpecial(items, specialProfileSave),
+		toolbarIndexSpecial(items, specialProfileCancel),
+		toolbarIndexSpecial(items, specialWebUI),
+	)
 }
 
 func (m *Model) openProfileEditor() {
@@ -328,6 +349,7 @@ func (m *Model) openProfileEditor() {
 	m.profileIndex = clampInt(m.profileIndex, 0, len(profiles)-1)
 	m.profileDraft = profiles[m.profileIndex]
 	m.profileOriginalID = m.profileDraft.ID
+	m.profileRevision = m.status.ConfigRevision
 	m.profileNew = false
 	m.profileEditing = true
 	m.profileField = 0
@@ -345,6 +367,7 @@ func (m *Model) newProfileDraft() {
 	base.Name = m.uniqueProfileName()
 	m.profileDraft = base
 	m.profileOriginalID = ""
+	m.profileRevision = m.status.ConfigRevision
 	m.profileNew = true
 	m.profileEditing = true
 	m.profileField = 0
@@ -366,6 +389,7 @@ func (m *Model) duplicateProfileDraft() {
 	m.profileDraft.ID = m.uniqueProfileID()
 	m.profileDraft.Name = m.uniqueProfileName()
 	m.profileOriginalID = ""
+	m.profileRevision = m.status.ConfigRevision
 	m.profileNew = true
 	m.profileEditing = true
 	m.profileField = 0
@@ -451,7 +475,15 @@ func (m Model) saveProfile() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	if err := m.manager.Configure(next); err != nil {
+	// Debug is toggled live; keep its current value instead of reverting it
+	// from a draft opened earlier.
+	next.Debug = m.manager.Snapshot().Config.Debug
+	if err := m.manager.ConfigureIfRevision(next, m.profileRevision); err != nil {
+		if errors.Is(err, core.ErrConfigChanged) {
+			m.profileError = "配置已在 WebUI 或其他界面修改；请取消后重新打开"
+			m.setNotice(m.profileError)
+			return m, nil
+		}
 		m.profileError = err.Error()
 		m.setNotice("保存配置方案失败：" + err.Error())
 		m.contentOffset = 1 << 20
@@ -501,11 +533,29 @@ func (m Model) deleteProfile() (tea.Model, tea.Cmd) {
 		m.setNotice("仍有账号使用该配置方案，不能删除")
 		return m, nil
 	}
-	next := m.status.Config.Clone()
-	next.Profiles = append(next.Profiles[:m.profileIndex], next.Profiles[m.profileIndex+1:]...)
-	if err := m.manager.Configure(next); err != nil {
-		m.setNotice("删除配置方案失败：" + err.Error())
-		return m, nil
+	// Delete from a fresh snapshot so a WebUI edit is not silently undone by
+	// a stale TUI copy.
+	snapshot := m.manager.Snapshot()
+	next := snapshot.Config.Clone()
+	removeAt := -1
+	for index, candidate := range next.Profiles {
+		if candidate.ID == profile.ID {
+			removeAt = index
+			break
+		}
+	}
+	if removeAt < 0 {
+		m.setNotice("配置方案已在其他界面变化，请重新选择")
+		return m, m.snapshotCmd()
+	}
+	next.Profiles = append(next.Profiles[:removeAt], next.Profiles[removeAt+1:]...)
+	if err := m.manager.ConfigureIfRevision(next, snapshot.ConfigRevision); err != nil {
+		if errors.Is(err, core.ErrConfigChanged) {
+			m.setNotice(core.ErrConfigChanged.Error())
+		} else {
+			m.setNotice("删除配置方案失败：" + err.Error())
+		}
+		return m, m.snapshotCmd()
 	}
 	m.profileDeleteID = ""
 	m.profileIndex = clampInt(m.profileIndex, 0, len(next.Profiles)-1)
@@ -555,6 +605,15 @@ func (m Model) handleProfileKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	m.profileField = clampInt(m.profileField, 0, len(fields)-1)
 	spec := fields[m.profileField]
+	// Ctrl+L opens the built-in room name chooser even while the text field is
+	// being edited; otherwise the hint would only work before pressing Enter.
+	if name == "ctrl+l" && spec.Key == "room_name" {
+		m.profileFieldEdit = false
+		m.profileBuffer = nil
+		m.profileError = ""
+		m.openRoomNameModal()
+		return m, nil
+	}
 	if m.profileFieldEdit {
 		switch name {
 		case "esc":
@@ -632,10 +691,6 @@ func (m Model) handleProfileKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G", "end":
 		m.profileField = len(fields) - 1
 		m.profileScrollToField()
-	case "ctrl+l":
-		if spec.Key == "room_name" {
-			m.openRoomNameModal()
-		}
 	case "pgup":
 		m.moveContent(-8)
 	case "pgdown":
@@ -663,6 +718,7 @@ func (m Model) handleProfileKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) openTagsModal() {
+	m.modalReturn = modalNone
 	m.modal = modalProfileTags
 	m.tagCursor = 0
 	m.modalErr = ""
@@ -681,35 +737,43 @@ func (m Model) handleTagsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		m.tagCursor = (m.tagCursor + 1) % len(profileRoomTagNames)
 	case " ", "space":
-		tag := uint8(m.tagCursor)
-		found := -1
-		for index, existing := range m.profileDraft.RoomTags {
-			if existing == tag {
-				found = index
-				break
-			}
-		}
-		if found >= 0 {
-			m.profileDraft.RoomTags = append(m.profileDraft.RoomTags[:found], m.profileDraft.RoomTags[found+1:]...)
-			m.profileDirty = true
-			return m, nil
-		}
-		if len(m.profileDraft.RoomTags) >= 2 {
-			m.modalErr = "大厅标签最多选择 2 个"
-			return m, nil
-		}
-		m.profileDraft.RoomTags = append(m.profileDraft.RoomTags, tag)
-		m.profileDirty = true
+		m.toggleTag(m.tagCursor)
 	}
 	return m, nil
 }
 
-func (m Model) tagsView(width int) []string {
-	lines := []string{
-		panelTitleStyle.Render("大厅标签（最多 2 个）"),
-		dimStyle.Render("↑↓ 选择，Space 切换，Enter/Esc 完成。"),
-		dimStyle.Render(""),
+func (m *Model) toggleTag(index int) {
+	if index < 0 || index >= len(profileRoomTagNames) {
+		return
 	}
+	tag := uint8(index)
+	found := -1
+	for existingIndex, existing := range m.profileDraft.RoomTags {
+		if existing == tag {
+			found = existingIndex
+			break
+		}
+	}
+	if found >= 0 {
+		m.profileDraft.RoomTags = append(m.profileDraft.RoomTags[:found], m.profileDraft.RoomTags[found+1:]...)
+		m.profileDirty = true
+		m.modalErr = ""
+		return
+	}
+	if len(m.profileDraft.RoomTags) >= 2 {
+		m.modalErr = "大厅标签最多选择 2 个"
+		return
+	}
+	m.profileDraft.RoomTags = append(m.profileDraft.RoomTags, tag)
+	m.profileDirty = true
+	m.modalErr = ""
+}
+
+func (m Model) tagsInto(b *pageBuilder) {
+	width := b.width
+	b.add(panelTitleStyle.Render("大厅标签（最多 2 个）"))
+	b.add(dimStyle.Render("↑↓ 选择，Space 切换，Enter/Esc 完成；点击标签可直接切换。"))
+	b.blank()
 	for index, name := range profileRoomTagNames {
 		checked := false
 		for _, tag := range m.profileDraft.RoomTags {
@@ -723,20 +787,29 @@ func (m Model) tagsView(width int) []string {
 			marker = "▌ "
 		}
 		box := "[ ]"
+		lineText := marker + box + " " + name
+		line := len(b.lines)
 		style := textStyle
-		if checked {
+		switch {
+		case checked:
 			box = "[x]"
+			lineText = marker + box + " " + name
 			style = onlineStyle
+		case b.hovered(line, 0, width):
+			style = rowHoverStyle
 		}
-		lines = append(lines, style.Render(truncate(marker+box+" "+name, width)))
+		b.add(style.Render(truncate(lineText, width)))
+		b.hit(line, 0, width, hitTagToggle, index)
 	}
 	if m.modalErr != "" {
-		lines = append(lines, errorStyle.Render(truncate(m.modalErr, width)))
+		b.add(errorStyle.Render(truncate(m.modalErr, width)))
 	}
-	return lines
+	b.blank()
+	b.customButtonFlow("", customButton{label: "完成", kind: hitModalCancel})
 }
 
 func (m *Model) openRoomNameModal() {
+	m.modalReturn = modalNone
 	m.modal = modalProfileRoomName
 	m.roomNameCursor = 0
 	for index, name := range profileRoomNames {
@@ -768,26 +841,32 @@ func (m Model) handleRoomNameKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) roomNameView(width int) []string {
-	lines := []string{
-		panelTitleStyle.Render("内置房间名称"),
-		dimStyle.Render("普通账号建议使用内置名；自定义名称可能被网易拒绝（需要 VIP）。"),
-		dimStyle.Render(""),
-	}
+func (m Model) roomNameInto(b *pageBuilder) {
+	width := b.width
+	b.add(panelTitleStyle.Render("内置房间名称"))
+	b.add(dimStyle.Render("普通账号建议使用内置名；自定义名称可能被网易拒绝（需要 VIP）。"))
+	b.add(dimStyle.Render("点击名称即可使用；↑↓ 选择，Enter 确认。"))
 	for index, name := range profileRoomNames {
 		marker := "  "
 		if index == m.roomNameCursor {
 			marker = "▌ "
 		}
-		line := marker + name
+		lineText := marker + name
 		if name == m.profileDraft.RoomName {
-			line += "  ●"
+			lineText += "  ●"
 		}
+		line := len(b.lines)
+		lineText = padRightPlain(truncate(lineText, width), width)
 		style := textStyle
-		if index == m.roomNameCursor {
+		switch {
+		case index == m.roomNameCursor:
 			style = selectedRowStyle
+		case b.hovered(line, 0, width):
+			style = rowHoverStyle
 		}
-		lines = append(lines, style.Render(truncate(padRightPlain(line, width), width)))
+		b.add(style.Render(lineText))
+		b.hit(line, 0, width, hitRoomNamePick, index)
 	}
-	return lines
+	b.blank()
+	b.customButtonFlow("", customButton{label: "取消", kind: hitModalCancel})
 }

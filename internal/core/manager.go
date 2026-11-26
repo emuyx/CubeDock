@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -79,8 +80,15 @@ type Status struct {
 	Rooms           []RoomStatus    `json:"rooms"`
 	Accounts        []AccountStatus `json:"accounts"`
 	Config          config.Config   `json:"config"`
-	Events          []Event         `json:"events"`
+	// ConfigRevision changes after every successful configuration write. Front
+	// ends send it back when saving so two UIs cannot silently overwrite each
+	// other's edits.
+	ConfigRevision uint64  `json:"config_revision"`
+	Events         []Event `json:"events"`
 }
+
+// ErrConfigChanged is returned by the revision-checked configuration writers.
+var ErrConfigChanged = errors.New("配置已在其他界面修改，请重新加载后再保存")
 
 // Manager coordinates every room owned by this process.
 type Manager struct {
@@ -89,6 +97,7 @@ type Manager struct {
 
 	mu             sync.Mutex
 	cfg            config.Config
+	configRevision uint64
 	tokens         []string
 	accounts       []accountRecord
 	status         Status
@@ -191,6 +200,7 @@ func (m *Manager) Snapshot() Status {
 	m.syncRoomsLocked()
 	s := m.status
 	s.Config = m.cfg.Clone()
+	s.ConfigRevision = m.configRevision
 	s.TokenSet = len(m.tokens) > 0
 	s.TokenCount = len(m.tokens)
 	s.Events = append([]Event{}, s.Events...)
@@ -359,12 +369,26 @@ func (m *Manager) persist() {
 
 // Configure saves settings. The web port is intentionally fixed until restart.
 func (m *Manager) Configure(next config.Config) error {
+	return m.configure(next, nil)
+}
+
+// ConfigureIfRevision writes the configuration only if the caller last saw the
+// same revision. It prevents a TUI edit and a WebUI edit from overwriting each
+// other based on stale snapshots.
+func (m *Manager) ConfigureIfRevision(next config.Config, revision uint64) error {
+	return m.configure(next, &revision)
+}
+
+func (m *Manager) configure(next config.Config, expected *uint64) error {
 	next.Normalize()
 	if err := next.Validate(); err != nil {
 		return err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if expected != nil && *expected != m.configRevision {
+		return ErrConfigChanged
+	}
 	if m.anyRunningLocked() {
 		return fmt.Errorf("请先停止所有房间，再修改配置")
 	}
@@ -378,6 +402,7 @@ func (m *Manager) Configure(next config.Config) error {
 		return err
 	}
 	m.cfg = next.Clone()
+	m.configRevision++
 	m.preparedPacks = make(map[string]bool)
 	m.syncRoomsLocked()
 	return nil
@@ -386,6 +411,15 @@ func (m *Manager) Configure(next config.Config) error {
 // ConfigureForRestore applies a restored config and reassigns accounts whose
 // profile no longer exists to the restored default profile.
 func (m *Manager) ConfigureForRestore(next config.Config) ([]string, error) {
+	return m.configureForRestore(next, nil)
+}
+
+// ConfigureForRestoreIfRevision is the revision-checked restore path.
+func (m *Manager) ConfigureForRestoreIfRevision(next config.Config, revision uint64) ([]string, error) {
+	return m.configureForRestore(next, &revision)
+}
+
+func (m *Manager) configureForRestore(next config.Config, expected *uint64) ([]string, error) {
 	var warnings []string
 	next.Normalize()
 	if err := next.Validate(); err != nil {
@@ -393,6 +427,9 @@ func (m *Manager) ConfigureForRestore(next config.Config) ([]string, error) {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if expected != nil && *expected != m.configRevision {
+		return nil, ErrConfigChanged
+	}
 	if m.anyRunningLocked() {
 		return nil, fmt.Errorf("请先停止所有房间，再恢复配置")
 	}
@@ -422,6 +459,7 @@ func (m *Manager) ConfigureForRestore(next config.Config) ([]string, error) {
 	}
 	m.cfg = next.Clone()
 	m.accounts = nextAccounts
+	m.configRevision++
 	m.preparedPacks = make(map[string]bool)
 	m.syncRoomsLocked()
 	return warnings, nil

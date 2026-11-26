@@ -30,14 +30,29 @@ export const getDiagnostics = profileId =>
   api(`diagnostics${profileId ? `?profile_id=${encodeURIComponent(profileId)}` : ''}`, undefined, 'GET');
 export const getBackup = includePassword =>
   api(`backup?include_password=${includePassword ? 'true' : 'false'}`, undefined, 'GET');
-export const restoreConfig = config => api('restore', { config });
+export const restoreConfig = (config, revision) =>
+  api('restore', revision === undefined ? { config } : { config, revision });
 
-export const startRoom = index => api('room/start', { index });
-export const stopRoom = index => api('room/stop', { index });
-export const restartRoom = index => api('room/restart', { index });
-export const assignProfile = (index, profileId) =>
-  api('account/assign-profile', { index, profile_id: profileId });
-export const refreshProfile = index => api('account/profile', { index });
+// Account actions carry the UID/email the card was rendered with, so the
+// server can reject an action if the other UI removed or reordered accounts
+// after this snapshot was taken.
+const accountIdentity = account => ({
+  uid: account?.uid || '',
+  email: account?.email || '',
+});
+
+export const startRoom = (index, account) =>
+  api('room/start', { index, ...accountIdentity(account) });
+export const stopRoom = (index, account) =>
+  api('room/stop', { index, ...accountIdentity(account) });
+export const restartRoom = (index, account) =>
+  api('room/restart', { index, ...accountIdentity(account) });
+export const assignProfile = (index, profileId, account) =>
+  api('account/assign-profile', { index, profile_id: profileId, ...accountIdentity(account) });
+export const refreshProfile = (index, account) =>
+  api('account/profile', { index, ...accountIdentity(account) });
+export const removeAccount = (index, account) =>
+  api('account/remove', { index, ...accountIdentity(account) });
 export const getSavedPassword = index => api(`account/password?index=${encodeURIComponent(index)}`, undefined, 'GET');
 export const saveAccountPassword = (index, password) => api('account/password', { index, password });
 

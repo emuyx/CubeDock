@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -142,7 +143,8 @@ func (h *consoleHandler) backup(w http.ResponseWriter, r *http.Request) {
 
 func (h *consoleHandler) restore(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Config json.RawMessage `json:"config"`
+		Config   json.RawMessage `json:"config"`
+		Revision *uint64         `json:"revision"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256*1024))
 	decoder.DisallowUnknownFields()
@@ -174,12 +176,21 @@ func (h *consoleHandler) restore(w http.ResponseWriter, r *http.Request) {
 			snapshot.Config.WebPort))
 		next.WebPort = snapshot.Config.WebPort
 	}
-	restoreWarnings, err := h.manager.ConfigureForRestore(next)
+	var restoreWarnings []string
+	if body.Revision != nil {
+		restoreWarnings, err = h.manager.ConfigureForRestoreIfRevision(next, *body.Revision)
+	} else {
+		restoreWarnings, err = h.manager.ConfigureForRestore(next)
+	}
+	if errors.Is(err, core.ErrConfigChanged) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	warnings = append(warnings, restoreWarnings...)
 	h.manager.Record("设置", "已从备份恢复配置")
-	respond(w, map[string]any{"ok": true, "warnings": warnings})
+	respond(w, map[string]any{"ok": true, "warnings": warnings, "config_revision": h.manager.Snapshot().ConfigRevision})
 }

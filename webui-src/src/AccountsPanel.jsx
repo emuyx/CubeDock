@@ -38,7 +38,7 @@ import {
   Search,
   UploadFile,
 } from '@mui/icons-material';
-import { api, assignProfile } from './api.js';
+import { api, assignProfile, removeAccount } from './api.js';
 import { copyText } from './util.js';
 import { useConfirm, useToast } from './App.jsx';
 import AccountAvatar from './AccountAvatar.jsx';
@@ -150,10 +150,10 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
       return left.index - right.index;
     });
 
-  const assign = async (index, profileId) => {
+  const assign = async (account, profileId) => {
     setBusy(true);
     try {
-      await assignProfile(index, profileId);
+      await assignProfile(account.index, profileId, account);
       notify('配置方案已切换', 'success');
       onChanged?.();
     } catch (failure) {
@@ -163,21 +163,21 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
     }
   };
 
-  const remove = async index => {
+  const remove = async account => {
     if (running) {
       notify('请先停止房间，再移除账号', 'warning');
       return;
     }
     const confirmed = await confirm({
       title: '移除网易账号',
-      message: `移除房间 ${index + 1} 的网易账号？该房间保存的登录凭证也会删除。`,
+      message: `移除房间 ${account.index + 1} 的网易账号？该房间保存的登录凭证也会删除。`,
       confirmLabel: '移除账号',
       severity: 'error',
     });
     if (!confirmed) return;
     setBusy(true);
     try {
-      await api('account/remove', { index });
+      await removeAccount(account.index, account);
       notify('账号已移除', 'success');
       onChanged?.();
     } catch (failure) {
@@ -351,7 +351,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                     fullWidth
                     label="配置方案"
                     value={profileIDOf(account)}
-                    onChange={event => assign(account.index, event.target.value)}
+                    onChange={event => assign(account, event.target.value)}
                     disabled={running || busy}
                     sx={{ mt: 1 }}
                   >
@@ -426,7 +426,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                       select
                       size="small"
                       value={profileIDOf(account)}
-                      onChange={event => assign(account.index, event.target.value)}
+                      onChange={event => assign(account, event.target.value)}
                       disabled={running || busy}
                       sx={{ minWidth: 130 }}
                     >
@@ -587,7 +587,7 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
                     </Tooltip>
                     <Tooltip title={running ? '请先停止房间' : '移除账号'}>
                       <span>
-                        <IconButton size="small" color="error" aria-label="移除账号" disabled={running || busy} onClick={() => remove(account.index)}>
+                        <IconButton size="small" color="error" aria-label="移除账号" disabled={running || busy} onClick={() => remove(account)}>
                           <DeleteOutlined fontSize="small" />
                         </IconButton>
                       </span>
@@ -642,8 +642,9 @@ export default function AccountsPanel({ status, onChanged, onOpenDashboard, acti
           sx={{ color: 'error.main' }}
           onClick={() => {
             const index = menu.index;
+            const target = accounts[index];
             setMenu(null);
-            remove(index);
+            if (target) remove(target);
           }}
         >
           移除账号
